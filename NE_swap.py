@@ -28,9 +28,6 @@ Iz = 0.5*gate.ZI; Iy = 0.5*gate.YI; Ix = 0.5*gate.XI
 
 from gates import spin_up, spin_down
 
-A = get_A(1,1)*Mhz
-
-Bz = 2*tesla
 
 
 def pi_rot_pulse(w_res, gamma, tN, N):
@@ -39,13 +36,13 @@ def pi_rot_pulse(w_res, gamma, tN, N):
     return Bx,By
 
 
-def NE_CX_pulse(tN,N):
+def NE_CX_pulse(tN,N,A,Bz):
     w_res = 2*A + gamma_e * Bz
     return pi_rot_pulse(w_res, gamma_e, tN, N)
 
 
-def EN_CX_pulse(tN,N):
-    w_res = 2*A-gamma_P*Bz 
+def EN_CX_pulse(tN,N,A,Bz):
+    w_res = -(2*A+gamma_P*Bz)
     return pi_rot_pulse(w_res, gamma_P, tN, N)
 
 
@@ -55,8 +52,8 @@ def NE_CX(A, Bz, tN, N, psi0=spin_up):
     '''
     CNOT gate with electron spin as target, nuclear spin as control.
     '''
-    Bx,By = NE_CX_pulse(tN,N)
-    H0 = (A+gamma_e*Bz/2)*gate.Z 
+    Bx,By = NE_CX_pulse(tN,N,A,Bz)
+    H0 = (-A+gamma_e*Bz/2)*gate.Z 
     Hw = get_pulse_hamiltonian(Bx,By,gamma_e)
     T = pt.linspace(0,tN,N)
     H = sum_H0_Hw(H0,Hw)
@@ -67,8 +64,8 @@ def NE_CX(A, Bz, tN, N, psi0=spin_up):
 
 
 def EN_CX(A, Bz, tN, N, psi0=spin_up):
-    Bx,By = EN_CX_pulse(tN,N)
-    H0 = (A-gamma_P*Bz/2)*gate.Z 
+    Bx,By = EN_CX_pulse(tN,N,A,Bz)
+    H0 = (-A-gamma_P*Bz/2)*gate.Z 
     Hw = get_pulse_hamiltonian(Bx, By, gamma_P)
     T = pt.linspace(0,tN,N)
     H = sum_H0_Hw(H0,Hw)
@@ -83,15 +80,15 @@ def EN_CX(A, Bz, tN, N, psi0=spin_up):
 
 
 
-def NE_swap_pulse(tN,N):
+def NE_swap_pulse(tN,N,A,Bz):
     
     N_NE = N//10
     N_EN = N-2*N_NE
     tN_NE = N_NE/N * tN 
     tN_EN = N_EN/N * tN
 
-    Bx_NE,By_NE = NE_CX_pulse(tN_NE, N_NE)
-    Bx_EN,By_EN = EN_CX_pulse(tN_EN, N_EN)
+    Bx_NE,By_NE = NE_CX_pulse(tN_NE, N_NE, A, Bz)
+    Bx_EN,By_EN = EN_CX_pulse(tN_EN, N_EN, A, Bz)
 
     Bx = pt.cat((Bx_NE,Bx_EN,Bx_NE))
     By = pt.cat((By_NE,By_EN,By_NE))
@@ -112,9 +109,9 @@ def NE_swap(A,Bz,tN,N,psi0=pt.kron(spin_down,spin_up)):
 
     H0 = NE_H0(A,Bz)
 
-    #Bx,By = NE_swap_pulse(tN,N)
-    Bx,By = EN_CX_pulse(tN,N)
-    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) + get_pulse_hamiltonian(Bx, By, -gamma_P, 2*Ix, 2*Iy)
+    #Bx,By = NE_swap_pulse(tN,N,A,Bz)
+    Bx,By = EN_CX_pulse(tN,N,A,Bz)
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) - get_pulse_hamiltonian(Bx, By, gamma_P, 2*Ix, 2*Iy)
     #Hw = get_pulse_hamiltonian(Bx, By, -gamma_P, 2*Ix, 2*Iy)
 
     H = sum_H0_Hw(H0,Hw)
@@ -123,6 +120,9 @@ def NE_swap(A,Bz,tN,N,psi0=pt.kron(spin_down,spin_up)):
     psi = pt.matmul(X,psi0)
 
     plot_psi_and_fields(psi,Bx,By,tN)
+
+
+
 
 def get_subops(H,dt):
     ''' Gets suboperators for time-independent Hamiltonian H '''
@@ -225,16 +225,8 @@ def optimise_NE_swap_Bz():
 
 
 
+#NE_CX(get_A(1,1)*Mhz, 2*tesla, 1000*nanosecond, 100000, psi0=spin_down); plt.show()
+#EN_CX(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 10000, psi0=spin_down); plt.show()
 
-
-
-optimise_NE_swap_Bz()
-plt.show()
-
-
-
-#NE_CX(get_A(1,1)*Mhz, 2*tesla, 1000*nanosecond, 1000000); plt.show()
-#EN_CX(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 10000); plt.show()
-
-#NE_swap(get_A(1,1)*Mhz, 2*tesla, 10000*nanosecond, 200000); plt.show()
+NE_swap(get_A(1,1)*Mhz, 2*tesla, 9999*nanosecond, 10000, psi0=pt.kron(spin_down,spin_down)); plt.show()
 

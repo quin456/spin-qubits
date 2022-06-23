@@ -25,8 +25,8 @@ def square_pulse(B, omega, tN, N, phase=0):
 
     T = pt.linspace(0,tN,N)
 
-    Bx = B*pt.cos((omega-phase)*T)
-    By = B*pt.sin((omega-phase)*T)
+    Bx = B*pt.cos((omega)*T-phase)
+    By = B*pt.sin((omega)*T-phase)
 
     return Bx,By
     
