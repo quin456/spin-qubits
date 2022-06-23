@@ -92,14 +92,14 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
 
 if __name__ == '__main__':
 
-    nS=1; nq=2
-    print(get_A(nS,nq))
-    A = pt.tensor([[29,-29/2]], dtype=cplx_dtype)
-    J = pt.tensor([5], dtype=cplx_dtype)
-    rf = grape.get_RFs(A,J)
+    nS=5; nq=2
+    A = get_A(1,2)
+    J=get_J(1,2)
+    rf = grape.get_RFs(A,J)*Mhz
+
 
     print("running...")
-    run_CNOTs(100.0, 200, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False)
+    run_CNOTs(100.0, 500, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False)
 
 
     #grape.process_u_file('c320_1S_3q_190ns_300step')

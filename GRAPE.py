@@ -10,6 +10,8 @@ warnings.filterwarnings("ignore")
 import torch as pt
 import numpy as np
 import math
+import matplotlib
+matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import itertools    
 from scipy import linalg as la
@@ -46,7 +48,6 @@ interaction_picture= False # Should be set to False unless testing
 
 
 ngpus = pt.cuda.device_count()
-default_device = 'cuda:0' if ngpus>0 else 'cpu'
 
 np.set_printoptions(4)
 pt.set_printoptions(sci_mode=True)
@@ -460,7 +461,7 @@ class SystemData(object):
 
 
     def atomic_units(self,J,A,tN):
-        return J*Mhz*h_planck, A*Mhz, tN*nanosecond
+        return J*Mhz, A*Mhz, tN*nanosecond
 
 
 
@@ -814,7 +815,7 @@ def remove_duplicates(A):
     return A
 
 
-def getFreqs(H0,Hw_shape,device=default_device):
+def getFreqs_broke(H0,Hw_shape,device=default_device):
     '''
     Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
     Useful for >2qubit systems where analytically determining frequencies becomes difficult. Probably won't 
@@ -854,6 +855,44 @@ def getFreqs(H0,Hw_shape,device=default_device):
     #     #     freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
     return freqs
+
+
+def getFreqs(H0,Hw_shape,device=default_device):
+    '''
+    Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
+    Useful for >2qubit systems where analytically determining frequencies becomes difficult. Probably won't 
+    end up being used as 3 qubit CNOTs will be performed as sequences of 2 qubit CNOTs.
+    '''
+    eig = pt.linalg.eig(H0)
+    evals=eig.eigenvalues
+    S = eig.eigenvectors
+    S=S.to(device)
+    #S = pt.transpose(pt.stack((S[:,2],S[:,1],S[:,0],S[:,3])),0,1)
+    #evals = pt.stack((evals[2],evals[1],evals[0],evals[3]))
+    S_T = pt.transpose(S,0,1)
+    d = len(evals)
+    pairs = list(itertools.combinations(pt.linspace(0,d-1,d,dtype=int),2))
+
+    # transform shape of control Hamiltonian to basis of energy eigenstates
+
+    Hw_trans = matmul3(S_T,Hw_shape,S)
+    Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
+    freqs = []
+    for i in range(len(pairs)):
+        # The difference between energy levels i,j will be a resonant frequency if the control field Hamiltonian
+        # has a non-zero (i,j) element.
+        pair = pairs[i]
+        idx1=pair[0].item()
+        idx2 = pair[1].item()
+        #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
+        if Hw_nz[idx1,idx2]:
+            freqs.append((pt.real(evals[pair[1]]-evals[pair[0]])).item())
+        #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
+        if Hw_nz[idx2,idx1]:
+            freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
+    freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
+    return freqs
+
 
 def get_RFs(A,J, device=default_device):
     nS,nq= get_dimensions(A)
