@@ -9,6 +9,9 @@ os.chdir(dir)
 from GRAPE import *
 import gates as gate
 from atomic_units import *
+from data import get_A, get_J
+from visualisation import plot_spin_states
+from pulse_maker import square_pulse
 
 
 import torch as pt 
@@ -58,8 +61,6 @@ def plot_nuclear_electron_wf(psi,tN, ax=None):
     ax.legend()
 
 
-def plot_nuclear_electron_spectrum(H0):
-    get_ordered_eigensystem()
 
 def get_nuclear_spins(A):
     nq=len(A)
@@ -147,6 +148,9 @@ def nuclear_electron_sim(Bx,By,tN,nq,A,J, psi0=None):
 
 
 def run_NE_sim(tN,N,nq,A,J, psi0=None):
+
+    
+
     nuclear_electron_sim(Bx,By,tN,N,nq,A,J,psi0)
 
 
@@ -156,7 +160,7 @@ if __name__ == '__main__':
     nq=2
     A=get_A(1,2)[0]
     J=get_J(1,2)[0]
-    run_NE_sim(2.0,50000,2, get_A(1,2)[0], get_J(1,2)[0])
+    run_NE_sim(2.0,5000,2, get_A(1,2)[0], get_J(1,2)[0])
 
 
     plt.show()

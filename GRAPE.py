@@ -189,10 +189,8 @@ def time_evol(u,H0,x_cf,y_cf,tN, device=default_device):
     sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
     dt = tN/N
     u_mat = uToMatrix(u,m)
-    try:
-        x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
-        y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
-    except: set_trace()
+    x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
+    y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
     H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
     H=pt.reshape(H, (nS*N,d,d))
     U = pt.matrix_exp(-1j*H*dt)
@@ -508,7 +506,7 @@ class FieldOptimiser(object):
             raise TimeoutError
 
     def run(self):
-        callback =self.check_time if self.max_time is not None else None
+        callback = self.check_time if self.max_time is not None else None
         try:
             opt=minimize(self.fun,self.u0,method='CG',jac=True, callback=callback)
             print(f"nit = {opt.nfev}, nfev = {opt.nit}")
@@ -542,6 +540,7 @@ def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, sho
 
     global mergeprop_g; mergeprop_g=mergeprop 
     SD, field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
+    
     field_opt.run()
     optimisation_result(field_opt,SD,show_plot=show_plot,minprint=minprint)
 

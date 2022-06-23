@@ -99,7 +99,7 @@ if __name__ == '__main__':
     rf = grape.get_RFs(A,J)
 
     print("running...")
-    run_CNOTs(500.0, 200, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False)
+    run_CNOTs(100.0, 200, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False)
 
 
     #grape.process_u_file('c320_1S_3q_190ns_300step')
