@@ -12,11 +12,9 @@ from matplotlib import pyplot as plt
 import torch as pt
 
 
-from GRAPE import get_A 
 import gates as gate 
 from gates import cplx_dtype
 from atomic_units import *
-from excitation import plot_spin_states, forward_prop
 
 from pdb import set_trace
 

@@ -84,25 +84,6 @@ def RSW_targets(n, device=default_device):
     return pt.einsum('i,ab->iab',pt.ones(n, device=device),gate.root_swap.to(device))
 
 
-def normalise(v):
-    ''' Normalises 1D tensor '''
-    return v/pt.norm(v)
-
-def innerProd(A,B):
-    '''  Calculates the inner product <A|B>=Phi(A,B) of two matrices A,B.  '''
-    return pt.trace(pt.matmul(dagger(A),B)).item()/len(A)
-
-def dagger(A):
-    '''  Returns the conjugate transpose of a matrix or batch of matrices.  '''
-    return pt.conj(pt.transpose(A,-2,-1))
-
-def commutator(A,B):
-    '''  Returns the commutator [A,B]=AB-BA of matrices A and B.  '''
-    return pt.matmul(A,B)-pt.matmul(B,A)
-
-def matmul3(A,B,C):
-    '''  Returns multiple of three matrices A,B,C.  '''
-    return pt.matmul(A,pt.matmul(B,C))
 
 
 def grad(f,x0,dx):

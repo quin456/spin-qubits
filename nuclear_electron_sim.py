@@ -118,8 +118,8 @@ def nuclear_electron_sim(Bx,By,tN,nq,A,J, psi0=None):
 
     X_nuc = gate.get_nuclear_ox(nq)
     X_elec = gate.get_electron_ox(nq)
-    X_nuc = gate.get_nuclear_ox(nq)
-    X_elec = gate.get_electron_ox(nq)
+    Y_nuc = gate.get_nuclear_oy(nq)
+    Y_elec = gate.get_electron_oy(nq)
 
     if psi0==None:
         H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_P*Bz*ozn + A_mag*o_n1e1 + A_mag*o_n2e2 + J*o_e1e2 

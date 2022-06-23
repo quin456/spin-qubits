@@ -18,6 +18,8 @@ def kron4(A,B,C,D):
 def kron6(A,B,C,D,E,F):
     return pt.kron(kron3(A,B,C),kron3(D,E,F))
     
+spin_up = pt.tensor([1,0],dtype=cplx_dtype)
+spin_down = pt.tensor([0,1], dtype=cplx_dtype)
 
 X = pt.tensor([
     [0,1],
@@ -95,13 +97,13 @@ root_swap = pt.tensor([
     [0,(1-1j)/2,(1+1j)/2,0],
     [0,0,0,1]],dtype = cplx_dtype, device=default_device)
 
-II = pt.kron(Id,Id)
-XI = pt.kron(X,Id)
-IX = pt.kron(Id,X)
-YI = pt.kron(Y,Id)
-IY = pt.kron(Id,Y)
-ZI = pt.kron(Z,Id)
-IZ = pt.kron(Id,Z)
+II = kron(Id,Id)
+XI = kron(X,Id)
+IX = kron(Id,X)
+YI = kron(Y,Id)
+IY = kron(Id,Y)
+ZI = kron(Z,Id)
+IZ = kron(Id,Z)
 XII = kron3(X,Id,Id)
 IXI = kron3(Id,X,Id)
 IIX = kron3(Id,Id,X)
