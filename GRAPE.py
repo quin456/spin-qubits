@@ -541,7 +541,6 @@ def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, sho
     '''
 
     global mergeprop_g; mergeprop_g=mergeprop 
-
     SD, field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
     field_opt.run()
     optimisation_result(field_opt,SD,show_plot=show_plot,minprint=minprint)

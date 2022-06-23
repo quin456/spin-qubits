@@ -1,31 +1,16 @@
 
 
 import torch as pt
-
-if not pt.cuda.is_available():
-    # Set directory for vscode. Not necessary on gadi/pawsey and upsets pawsey for some reason.
-    from pathlib import Path
-    import os
-    dir = os.path.dirname(__file__)
-    os.chdir(dir)
-
-
-import GRAPE as grape
-from GRAPE import cplx_dtype, default_device, J_100_18nm, J_100_14nm, get_J
 import numpy as np
 from pdb import set_trace
 import matplotlib.pyplot as plt
 import pickle
 
+import GRAPE as grape
 import gates as gate 
 from atomic_units import *
+from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_P
 
-
-Mhz=1e6*grape.hz
-
-#gyromagnetic ratios (MHz/T)
-gamma_p = 17.2 
-gamma_e = 28025
 
 
 def get_rec_min_N(A,J,tN, printFreqs=False, printPeriods=False):
@@ -43,7 +28,7 @@ def get_rec_min_N(A,J,tN, printFreqs=False, printPeriods=False):
     return rec_min_N
 
 def count_RFs(nS,nq):
-    return len(grape.get_RFs(grape.get_A(nS,nq), grape.get_J(nS,nq)))
+    return len(grape.get_RFs(get_A(nS,nq), get_J(nS,nq)))
 
 def recommended_steps(nS,nq,tN):
     A=grape.get_A(nS,nq)
@@ -51,7 +36,7 @@ def recommended_steps(nS,nq,tN):
     return get_rec_min_N(A,J,tN)
 
 def memory_requirement(nS,nq,N):
-    rf = grape.get_RFs(grape.get_A(nS,nq), grape.get_J(nS,nq))
+    rf = grape.get_RFs(get_A(nS,nq), get_J(nS,nq))
     m = 2*len(rf)
     bytes_per_cplx = 16
 
@@ -67,7 +52,7 @@ def memory_requirement(nS,nq,N):
 def sim2q_3q():
 
     J1 = get_J(2,2)
-    A = grape.get_A(2,2)
+    A = get_A(2,2)
     A[1]*=-1
     print(A)
 
@@ -91,7 +76,7 @@ def sim2q_3q():
 
 def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, init_u_fn=None, kappa=1, minprint=False, mergeprop=False):
 
-    if A is None: A = grape.get_A(nS,nq)
+    if A is None: A = get_A(nS,nq)
     if J is None: J = get_J(nS,nq)
     target = grape.CNOT_targets(nS,nq)
     if not minprint: get_rec_min_N(A,J,tN)
@@ -108,14 +93,16 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
 if __name__ == '__main__':
 
     nS=1; nq=2
-    print(grape.get_A(nS,nq))
+    print(get_A(nS,nq))
     A = pt.tensor([[29,-29/2]], dtype=cplx_dtype)
     J = pt.tensor([5], dtype=cplx_dtype)
     rf = grape.get_RFs(A,J)
-    #run_CNOTs(500.0, 200, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False,A=A,J=J)
+
+    print("running...")
+    run_CNOTs(500.0, 200, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False)
 
 
-    grape.process_u_file('c320_1S_3q_190ns_300step')
+    #grape.process_u_file('c320_1S_3q_190ns_300step')
 
 
 
