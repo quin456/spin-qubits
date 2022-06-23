@@ -18,22 +18,29 @@ from numpy import random as rand
 from numpy import sin, cos, sqrt
 from datetime import datetime
 import ast
+from torch import multiprocessing as mp 
+import pickle
+from queue import Queue 
+from threading import Thread
 
 
 # Other python files in project
 from atomic_units import *
 import gates as gate
-from utils import *
-from data import *
+from gates import cplx_dtype, real_dtype, kron3 
 
 time_exp = 0
 time_prop = 0
 time_grad=0
 time_fid=0
 
-mergeprop_g=False
 
 
+
+exch_filename = "exchange_data_updated.p"
+exch_data = pickle.load(open(exch_filename,"rb"))
+J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype)
+J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype)
 
 
 jac=True # keep as True unless testing cost grad function
@@ -59,11 +66,51 @@ precision_loss_msg = "Desired error not necessarily achieved due to precision lo
 
 
 
+B0 = 0 #2*tesla      # static background field
+g = 2.0023               # electron g-factor
+
+
+mu = qE*hbar/(2*mE)          # Bohr magneton
+omega0 = g*mu*B0/hbar   # Larmor frequency
+
+
+# exchange values 
+J_10nm = 0.1e-3*qE_n*joule # ~10e-23
+J_Omin = 15e6 * hz * hbar
+J_Omax = 50e6 * hz * hbar
+A_BP = 5e6 * hz
+A_approx = 1e9 * hz
+A_real1 = pt.tensor([183.5e6, 66.5e6]) * hz 
+delta_A_kane = 58.5
+#A_kane = pt.tensor([58.5, 0], device=device)   ##stoopystoopystoopy
+A_kane = pt.tensor([58.5/2, -58.5/2])
+A_kane3 = pt.tensor([58.5/2, -58.5/2, 58.5/2])
+
 
 ################################################################################################################
 ################        HELPER FUNCTIONS        ################################################################
 ################################################################################################################
 
+def get_A(nS,nq, device=default_device):
+    if nq==2:
+        return pt.tensor(nS*[[58.5/2, -58.5/2]], device=device, dtype = cplx_dtype)
+    elif nq==3:
+        return pt.tensor(nS*[[58.5/2, 58.5/2, -58.5/2]], device=device, dtype=cplx_dtype)
+
+
+def all_J_pairs(J1, J2, device=default_device):
+    nJ=15
+    J = pt.zeros(nJ**2,2, device=device,dtype=cplx_dtype)
+    for i in range(nJ):
+        for j in range(nJ):
+            J[i*15+j,0] = J1[i]; J[i*15+j,1] = J2[j]
+    return J
+
+def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm, device=default_device):
+    if nq==2:
+        return J1[:nS].to(device)
+    elif nq==3:
+        return all_J_pairs(J1,J2)[:nS]
 
 def CNOT_targets(nS,nq,device=default_device):
     if nq==2:
@@ -71,11 +118,8 @@ def CNOT_targets(nS,nq,device=default_device):
     elif nq==3:
         return pt.einsum('i,ab->iab',pt.ones(nS, device=device),gate.CX3q.to(device))
 
-def ID_targets(nS, nq, device=default_device):
-    if nq==2:
-        return pt.einsum('i,ab->iab',pt.ones(nS, device=device),gate.Id2.to(device))
-    elif nq==3:
-        return pt.einsum('i,ab->iab',pt.ones(nS, device=device),gate.Id3.to(device))
+def CNOT3_targets(n, device=default_device):
+    return pt.einsum('i,ab->iab',pt.ones(n, device=device),gate.CX3q)
 
 def SWAP_targets(n, device=default_device):
     return pt.einsum('i,ab->iab',pt.ones(n, device=device),gate.swap.to(device))
@@ -84,6 +128,25 @@ def RSW_targets(n, device=default_device):
     return pt.einsum('i,ab->iab',pt.ones(n, device=device),gate.root_swap.to(device))
 
 
+def normalise(v):
+    ''' Normalises 1D tensor '''
+    return v/pt.norm(v)
+
+def innerProd(A,B):
+    '''  Calculates the inner product <A|B>=Phi(A,B) of two matrices A,B.  '''
+    return pt.trace(pt.matmul(dagger(A),B)).item()/len(A)
+
+def dagger(A):
+    '''  Returns the conjugate transpose of a matrix or batch of matrices.  '''
+    return pt.conj(pt.transpose(A,-2,-1))
+
+def commutator(A,B):
+    '''  Returns the commutator [A,B]=AB-BA of matrices A and B.  '''
+    return pt.matmul(A,B)-pt.matmul(B,A)
+
+def matmul3(A,B,C):
+    '''  Returns multiple of three matrices A,B,C.  '''
+    return pt.matmul(A,pt.matmul(B,C))
 
 
 def grad(f,x0,dx):
@@ -130,6 +193,9 @@ def uCol(u,j,m):
     '''  Accepts vector form 'u' as input, and returns what would be column 'j' if 'u' were in matrix form  '''
     return u[j*m:(j+1)*m]
 
+def get_nq(d):
+    ''' Takes the dimension of the Hilbert space as input, and returns the number of qubits. '''
+    return int(np.log2(d))
 
 ################        BATCH OPERATIONS        ################################################################
 def makeBatch(H,T):
@@ -178,6 +244,39 @@ def mergeMatmul(A, backwards=False):
 
 
 
+################################################################################################################
+################        CLASSES        #########################################################################
+################################################################################################################
+
+class Optimisation_Timer(object):
+
+    def __init__(self,max_time, filename, cost_hist, save_data, sp_distance = 99999*3600):
+        self.max_time=max_time
+        self.start_time = time.time()
+        self.sp_count = 0
+        self.sp_distance = sp_distance
+        self.filename="fields/"+filename
+        self.cost_hist=cost_hist
+        self.save_data = save_data
+
+    def check_time(self, xk):
+        time_passed = time.time() - self.start_time
+        if time_passed > (self.sp_count+1)*self.sp_distance:
+            self.sp_count+=1
+            print(f"Save point {self.sp_count} reached, time passed = {time_passed}.")
+            if self.save_data:
+                pt.save(pt.tensor(xk, dtype=real_dtype), self.filename+'_SP'+str(self.sp_count))
+                pt.save(np.array(self.cost_hist), self.filename+'_cost_hist')
+        if time_passed > self.max_time:
+            global u_opt_timeout
+            u_opt_timeout = xk
+            print(f"Max time of {self.max_time} has been reached. Optimisation terminated.")
+            raise TimeoutError
+
+
+
+
+
 
 ################################################################################################################
 ################        GRAPE IMPLEMENTATION        ############################################################
@@ -189,10 +288,9 @@ def time_evol(u,H0,x_cf,y_cf,tN, device=default_device):
     sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
     dt = tN/N
     u_mat = uToMatrix(u,m)
-    try:
-        x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
-        y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
-    except: set_trace()
+    x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
+    y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
+
     H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
     H=pt.reshape(H, (nS*N,d,d))
     U = pt.matrix_exp(-1j*H*dt)
@@ -202,7 +300,7 @@ def time_evol(u,H0,x_cf,y_cf,tN, device=default_device):
 
 
 
-def propagate(U,target=None,device=default_device):
+def propagate(U,target,device=default_device):
     '''
     Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
     Backward propagates target evolution operators and stores in X.
@@ -210,8 +308,6 @@ def propagate(U,target=None,device=default_device):
     nS=len(U)
     N=len(U[0])
     dim = U[0].shape[1]  # forward propagated time evolution operator
-    nq = get_nq(dim)
-    if target is None: target = CNOT_targets(nS,nq)
     X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
     X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
     P = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
@@ -314,9 +410,9 @@ def new_target(Uf):
 
 
 def fast_fid(u,H0,x_cf,y_cf,tN,target, device=default_device):
-    '''
-    Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
-    '''
+
+    global target_g
+    target=target_g
 
     m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
     sig_xn = gate.get_Xn(nq, device); sig_yn = gate.get_Yn(nq, device)
@@ -370,11 +466,15 @@ def fast_fid(u,H0,x_cf,y_cf,tN,target, device=default_device):
     global time_grad 
     time_grad += time.time()-t0
 
+    global it 
+    it +=1 
+    #if it>100 and it%10==0:
+    #    target_g = new_target(Uf)
 
     return Phi, dPhi
 
 
-def fast_cost(u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1, alpha=0):
+def fast_cost(u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1):
     '''
     Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
 
@@ -387,7 +487,7 @@ def fast_cost(u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1, alpha=0):
     '''
     
     u=pt.tensor(u, dtype=cplx_dtype, device=default_device)
-    m=len(x_cf)
+
     t0 = time.time()
     Phi,dPhi = fast_fid(u,H0,x_cf,y_cf,tN,target)
     global time_fid 
@@ -397,34 +497,26 @@ def fast_cost(u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1, alpha=0):
     J=J.item(); dJ = dJ.cpu().detach().numpy()
     hist.append(J)
 
-    # J_fluc,dJ_fluc = fluc_cost(u,m,alpha)
-    # J+=J_fluc; dJ+=dJ_fluc
+    # huge waste of space
+    #hist[1].append(dJ)
     
     return J, dJ * tN/nS / kappa
 
 
 
-def get_unit_CFs(omega,phase,tN,N,device=default_device):
-    T = pt.linspace(0,tN,N, device=device)
-    wt = pt.einsum('k,j->kj', omega,T)
-    x_cf = pt.cos(wt-phase)
-    y_cf = pt.sin(wt-phase)
-    return x_cf.type(cplx_dtype), y_cf.type(cplx_dtype)
+
 
 
 def get_control_fields(omega,phase,tN,N,device=default_device):
-    '''
-    Returns x_cf, y_cf, which relate to transverse control field, and have units of joules so that 'u' can be unitless.
-    '''
-    x_cf,y_cf = get_unit_CFs(omega,phase,tN,N,device=device)
-    x_cf*=0.5*g_e*mu_B*(1*tesla)
-    y_cf*=0.5*g_e*mu_B*(1*tesla)
-    return x_cf, y_cf
+    T = pt.linspace(0,tN,N, device=device)
+    wt = pt.einsum('k,j->kj', omega,T)
+    x_cf = 0.5*g*mu*(1*tesla)*pt.cos(wt-phase)
+    y_cf = 0.5*g*mu*(1*tesla)*pt.sin(wt-phase)
+    return x_cf.type(cplx_dtype), y_cf.type(cplx_dtype)
 
+def print_info(u_opt,time_taken,H0,nS,J,A,x_cf,y_cf,tN,target, minprint):
 
-def print_info(field_opt,SD, minprint):
-
-    fidelities = fast_fid(field_opt.u, SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
+    fidelities = fast_fid(u_opt,H0,x_cf,y_cf,tN,target)[0]
     avgfid=sum(fidelities)/len(fidelities)
     minfid = min(fidelities).item()
 
@@ -432,142 +524,87 @@ def print_info(field_opt,SD, minprint):
     if not minprint:
         print(f"Fidelities = {fidelities}")
         print(f"Min fidelity = {minfid}")
-        print(f"Time taken = {field_opt.time_taken}")
+        print(f"Time taken = {time_taken}")
         print(f"GPUs requested = {ngpus}")
         global time_grad, time_exp, time_prop, time_fid 
         print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
     
 
-
-class SystemData(object):
-
-    def __init__(self, J, A, tN, N, rf,target):
-        self.J_SI=J 
-        self.A_SI=A 
-        self.tN_SI=tN
-        J,A,tN = self.atomic_units(J,A,tN)
-        self.J=J
-        self.A=A
-        self.tN=tN
-        self.N=N
-        self.target=target
-        self.nS,self.nq=get_dimensions(A)
-        self.rf=get_RFs(A,J) if rf is None else rf
-        print(f"J,A={J},{A}")
-        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
-        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
-        self.H0 = get_H0(self.A,self.J)
-
-        print(f"rf={self.rf}")
+def unit_conversion(J,A,tN):
+    return J*Mhz, A*Mhz, tN*nanosecond
 
 
-    def atomic_units(self,J,A,tN):
-        return J*Mhz*h_planck, A*Mhz, tN*nanosecond
+def run_optimisation(fun,u0,opt_timer, max_time):
+    callback = opt_timer.check_time if max_time is not None else None
+    try:
+        opt=minimize(fun,u0,method='CG',jac=True, callback=callback)
+        print(f"nit = {opt.nfev}, nfev = {opt.nit}")
+        opt_timer.u_opt=pt.tensor(opt.x, device=default_device)
+        opt_timer.status='C' #complete
+    except TimeoutError:
+        global u_opt_timeout
+        opt_timer.u_opt = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
+        opt_timer.status='UC' #uncomplete
+    opt_timer.time_taken = time.time() - opt_timer.start_time
 
+    return opt_timer
 
-
-
-class FieldOptimiser(object):
-    '''
-    Optimisation object which passes fidelity function to scipy optimiser, and handles termination of 
-    optimisation once predefined time limit is reached.
-    '''
-    def __init__(self, SD, u0, hist0, max_time, save_data, sp_distance = 99999*3600, alpha=0):
-
-        # Log job start
-        self.ID,self.filename = preLog(SD,save_data)
-
-
-        if u0 is None: u0=init_u(SD)
-        cost_hist=hist0 if hist0 is not None else []    
-        fun = lambda u: fast_cost(u,SD.H0, SD.nS, SD.J, SD.A, SD.x_cf, SD.y_cf, SD.tN, SD.target, cost_hist, alpha=alpha)
-
-
-        self.fun=fun
-        self.u0=u0
-        self.max_time=max_time
-        self.start_time = time.time()
-        self.sp_count = 0
-        self.sp_distance = sp_distance
-        self.cost_hist=cost_hist
-        self.save_data = save_data
-        self.alpha=alpha
-
-    def check_time(self, xk):
-        time_passed = time.time() - self.start_time
-        if time_passed > (self.sp_count+1)*self.sp_distance:
-            self.sp_count+=1
-            print(f"Save point {self.sp_count} reached, time passed = {time_passed}.")
-            if self.save_data:
-                pt.save(pt.tensor(xk, dtype=real_dtype), self.filename+'_SP'+str(self.sp_count))
-                pt.save(np.array(self.cost_hist), self.filename+'_cost_hist')
-        if time_passed > self.max_time:
-            global u_opt_timeout
-            u_opt_timeout = xk
-            print(f"Max time of {self.max_time} has been reached. Optimisation terminated.")
-            raise TimeoutError
-
-    def run(self):
-        callback =self.check_time if self.max_time is not None else None
-        try:
-            opt=minimize(self.fun,self.u0,method='CG',jac=True, callback=callback)
-            print(f"nit = {opt.nfev}, nfev = {opt.nit}")
-            self.u=pt.tensor(opt.x, device=default_device)
-            self.status='C' #complete
-        except TimeoutError:
-            global u_opt_timeout
-            self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
-            self.status='UC' #uncomplete
-        self.time_taken = time.time() - self.start_time
-
-
-def get_X(u_opt,SD):
-    U = time_evol(u_opt,SD.H0,SD.x_cf,SD.y_cf,SD.tN)
-    X,P = propagate(U,SD.target)
+def get_X(u_opt,H0,x_cf,y_cf,tN,target):
+    U = time_evol(u_opt,H0,x_cf,y_cf,tN)
+    X,P = propagate(U,target)
     Uf = X[0][-1]
     return X
 
 
-def setup_optimisation(target, N, tN, J, A, u0=None, rf=None,hist0=[],max_time=None,save_data=True, alpha=0):
-
-    SD = SystemData(J,A,tN,N,rf,target)
-    field_opt = FieldOptimiser(SD,u0,hist0,max_time,save_data, alpha=alpha)
-
-    return SD, field_opt
-
-def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, show_plot=True, max_time=None, NI_qub=False, hist0=None, minprint=False, mergeprop=False,alpha=0):
+def optimise2(target, N, tN, J, A, u0=None, rf=None, save_data=False,show_plot=True, max_time=None, NI_qub=False, hist0=None, kappa=1, minprint=False, mergeprop=False):
     '''
     New optimiseFields which uses fast_cost
     '''
 
+    global target_g ; target_g=target
+    global it; it=0
     global mergeprop_g; mergeprop_g=mergeprop 
 
-    SD, field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
-    field_opt.run()
-    optimisation_result(field_opt,SD,show_plot=show_plot,minprint=minprint)
+    # unit conversion
+    J,A,tN = unit_conversion(J,A,tN)
+    # Log job start
+    ID,filename = preLog(J,A,tN,N,target,save_data)
 
 
+    nS,nq=get_dimensions(A)
+    if rf is None: rf=get_RFs(A,J)
+    omega,phase = config_90deg_phase_fields(rf); m = len(omega) 
+    H0 = get_H0(A,J)
+    
+    if u0 is None: u0=init_u(tN,m,N)
 
-def optimisation_result(field_opt, SD, show_plot=True, minprint=False):
+    cost_hist=hist0 if hist0 is not None else []
+    opt_timer = Optimisation_Timer(max_time, filename, cost_hist, save_data)
+    
+    x_cf,y_cf = get_control_fields(omega,phase,tN,N)
+    fun = lambda u: fast_cost(u,H0,nS,J,A,x_cf,y_cf,tN,target,cost_hist,kappa)
+
+    result = run_optimisation(fun,u0,opt_timer, max_time)
+    target = target_g
+    print_info(result.u_opt,result.time_taken,H0,nS,J,A,x_cf,y_cf,tN,target, minprint)
+
+    X = get_X(result.u_opt,H0,x_cf,y_cf,tN,target)
 
 
-
-    print_info(field_opt,SD, minprint)
-    X = get_X(field_opt.u, SD)
     # Plot fields and process data
-    plotFields(field_opt.u, field_opt.cost_hist,SD,X,show_plot=show_plot, save_plot = field_opt.save_data, plotLabel=field_opt.filename)
+    plotFields(result.u_opt,m,tN,omega, target,X,A, cost_hist,save_data,show_plot=show_plot, plotLabel=filename)
 
-    fidelities = fast_fid(field_opt.u,SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
+    fidelities = fast_fid(result.u_opt,H0,x_cf,y_cf,tN,target)[0]
     avgfid=sum(fidelities)/len(fidelities)
     minfid = min(fidelities).item()
     
 
     alpha=0
-    if field_opt.save_data:
+    if save_data:
         # save_system_data will overwrite previous file if job was not terminated by gadi
-        log_result(minfid,avgfid,alpha,SD,field_opt)
-        save_system_data(SD, SD.target, field_opt.filename, fid=fidelities, status=field_opt.status)
-        save_field(field_opt, SD)
+        log_result(minfid,avgfid,alpha,kappa,nS,nq,tN,N,A,result.status,ID, opt_timer.time_taken)
+        save_system_data(tN, J, A, N, target, filename, fid=fidelities, status=result.status)
+        save_field(result.u_opt, m, rf,tN, filename,cost_hist)
 
 
 
@@ -614,10 +651,7 @@ def plot_cost_hist(cost_hist, ax):
     ax.legend()
     return ax
 
-def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None):
-    omegas=SD.omega
-    m=SD.m
-    tN=SD.tN
+def plotFields(u,m,tN,omegas, target,X,A, cost_hist, save_plot,show_plot=True,coupled_XY=True, plotLabel=None):
     rf=omegas[:len(omegas)//2]
     N = int(len(u)/m)
     u_m = uToMatrix(u,m).cpu()
@@ -631,6 +665,9 @@ def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None)
         else:
             B1=np.sin(w_np[i]*T)
         #ax[0,1].plot(t_axis,B1, label="Hw"+str(i))
+        if not coupled_XY:
+            B1uc = np.sin(w_np[i]*T)
+            #ax[0,1].plot(t_axis,B1uc,label="Hw"+str(i)+"y")
 
     plot_cost_hist(cost_hist, ax[1,1])
         
@@ -644,14 +681,16 @@ def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None)
         
         ax[0,0].plot(t_axis,u_m[i], label='u'+str(i))
         #ax[1,0].plot(t_axis,1e3*prod,label='u'+str(i)+'*Hw'+str(i)+" (mT)")
+        if not coupled_XY:
+            ax[0,0].plot(t_axis,u_m[len(omegas)+i], label='u'+str(i)+'y')
+            #ax[1,0].plot(t_axis,pt.multiply(u_m[len(omegas)+i],B1uc),label='u'+str(i)+'*By'+str(i))
             
     X_field, Y_field = sum_XY_fields(uToMatrix(u,m),m,rf,tN)
     plot_XY_fields(ax[0,1],X_field,Y_field,tN)
-    transfids = get_fidelity_progress(X,tN,SD.target)
+    transfids = get_fidelity_progress(X,tN,target)
     plot_fidelity_progress(ax[1,0],transfids,tN,legend=False)
     ax[0,0].set_xlabel("time (ns)")
     #ax[0,j].legend()
-
 
     if save_plot:
         fig.savefig("plots/"+plotLabel)
@@ -683,16 +722,13 @@ def transform_H0(H,S):
     H_trans = pt.einsum('sab,sjbc->sjac', dagger(S),HS)
     return H_trans
 
-def transform_Hw(Hw,S):
+def transform_Hw(H,S):
     '''
     Applies transformation S.T @ Hw @ S for each system, to transform Hw into frame whose basis vectors are the columns of S.
-    Hw: (m,N,d,d)
+    Hw: (nS,m,N,d,d)
     S: (nS,d,d)
     '''
-    if len(Hw.shape)==4:
-        HS = pt.einsum('kjab,sbc->skjac', Hw, S)
-    else:
-        HS = pt.einsum('skjab,sbc->skjac', Hw, S)
+    HS = pt.einsum('skjab,sbc->skjac', H, S)
     H_trans = pt.einsum('sab,skjbc->skjac', dagger(S),HS)
     return H_trans
 
@@ -700,10 +736,10 @@ def transform_Hw(Hw,S):
 def evolve_Hw(Hw,U):
     '''
     Evolves Hw by applying U @ H0 @ U_dagger to every control field at each timestep for every system.
-    Hw: Tensor of shape (m,N,d,d), describing m control Hamiltonians having dimension d for nS systems at N timesteps.
+    Hw: Tensor of shape (nS,m,N,d,d), describing m control Hamiltonians having dimension d for nS systems at N timesteps.
     U: Tensor of shape (nS,N,d,d), ""
     '''
-    UH = pt.einsum('sjab,kjbc->skjac',U,Hw)
+    UH = pt.einsum('sjab,skjbc->skjac',U,Hw)
     return pt.einsum('skjab,sjbc->skjac',UH,dagger(U))
 
 def make_Hw(omegas, nq, tN,N,phase = pt.zeros(1),coupled_XY=True):
@@ -720,9 +756,9 @@ def make_Hw(omegas, nq, tN,N,phase = pt.zeros(1),coupled_XY=True):
     X_field_ham = pt.einsum('ij,kl->ijkl', pt.cos(wt_tensor-phase), Xn)
     Y_field_ham = pt.einsum('ij,kl->ijkl', pt.sin(wt_tensor-phase), Yn)
     if coupled_XY:
-        Hw = 0.5*g_e*mu_B * 1*tesla * ( X_field_ham + Y_field_ham )
+        Hw = 0.5*g*mu * 1*tesla * ( X_field_ham + Y_field_ham )
     else:
-        Hw = 0.5*g_e*mu_B * 1*tesla * pt.cat((X_field_ham, Y_field_ham),0)
+        Hw = 0.5*g*mu * 1*tesla * pt.cat((X_field_ham, Y_field_ham),0)
     return Hw
 
 def ignore_tensor(trans,d):
@@ -736,25 +772,7 @@ def ignore_tensor(trans,d):
 
 
 
-def get_HA(A, device=default_device):
-    nS, nq = get_dimensions(A)
-    d = 2**nq
-    if nq==3:
-        HA = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device))
-    elif nq==2:
-        HA = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device))
-    return HA.to(device)
-
-def get_HJ(J,nq, device=default_device):
-    nS=len(J)
-    d = 2**nq
-    if nq==3:
-        HJ = pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device))
-    elif nq==2:
-        HJ =pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device))
-    return HJ.to(device)
-
-def get_H0(A,J, include_HZ=False, device=default_device):
+def get_H0(A,J, device=default_device):
     '''
     Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
     
@@ -763,21 +781,10 @@ def get_H0(A,J, include_HZ=False, device=default_device):
     '''
     nS, nq = get_dimensions(A)
     d = 2**nq
-
-    # Zeeman splitting term is generally rotated out and does not need to be simulated.
-    if include_HZ:
-        gamma_e = g_e*mu_B
-        HZ = 0.5 * gamma_e * B0 * gate.get_Zn(nq)
-    else:
-        HZ = pt.zeros(d,d)
-
-
     if nq==3:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device))
     elif nq==2:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-    
-    
+        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device))
     return H0.to(device)
     
 
@@ -831,29 +838,24 @@ def getFreqs(H0,Hw_shape,device=default_device):
     S_T = pt.transpose(S,0,1)
     d = len(evals)
     pairs = list(itertools.combinations(pt.linspace(0,d-1,d,dtype=int),2))
+
     # transform shape of control Hamiltonian to basis of energy eigenstates
 
     Hw_trans = matmul3(S_T,Hw_shape,S)
     Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
     freqs = []
-
-    for i in range(len(H0)):
-        for j in range(i+1,len(H0)):
-            if Hw_nz[i,j]:
-                freqs.append((pt.real(evals[i]-evals[j])).item())
-
-    # for i in range(len(pairs)):
-    #     # The difference between energy levels i,j will be a resonant frequency if the control field Hamiltonian
-    #     # has a non-zero (i,j) element.
-    #     pair = pairs[i]
-    #     idx1=pair[0].item()
-    #     idx2 = pair[1].item()
-    #     #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
-    #     if Hw_nz[idx1,idx2]:
-    #         freqs.append((pt.real(evals[pair[1]]-evals[pair[0]])).item())
-    #     #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
-    #     # if Hw_nz[idx2,idx1]:
-    #     #     freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
+    for i in range(len(pairs)):
+        # The difference between energy levels i,j will be a resonant frequency if the control field Hamiltonian
+        # has a non-zero (i,j) element.
+        pair = pairs[i]
+        idx1=pair[0].item()
+        idx2 = pair[1].item()
+        #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
+        if Hw_nz[idx1,idx2]:
+            freqs.append((pt.real(evals[pair[1]]-evals[pair[0]])).item())
+        #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
+        if Hw_nz[idx2,idx1]:
+            freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
     return freqs
 
@@ -878,6 +880,15 @@ def config_90deg_phase_fields(rf, device=default_device):
     phase = pt.cat((zero_phase, piontwo_phase))
     omega = pt.cat((rf,rf))
     return omega, phase.reshape(len(phase),1)
+
+def get_CF_params(J,A):
+    '''
+    Returns control field frequencies and phase, generating an x field and a y field for each resonant frequency (rf).
+    Frequencies will be in same units as J,A.
+    '''
+    rf = get_RFs(A,J)
+    omega,phase = config_90deg_phase_fields(rf)
+    return omega,phase
 
 
 def get_2q_freqs(J,A, all_freqs=True, device=default_device):
@@ -924,21 +935,21 @@ def sum_XY_fields(u,m,rf,tN):
     Y_field = pt.sum(pt.einsum('kj,kj->kj', u[:m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', u[m//2:,:],cos_wt),0)
     return X_field, Y_field
 
-def save_field(field_opt, SD):
+def save_field(u, m, rf, tN, filename, cost_hist):
     '''
     Saves total control field. Assumes each omega has x field and y field part, so may need to send only half of 
     omega tensor to this function while pi/2 offset is being handled manually.
     '''
-    filepath = f"fields/{field_opt.filename}"
-    pt.save(field_opt.u, filepath)
-    X_field, Y_field = sum_XY_fields(uToMatrix(field_opt.u, SD.m), SD.m, SD.rf, SD.tN)
+
+    pt.save(u, f"fields/{filename}")
+    X_field, Y_field = sum_XY_fields(uToMatrix(u,m),m,rf,tN)
     fields = pt.stack((X_field,Y_field))
-    pt.save(fields, f"{filepath}_XY")
-    pt.save(np.array(field_opt.cost_hist), f"{filepath}_cost_hist")
+    pt.save(fields, f"fields/{filename}_XY")
+    pt.save(np.array(cost_hist), f"fields/{filename}_cost_hist")
     
 
 
-def save_system_data(SD, target, filename, fid=None, status='T'):
+def save_system_data(tN, J, A, N, target, filename, fid=None, status='T'):
     '''
     Saves system data to a file.
     
@@ -948,13 +959,13 @@ def save_system_data(SD, target, filename, fid=None, status='T'):
         T = job terminated by gadi, which means files are not saved (except savepoints)
 
     '''
-    J=pt.real(SD.J)/Mhz; A=pt.real(SD.A)/Mhz; tN = SD.tN/nanosecond
+    J=pt.real(J); A=pt.real(A)
     if type(J)==pt.Tensor: J=J.tolist()
     with open("fields/"+filename+".txt", 'w') as f:
         f.write("J = "+str(J)+"\n")
-        f.write("A = "+str((A).tolist())+"\n")
+        f.write("A = "+str(A.tolist())+"\n")
         f.write("tN = "+str(tN)+"\n")
-        f.write("N = "+str(SD.N)+"\n")
+        f.write("N = "+str(N)+"\n")
         f.write("target = "+str(target.tolist())+"\n")
         f.write("Completion status = "+status+"\n")
         if fid is not None: f.write("fidelity = "+str(fid.tolist())+"\n")
@@ -966,36 +977,36 @@ def get_next_ID():
     ID = prev_ID[0] + str(int(prev_ID[1:])+1)
     return ID
 
-def get_field_filename(SD,ID):
-    filename = "{}_{}S_{}q_{}ns_{}step".format(ID,SD.nS,SD.nq,int(round(SD.tN/nanosecond,0)),SD.N)
+def get_field_filename(A,tN,N,ID):
+    nSys,nq=A.shape
+    filename = "{}_{}S_{}q_{}ns_{}step".format(ID,nSys,nq,int(round(tN/nanosecond,0)),N)
     return filename
 
 
-def log_result(minfid,avgfid,alpha,SD,field_opt):
+def log_result(minfid,avgfid,alpha,kap,nS,nq,tN,N,A,status,ID, time_taken):
     '''
     Logs key details of result:
         field filename, minfid, J (MHz), A (MHz), avgfid, fidelities, time date, alpha, kappa, nS, nq, tN (ns), N, ID
     '''
 
-    field_filename = get_field_filename(SD,field_opt.ID)
+    field_filename = get_field_filename(A,tN,N,ID)
     #fids_formatted = [round(elem,4) for elem in fidelities.tolist()]
     #A_formatted = [round(elem,2) for elem in (pt.real(A)[0]/Mhz).tolist()]
     #J_formatted = [round(elem,2) for elem in (pt.real(J).flatten()/Mhz).tolist()]
     now = datetime.now().strftime("%H:%M:%S %d-%m-%y")
     with open(log_fn, 'a') as f:
-       f.write("{},{:.4f},{:.4f},{},{:.3e},{},{},{:.1f},{},{},{}\n".format(
-           field_filename, avgfid, minfid, now, alpha, SD.nS, SD.nq, SD.tN/nanosecond, SD.N, field_opt.status, field_opt.time_taken))
+       f.write("{},{:.4f},{:.4f},{},{:.3e},{:.3e},{},{},{:.1f},{},{},{}\n".format(field_filename,avgfid,minfid, now, alpha, kap, nS,nq,tN/nanosecond,N,status,time_taken))
 
 
-def preLog(SD,save_data):
+def preLog(J,A,tN,N,target,save_data):
     '''
     Logs some data prior to running job incase job is terminated and doesn't get a chance to log at the end.
     If job completes, system_data will be rewritten with more info (eg fidelities).
     '''
     ID = get_next_ID()
-    filename = get_field_filename(SD,ID)
+    filename = get_field_filename(A,tN,N,ID)
     if save_data: 
-        save_system_data(SD, SD.target, filename)
+        save_system_data(tN, J, A, N, target, filename)
         with open(ID_fn, 'a') as f:
             f.write(f"{ID}\n")
     return ID,filename
@@ -1021,8 +1032,8 @@ def load_system_data(filename):
         try:
             fid = ast.literal_eval(lines[6][11:-1])
         except: fid=None
-    SD = SystemData(J,A,tN,N,None,target)
-    return SD,target,fid
+
+    return J,A,tN,N,target,fid
 
 def load_u(filename, SP=None):
     '''
@@ -1033,38 +1044,43 @@ def load_u(filename, SP=None):
     cost_hist = pt.load(f"fields/{filename}_cost_hist")
     return u,cost_hist
 
-def process_u(u,SD,target,cost_hist,save_SP=False):
+def process_u(u,J,A,tN,N,target,cost_hist,save_SP=False):
     '''
     Takes vector form 'u' and system data as input.
     '''
-    fid=fast_fid(u, SD.H0, SD.x_cf, SD.y_cf,SD.tN,target)[0]
+    nS,nq = get_dimensions(A)
+    rf = get_RFs(A,J)
+    omega,phase = config_90deg_phase_fields(rf)
+    m = len(omega)
+    x_cf,y_cf = get_control_fields(omega,phase,tN,N)
+    H0 = get_H0(A,J)
+    fid=fast_fid(u,H0,x_cf,y_cf,tN,target)[0]
     print(f"Fidelities: {fid}")
 
 
-    U = time_evol(u, SD.H0, SD.x_cf, SD.y_cf, SD.tN)
-    X=get_X(u, SD)
+    U = time_evol(u,H0,x_cf,y_cf,tN)
+    X,_P = propagate(U,target)
 
     if save_SP:
-        print("ERROR: savepoints no longer supported.")
-        # preLog(SD,True)
-        # ID = get_next_ID()
-        # filename = get_field_filename(SD,ID)
-        # avgfid=sum(fid)/len(fid) 
-        # log_result(min(fid), avgfid,0,1,SD,'SP',ID)
-        # save_system_data(SD,target,filename,fid)
-        # save_field(field_opt,SD)
+        preLog(J,A,tN,N,target,True)
+        ID = get_next_ID()
+        filename = get_field_filename(A,tN,N,ID)
+        avgfid=sum(fid)/len(fid) 
+        log_result(min(fid), avgfid,0,1,nS,nq,tN,N,A,'SP',ID)
+        save_system_data(tN,J,A,N,target,filename,fid)
+        save_field(u,m,rf,tN,filename,cost_hist)
     else:
         filename = None
 
-    plotFields(u,cost_hist,SD,X,True,False)
+    plotFields(u,m,tN,omega,target,X,A,cost_hist,save_SP,plotLabel=filename)
 
 def process_u_file(filename,SP=None, save_SP = False):
     '''
     Gets fidelities and plots from files. save_SP param can get set to True if a save point needs to be logged.
     '''
-    SD,target,_fid = load_system_data(filename)
+    J,A,tN,N,target,_fid = load_system_data(filename)
     u,cost_hist = load_u(filename,SP=SP)
-    process_u(u,SD,target,cost_hist,save_SP=save_SP)
+    process_u(u,J,A,tN,N,target,cost_hist,save_SP=save_SP)
 
 
 
@@ -1073,15 +1089,15 @@ def process_u_file(filename,SP=None, save_SP = False):
 ################################################################################################################
 
 
-def init_u(SD, device='cpu'):
+def init_u(tN,m,N, device='cpu'):
     '''
     Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
     Initialised onto the cpu by default as it will normally be passed to scipy minimize.
     '''
     mult=1
-    u0 = hbar/(g_e*mu_B*SD.tN) * pt.ones(SD.m,SD.N,dtype=cplx_dtype, device=device)/tesla * mult
+    u0 = hbar/(g*mu*tN) * pt.ones(m,N,dtype=cplx_dtype, device=device)/tesla * mult
     u0[2::3] /= mult 
-    return uToVector(u0)*0.1
+    return uToVector(u0)
 
 def interpolate_u(u,m, N_new):
     '''
@@ -1107,7 +1123,7 @@ def refine_u(filename, N_new):
     u,cost_hist = load_u(filename)
     m=2*len(get_RFs(A,J))
     u0 = interpolate_u(u,m,N_new)
-    run_optimisation(target,N_new,tN,J,A,u0=u0)
+    optimise2(target,N_new,tN,J,A,u0=u0)
 
 
 def single_qubit_unitary(target,tN,N,alpha=0,w0=0):
@@ -1116,7 +1132,7 @@ def single_qubit_unitary(target,tN,N,alpha=0,w0=0):
     
     '''
     m=2
-    u0 = 1*np.pi/(g_e*mu_B*tN) * pt.ones(m,N) * 1/tesla
+    u0 = 1*np.pi/(g*mu*tN) * pt.ones(m,N) * 1/tesla
     omega=pt.ones(2)*w0
 
     H0_single = w0/2 * gate.Z
@@ -1137,11 +1153,104 @@ def single_qubit_unitary(target,tN,N,alpha=0,w0=0):
     print(f"Uf = {X[0][-1]}")
     plotFields(u,m,tN,omega)
     
-
-
-
+################################################################################################################
+################        Frequency plots        ########################################################
+################################################################################################################
+def visualise_frequencies(A, J):
+    nq = len(A[0])
+    nSys = len(J)
+    freqs = get_RFs(A,J)
+    colours = ['plum','red', 'salmon', 'orange', 'yellow', 'green', 'turquoise', 'blue','purple', 'pink','chocolate']
+    for i in range(len(freqs)):
+        plt.vlines(freqs[i],0,1,linewidth=0.5)
+        #plt.xscale('logit')
+    plt.show()
 
 
 ################################################################################################################
-################        Run GRAPE        #######################################################################
+################        FREE EVOLUTION SIMULATION        #######################################################
 ################################################################################################################
+def free_evolution_fidelity(J,A,tN,N,target):
+    '''
+    Simulates evolution by observing the change in fidelity of unitary U against target 
+    as time passes with no applied control fields.
+    '''
+    tN=tN*nanosecond; J=J*Mhz; A=A*Mhz
+    nS,nq=get_dimensions(A)
+    dim=2**nq
+    m=1; u = pt.zeros(m*N)
+    Hw = pt.zeros(nS,m,N,dim,dim, dtype=cplx_dtype)
+    H0 = get_H0(A,J,N)
+    S = get_S_matrix(J,A) if work_in_eigenbasis else None
+    U = time_evol(u,Hw,H0,tN, simSteps=1,S=S)
+    X,_P = propagate(U,target)
+
+    ax = plt.subplot()
+    fids = get_fidelity_progress(X,tN,target)
+    plot_fidelity_progress(ax,fids,tN)
+    plt.show()
+    return fids[-1]
+
+################################################################################################################
+################        QUANTUM STATE SIMULATION        ########################################################
+################################################################################################################
+'''
+For visualisation and debugging purposes
+'''
+
+def psiEvol(psi0,X):
+    '''
+    Evolves initial state psi0 through N time steps, returning array Psi
+    which contains the state at each time step.
+    '''
+    return pt.matmul(X,psi0)
+
+def init_1q_Psi(theta,phi):
+    return pt.tensor([np.cos(theta/2), np.exp(1j*phi)*np.sin(theta/2)], device=default_device)
+
+def init_rand_psi(nq):
+    d=2**nq 
+    return normalise(pt.rand(d, dtype=cplx_dtype)+1j*pt.rand(d, dtype=cplx_dtype))
+
+
+
+def psiAngles(psi):
+    theta = 2*np.arccos(np.abs(psi[0]))
+    phi = np.angle(psi[1])
+    return theta,phi
+
+def plotPsi(psi,tN, ax=None):
+    N,d = psi.shape
+    nq = int(np.log2(d))
+    T = pt.linspace(0,tN,N)
+    if ax==None: ax=plt.subplot()
+    ax.set_xlabel('t (ns)')
+    squamp =pt.einsum('ja,ja->ja',psi,pt.conj(psi))
+    for a in range(d):
+        if not squamp[:,a].any(): continue
+        state = np.binary_repr(a,nq)
+        ax.plot(T/nanosecond,squamp[:,a],label='|<'+state+'|$\psi>|^2$')
+    ax.legend() 
+
+
+def plotPsi_1q(Psi,tN):
+    N=len(Psi)
+    theta = pt.zeros(N); phi = pt.zeros(N)
+    for i in range(N):
+        theta[i],phi[i] = psiAngles(Psi[i])
+    T = np.linspace(0,tN,N)
+    plt.plot(T,theta, label='theta')
+    plt.plot(T,phi, label='phi')
+    plt.legend()
+    plt.show()
+
+def wf_freeEvolution(J,A,psi0,tN,N):
+    H0 = get_H0(A,J)[0]
+    T = pt.linspace(0,tN,N, dtype=cplx_dtype)
+    H0T = pt.einsum('ab,j->jab',H0,T)
+    U0 = pt.matrix_exp(-1j*H0T)
+    psi = pt.matmul(U0,psi0)
+    return psi
+
+
+

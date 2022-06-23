@@ -9,11 +9,10 @@ if not pt.cuda.is_available():
     dir = os.path.dirname(__file__)
     os.chdir(dir)
 
-
 import GRAPE as grape
 from GRAPE import cplx_dtype, default_device, J_100_18nm, J_100_14nm, get_J
 import numpy as np
-from pdb import set_trace
+import pdb
 import matplotlib.pyplot as plt
 import pickle
 
@@ -21,6 +20,8 @@ import gates as gate
 from atomic_units import *
 
 
+A=grape.A_kane; A1=A[0]; A2=A[1]
+A = pt.tensor(len(J_100_14nm)*[[A1, A2]], dtype=gate.real_dtype, device=default_device)
 Mhz=1e6*grape.hz
 
 #gyromagnetic ratios (MHz/T)
@@ -100,27 +101,36 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
     else:
         u0=None; hist0=None
 
-    grape.run_optimisation(target, N, tN, J, A, u0=u0, rf=rf, save_data=save_data, max_time=max_time,NI_qub=True,hist0=hist0, minprint=minprint, mergeprop=mergeprop)
+    grape.optimise2(target, N, tN, J, A, u0=u0, rf=rf, show_plot=show_plot, save_data=save_data, max_time=max_time,NI_qub=True,hist0=hist0, minprint=minprint, mergeprop=mergeprop)
 
 
 
 
 if __name__ == '__main__':
 
-    nS=1; nq=2
-    print(grape.get_A(nS,nq))
-    A = pt.tensor([[29,-29/2]], dtype=cplx_dtype)
-    J = pt.tensor([5], dtype=cplx_dtype)
-    rf = grape.get_RFs(A,J)
-    #run_CNOTs(500.0, 200, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False,A=A,J=J)
+    #memory_requirement(225,3,2000)
+
+    nS=25; nq=3
+    rf = grape.get_RFs(grape.get_A(nS,nq), get_J(nS,nq))
+
+    #print(count_RFs(225,3))
+    #get_rec_min_N(grape.get_A(225,3),get_J(225,3),500)
+    init_u_fn="g221_25S_3q_500ns_5000step"
+    run_CNOTs(500.0, 5000, nq=nq, nS=nS, max_time = 23.5*3600, kappa=1, rf=None, save_data=True, init_u_fn=init_u_fn, mergeprop=False)
 
 
-    grape.process_u_file('c320_1S_3q_190ns_300step')
+    #fn='g113_15S_2q_220ns_400step'
+    #grape.process_u_file(fn)
 
 
 
 
 
 
+
+
+
+def cull_freqs(rf):
+    pdb.set_trace()
 
 
