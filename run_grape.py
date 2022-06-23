@@ -110,13 +110,12 @@ if __name__ == '__main__':
 
     #memory_requirement(225,3,2000)
 
-    nS=25; nq=3
+    nS=1; nq=2
     rf = grape.get_RFs(grape.get_A(nS,nq), get_J(nS,nq))
 
     #print(count_RFs(225,3))
     #get_rec_min_N(grape.get_A(225,3),get_J(225,3),500)
-    init_u_fn="g221_25S_3q_500ns_5000step"
-    run_CNOTs(500.0, 5000, nq=nq, nS=nS, max_time = 23.5*3600, kappa=1, rf=None, save_data=True, init_u_fn=init_u_fn, mergeprop=False)
+    run_CNOTs(100.0, 500, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=False, init_u_fn=None, mergeprop=False)
 
 
     #fn='g113_15S_2q_220ns_400step'
