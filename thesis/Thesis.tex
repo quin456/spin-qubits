@@ -1,0 +1,48 @@
+
+\documentclass[12pt]{report}
+\usepackage[utf8]{inputenc}
+\include{preamble_thesis}
+\include{preamble_light}
+
+
+\usepackage{subfiles} % Best loaded last in the preamble
+\graphicspath{{\subfix{./graphics/}}}
+
+\title{Literature review}
+\author{Quinlan Arnold}
+\date{May 2022}
+
+
+\begin{document}
+%\maketitle
+
+
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{10pt}
+
+\maketitle
+
+\setcounter{tocdepth}{1}
+
+
+\tableofcontents
+
+
+
+
+\subfile{Chapters/Introduction}
+
+%\subfile{Chapters/Architecture Design}
+
+%\subfile{Chapters/Exchange}
+
+%\subfile{Chapters/GRAPE}
+
+%\subfile{Chapters/Appendices}
+
+
+
+\bibliographystyle{aip}
+\bibliography{references.bib}
+\end{document}

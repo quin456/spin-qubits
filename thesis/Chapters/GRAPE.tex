@@ -1,0 +1,190 @@
+
+\documentclass[../Thesis.tex]{subfiles}
+\graphicspath{{\subfix{../graphics/}}}
+\begin{document}
+
+
+
+
+\chapter{Quantum Control}
+
+Optimal control is a powerful tool in which physical problems characterised by a path through some parameter space are optimised through the minimisation of a cost function which depends on this path. Optimal control has a rich history in physics, with early examples including Fermat's principle, where the cost function is the time taken by light to pass through a series of media, or the Principle of Least Action, whose cost function is the action.\cite{sargent_optimal_2000} Interest in quantum control has truly piqued far more recently, however, with the proliferation of the computer making powerful numerical approaches far more tenable than before. 
+
+Quantum control refers to the application of optimal control to quantum mechanical systems, and has been widely applied to magnetic resonance\cite{conolly_optimal_1986}
+
+\section{Three-qubit CNOTs}
+Of particular interest in this work is the three electron system involved in the three qubit CNOT, in which the control and target qubits interact with each other via a 3rd coupler qubit placed between them. The Hamiltonian for this system is given by
+\begin{equation}
+    H_0 = A_1\sigma_{z,1} + A_2\sigma_{z,2}+A_3\sigma_{z,3} + J_{12}\bm{\sigma}_1\cdot\bm{\sigma}_2 + J_{23}\bm{\sigma}_2\cdot\bm{\sigma}_3.
+\end{equation}
+We have hyperfine couplings of each electron to its nucleus, which take the form
+
+\begin{equation}
+    H_A = A\bm{\sigma}_n\cdot\bm{\sigma}_e\approx A\sigma_{z,n}\sigma_{z,e}\approx A\langle \sigma_{z,n}\rangle \sigma_{z,e}
+\end{equation}
+The $x$ and $y$ terms become negligible in the presence of the strong background field $\bm{B}_0=B_0\bm{\hat{z}}$. Nuclear spins have been experimentally verified to remain stable for many minutes\cite{pla_high-fidelity_2013}, much longer than the operating time of our electron qubits, The Born-Oppenheimer approximation can thus be invoked, FIXFIXBADBAD allowing us to replace the nuclear $z$ operator with the expected value of its spin. For 2-qubit systems, aligning the nuclear spins in opposite directions, parallel and antiparallel to the external field, can be used to facilitate a difference in magnetic fields experienced by electrons on these donors, allowing desired transitions to be targeted, detuning spin states or something.\cite{kalra_robust_2014}  For the 3-qubit CNOTs operated in this work, the nuclear spins will always be set to $\pm 1$, which can then be absorbed into the hyperfine values. The hyperfine coupling strength is taken to be $A=29.2$ MHz, \cite{kane_silicon-based_1998,tsai_optimal_2009,kalra_robust_2014} with $A_1,A_2=A,\ A_3=-A$. 
+
+The remaining terms in the Hamiltonian are exchange couplings between electron pairs (1,2) and (2,3). Exchange between electron 1 and 3 is assumed to be negligible due to the large separation between these electrons and the rapid drop off of exchange strength with increasing separation.\cite{wellard_voltage_2004}
+
+
+\subsection{Nuclear-electron spin Hamiltonian}
+\begin{dmath}
+    H_0 = \frac{\gamma_e}{2}B_z (\sigma_{z,e1}+\sigma_{z,e2}+\sigma_{z,e3}) - \frac{\gamma_P}{2}B_z(\sigma_{z,n1}+\sigma_{z,n2}+\sigma_{z,n3})\\ + A_1\bm{\sigma}_{n1}\cdot\bm{\sigma}_{e1}+A_2\bm{\sigma}_{n2}\cdot\bm{\sigma}_{e2}+A_3\bm{\sigma}_{n3}\cdot\bm{\sigma}_{e3} + J_{12}\bm{\sigma}_{e1}\cdot\bm{\sigma}_{e2}+J_{23}\bm{\sigma}_{e2}\cdot\bm{\sigma}_{e3}
+\end{dmath}
+
+
+\section{Gradient Ascent Pulse Engineering (GRAPE)}
+\subsection{Core principles}
+One such numerical approach is gradient ascent pulse engineeing, or GRAPE, which can be used to design magnetic field pulses to produce a desired unitary for a given quantum system\cite{khaneja_optimal_2005,rowland_implementing_2012}. In general, a quantum system described by some Hamiltonian $H_0$ will naturally oscillate with certain frequencies, called resonant frequencies. Application of control fields, denoted $H_k$, which oscillate near these resonant frequencies, are able to effectively excite transitions of the system between its different states. 
+
+GRAPE has been employed following the approach of Khaneja et. al., with a system Hamiltonian of the form
+\begin{equation}
+    H = H_0 + \sum_{k=1}^m u_k(t)H_k(t).
+    \label{eq:ham-cont}
+\end{equation}
+The control vectors $u_k(t)$ serve to modulate the amplitudes of each applied control field. These are the parameters which need to be optimised. Equation \ref{eq:ham-cont} is discretised into $N$ timesteps each having length $\delta t$, so as to be suitable for solving computationally. 
+\begin{equation}
+    H = H_0 + \sum_{k=1}^m u_{kj}H_{kj}
+    \label{eq:ham-disc}
+\end{equation}
+We can determine time evolution resulting from application of Hamiltonian \ref{eq:ham-disc} by first calculating sub-operators for each time step,
+\begin{equation}
+    U_j = \exp\left\{-i\left(H_0 + \sum_{k=1}^m u_{kj}H_{kj}\right)\right\},
+\end{equation}
+and then combining,
+\begin{equation}
+    U_f = U_{N-1}\dots U_0.
+\end{equation}
+This is then compared with the desired target unitary, $U_t$, with the fidelity calculated as
+\begin{equation}
+    \Phi = \bra{U_t}\ket{U_f}\bra{U_f}\ket{U_t}
+\end{equation}
+where 
+\begin{equation}
+    \bra{A}\ket{B} = \frac{1}{d}\Tr\left(A^\dagger B\right)
+\end{equation}
+is the standard inner product of $d$-dimensional square matrices.
+
+We now have a means of finding optimal pulses to design target unitaries. One can program a cost function which takes control parameters $u_{kj}$ as input, and outputs cost $J=1-\Phi$,\footnote{Conventional optimisers usually perform minimisation rather than maximisation, so we define a cost function whose minimisation will maximise our fidelity, the most natural option being $J=1-\Phi$.} and pass this to an optimiser. 
+
+Khaneja et. al.'s was influential because it took this a step further, providing a method by which to calculate the gradient of the fidelity analytically, thereby providing an enormous speed up to the optimisation.
+
+The forward propagated time-evolution operator and back propagated target are stored for each step, defined by
+\begin{equation}
+    X_j = U_jU_{j-1} \dots U_1,\quad P_j = U_{j+1}^\dagger U_{j+2}^\dagger\dots U_N^\dagger
+\end{equation}
+It can be observed that 
+\begin{equation}
+    \bra{U_f}\ket{U_t} = \bra{X_j}\ket{X_j} = \bra{U_j X_{j-1}}\ket{P_j},
+\end{equation}
+which gives
+\begin{align}
+    \frac{\partial\Phi}{\partial u_{kj}} &= \frac{\partial}{\partial u_{kj}} \bra{P_j}\ket{U_jX_{j-1}}\bra{U_jX_{j-1}}\ket{P_j}\\
+    &= \left\langle P_j\left|\frac{\partial U_j}{\partial u_{kj}}\right. X_{j-1}\right\rangle\bra{X_j}\ket{P_j} + \text{c.c.}
+\end{align}
+The first order approximation $\frac{\partial U_j}{\partial u_{kj}} = -i\delta t H_{kj}U_j$ then gives
+\begin{equation}
+      \frac{\partial\Phi}{\partial u_{kj}} = -2\text{Re}\langle P_j | i\delta tH_{kj} X_j\rangle \langle X_j | P_j\rangle
+\end{equation}
+
+\subsection{Implementation}
+We now make a slight extension to the formalism outlined above which allows for efficient application to multiple independent systems. The methodology outlined can be used to optimise unitaries for multiple systems in parallel by running the cost function on each system, and adding the costs and cost derivatives together.
+
+\begin{equation}
+    \frac{\partial \Phi}{\partial u_{kj}}
+        = -2G\left[\cos(\omega_k t_j) \Re\bra{P_j}\ket{i\delta t\sigma_x X_j} - \sin(\omega_k t_j)\Re\bra{P_j}\ket{i\delta t\sigma_y X_j}\right]\bra{X_j}\ket{P_j}
+\end{equation}
+where $G=\frac{1}{2}g_e\mu_b(1 \text{T}),\ \sigma_{x}=\sum_{i}\sigma_{x,i}$.
+
+225 systems are spread across multiple GPUs. 
+
+\subsection{Resonant frequencies}
+With the GRAPE formalism outlined above, we are left to decide on the frequencies which are to be used for the control Hamiltonians $H_k$. The best choice of frequencies to drive transitions on a given system those which are resonant with that system. These resonant frequencies turn out to be the differences between certain eigenvalues $E_i$ of the system Hamiltonian $H_0$. 
+
+In determining the resonant frequencies, it is instructive to transform our control Hamiltonian $H_k$ to the interaction picture (IP). This provides insight into the effect $H_k$ is having on the state of the system with the messy swapping due to exchange removed (temporarily). 
+
+The IP control Hamiltonian $H_k'$ turns out to be full of complex exponential terms of the form $\exp\{[\omega_k - (E_i-E_j)]t\}$.\footnote{Note that $\omega$ is used for control frequencies while $E$ is used for $H_0$ eigenvalues so that they may be easily differentiated from one another ($\hbar=1$).} The resonant frequency corresponding to this term is $\omega_k=E_i-E_j$, as this will result in a constant value in the Hamiltonian, which can most effectively drive transitions in the system. It should be noted that these frequencies are resonant with transitions between the eigenstates of $H_0$, and will not provide simple transitions between the spin states. They are, nonetheless, the best frequencies to use, and GRAPE can easily determine the mix of these frequencies to apply to elicit the desired transitions.
+
+Transforming to the interaction picture,
+\begin{equation}
+    H_k' = U_0^\dagger H_k U_0 = Se^{iEt}S^T H_k S e^{-iEt}S^T,
+\end{equation}
+where $E=$ diag$\{E_1,\dots, E_d\},S=[\bm{v}_1,\dots,\bm{v}_d]$ contain the eigenvalues and eigenvectors of $H_0$ respectively. Our goal now is to determine complex exponentials which appear in $H_k'$. This is equivalent to determining the complex exponentials appearing in $e^{iEt}S^T H_k S e^{-iEt}$, as the final $S$ transformation simply shuffles these complex exponentials (noting that we aren't worried about which frequencies drive which transitions, we just want to know which frequencies are resonant, so that these can be passed to GRAPE).
+
+The control Hamiltonian takes the form 
+\begin{equation}
+    H_k\sim \cos(\omega_k t)\sum_j \sigma_{x,j} + \sin(\omega_k t)\sum_j \sigma_{y,j},
+\end{equation}
+which results in the non-zero terms coming in pairs, with 
+\begin{align} 
+H_{k,ij} \sim e^{i\omega_k t},\quad H_{k,ji} \sim e^{-i\omega_k t}
+\end{align}
+
+Since Hermiticity is preserved under transformation by an orthogonal matrix, the elements of $SH_kS^T$ also come in pairs, so we similarly have 
+\begin{align} 
+(SH_{k}S^T)_{ij}\sim e^{i\omega_k t},\quad (SH_{k}S^T)_{ji} \sim e^{-i\omega_k t}
+\end{align}
+
+
+Acting the energy eigenvalue matrices to get $e^{iEt}S^T H_k S e^{-iEt}$ has the effect of multiplying element $i,j$ of $S^T H_k S $ by $\exp\{(E_i-E_j)t\}$. This then gives
+\begin{align}
+    &(e^{iEt}S^T H_{k} S e^{-iEt})_{ij}\sim \exp\{[\omega_k - (E_i-E_j)]t\},\\
+    &(e^{iEt}S^T H_{k} S e^{-iEt})_{ji}\sim \exp\{-[\omega_k-(E_i-E_j)]t\}.
+\end{align}
+And so we find that each pair contributes one resonant frequency. The process of determining resonant frequencies is then a simple matter of observing which terms $(S^TH_{k}S)_{ij},i>j$ are non-zero, and for each of these terms storing $E_i-E_j$ as a resonant frequency. In practice we can replace $H_{k}$ with $\sum\sigma_{x,i}$, as all we are really interested in is the location of non-zero elements in $S^TH_kS$.
+
+This process is important as not all differences between eigenvalues of $H_0$ constitute resonant frequencies, and having excess control fields would slow things down and likely decrease CNOT fidelity.
+
+
+
+
+
+This is shown for the 2-qubit system as an example.
+\begin{align}
+    H_k&= \gamma\left[\cos(\omega_kt)(\sigma_{x1}+\sigma_{x2})+i\sin(\omega t)(\sigma_{y1}+\sigma_{y2})\right]\\
+    & = 
+    \gamma\begin{pmatrix}
+    0, &e^{i\omega_kt} &e^{i\omega_k t} &0\\
+    e^{-i\omega_k t} &0 &0 &e^{i\omega_k t}\\
+    e^{-i\omega_k t} &0 &0 &e^{i\omega_k t}\\
+    0 &e^{-i\omega_k t} &e^{-i\omega_k t} &0
+    \end{pmatrix}
+\end{align}
+where $\gamma = g_e\mu_B/2$.
+The transformation matrix between the spin states and the eignebasis of $H_0$ for the 2-qubit system is 
+\begin{align}
+    S = \begin{pmatrix} 
+    1 &0 &0 &0\\
+    0 &\alpha &-\beta &0\\
+    0 &\beta &\alpha &0\\
+    0&0 &0 &1
+    \end{pmatrix}
+\end{align}
+with
+\begin{align}
+    \alpha = K\left[\sqrt{4J^2 + \Delta A^2} + \Delta A\right] , \quad \beta = 2KJ,
+\end{align}
+for normalisation factor 
+\begin{align}
+    K = \left[2\left(4J^2 + \Delta A^2 + \Delta A\sqrt{4J^2+\Delta A^2}\right)\right]^{-1/2}
+\end{align}
+
+It can then be shown that
+\begin{dmath} 
+e^{iEt} S^T H_k S e^{-iEt} =
+\gamma\begin{pmatrix}
+0 &(\alpha+\beta)e^{i(\omega_k-\omega_{21})t} &(\alpha-\beta)e^{i(\omega_k-\omega_{31})t} &0\\
+(\alpha+\beta)e^{-i(\omega_k-\omega_{21})t} &0 &0 &(\alpha+\beta)e^{i(\omega-\omega_{42})t}\\
+(\alpha-\beta)e^{-i(\omega_k-\omega_{31})t} &0 &0 &(\alpha-\beta)e^{i(\omega_k-\omega_{43})t}\\
+0 &(\alpha+\beta)e^{-i(\omega_k-\omega_{42})t} &(\alpha-\beta)e^{-i(\omega_k-\omega_{43})t} &0
+\end{pmatrix}.
+\end{dmath}
+This is the interaction picture representation of $H_k$ in the eigenbasis of $H_0$. 
+
+
+
+
+
+
+\end{document}
+

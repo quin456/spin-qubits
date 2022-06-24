@@ -1,0 +1,111 @@
+\documentclass[12pt]{article}
+\include{preamble_light}
+\usepackage[utf8]{inputenc}
+\usepackage{breqn}
+\usepackage[superscript,biblabel]{cite}
+\usepackage{siunitx}
+
+
+
+\title{Presentation}
+\author{Quinlan Arnold}
+\date{13/1/2022}
+
+\begin{document}
+Hamiltonian:
+\begin{equation}
+    H=H_0+\sum_k u_k H_k
+\end{equation}
+\section{Cost function}
+\subsection{Fidelity cost}
+The base cost function employed in GRAPE is $J=1-\Phi$ where $\Phi\in [0,1]$ is  the fidelity of a target unitary $U_t$ with the unitary resulting from the control fields, $U_f$. The fidelity and its derivative are calculated as\cite{rowland_implementing_2012}
+\begin{align}
+    \Phi&=\bra{U_t}\ket{U_f},\\
+    \frac{\partial\Phi}{\partial u_{kj}} &= -2\text{Re}\bra{P_j}\ket{i\delta t\mathcal{H}_k X_j}\bra{X_j}\ket{P_j}
+\end{align}
+using the standard inner product for matrices
+\begin{equation}
+    \bra{A}\ket{B} = \frac{1}{N}\text{tr}(A^\dagger B)
+\end{equation}
+giving base cost function 
+\begin{align}
+    J &= 1-\bra{U_t}\ket{U_f},\\
+    \nabla_{jk}J &= 2\text{Re}\bra{P_j}\ket{i\delta t\mathcal{H}_k X_j}\bra{X_j}\ket{P_j}
+\end{align}z
+
+\subsection{Fluctuation cost}
+Term added to cost function to reduce fluctuation in control field amplitudes.
+\begin{align}
+    J_f &= \alpha\sum_{j=0}^{N-1}\sum_{k=1}^m \left[u_k(j+1)-u_k(j)\right]^2,\\
+    \nabla_{jk} J_f&= 2\alpha\left[2u_k(j) - u_k(j-1) - u_k(j+1)\right],\quad 1\leq j\leq N-1,\\
+    \nabla_{0k}J_f &= \nabla_{Nk} = 0.
+\end{align}
+
+\section{Implementation}
+In plots shown below, two control fields $\pi/2$ out of phase with each other are applied which are resonant with the desired transition.
+
+\section{Single qubit gates}
+\begin{figure}[H]
+    \centering
+    \includegraphics{presPlots/X gate.pdf}
+    \caption{X gate}
+    \label{fig:my_label}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics{presPlots/H gate.pdf}
+    \caption{Y gate}
+    \label{fig:my_label}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics{presPlots/Y gate.pdf}
+    \caption{Hadamard gate}
+    \label{fig:my_label}
+\end{figure}
+
+\section{2 qubit CNOTSs}
+
+Free evolution Hamiltonian matrix:
+\begin{align}
+    H_0 = \begin{pmatrix}
+    E_0+A_1\hbar+A_2\hbar+J &0 &0 &0\\
+    0 &A_1\hbar-A_2\hbar-J &2J &0\\ 
+    0 &2J &-A_1\hbar+A_2\hbar-J &0 \\ 
+    0 &0 &0 &-E_0-A_1\hbar-A_2\hbar+J
+    \end{pmatrix}
+\end{align}
+
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics{presPlots/CNOT_bigA2.pdf}
+    \caption{CNOT using control Hamiltonian at resonance frequency $\omega_{34}=(E_3-E_4)/\hbar$. Hyperfine value for qubit 1 is $A_1=10^{13}$ Hz, unrealistically large.}
+    \label{fig:my_label}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics{presPlots/CNOT_bigA1_10ns.pdf}
+    \caption{CNOT for 10ns, still working well.}
+    \label{fig:my_label}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics{presPlots/CNOT_realisticA1.pdf}
+    \caption{CNOT with more realistc hyperfine $A_1=10^{10}$ Hz. Fidelity = 0.3, and amplitude oscillating very rapidly.}
+    \label{fig:my_label}
+\end{figure}
+
+
+\section{Issues}
+\begin{itemize}
+    \item Can't get CNOT to work for realistic values of hyperfine coupling.
+    \item CNOT has phase error which seems to depend on the duration of the gate.
+    \item Currently not making any approximations, so the rapid precession due to static 2T field requires many timesteps to simulate accurately.
+\end{itemize}
+
+\end{document}

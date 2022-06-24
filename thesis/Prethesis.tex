@@ -1,0 +1,330 @@
+\documentclass[12pt]{article}
+\include{preamble_light}
+\usepackage[utf8]{inputenc}
+\usepackage{breqn}
+\usepackage{siunitx}
+\usepackage[a4paper, total={6.8in, 9in}]{geometry}
+
+
+%%%%% BIB THINGS
+\usepackage[square,biblabel]{cite}
+\bibliographystyle{aip}
+
+\title{Prethesis}
+\author{Quinlan Arnold}
+\date{December 2021}
+
+\begin{document}
+
+\maketitle
+
+
+\section{Exchange values}
+In megahertz..
+
+18 nm: 
+
+71.438, 57.214, 110.42, 57.594, 46.614, 37.312, 47.053,
+        37.564, 30.366, 37.565, 46.615, 24.660, 30.367, 24.461,
+        19.921
+
+14 nm: 
+
+1343.6, 1081.1, 2054.9, 1086.7, 1362.6, 7.1504,
+        901.26, 718.97, 587.28, 719.00, 889.38, 474.55,
+        587.29, 474.56, 391.58
+
+\section{Root SWAP alternative}
+The CNOT gate can be constructed using to $\sqrt{SW}$ gates with single qubit unitaries as\cite{loss_quantum_1998}
+\begin{equation}
+    CNOT = H_2Z_1(\pi/2)Z_2(-\pi/2)\sqrt{SW}Z_1\sqrt{SW}H_2
+\end{equation}
+
+\section{Electron spin resonance (EPR)}
+\subsection{Single electron Hamiltonian}
+A static background field $B_0\bm{\hat{z}}$ coupled with a microwave frequency circularly oscillating field $B_{MW}\cos\omega t\ \bm{\hat{x}} + B_{MW}\sin\omega t\ \bm{\hat{y}}$ results in single electron Hamiltonian
+\begin{align}
+    H &= H_0 + H_{MW}\\ &= \frac{1}{2}g_e\mu_B \left[B_{MW}\cos\omega t\ \sigma_x + B_{MW}\sin\omega t\ \sigma_y + B_0\sigma_z\right]\\ 
+    &= \frac{1}{2}g_e\mu_B\begin{pmatrix}B_0 &B_{MW}e^{-i\omega t}\\ B_{MW}e^{i\omega t} &-B_0\end{pmatrix}
+\end{align}
+where $g_e$ is taken to be positive.
+
+The Larmor precession due to the static $z$-directed field is $\omega_0=\frac{g\mu_B}{\hbar}B$. For a $2$T background field, this gives $\omega_0 = 355$ rad/ns. Hence the need to transform into the rotating frame...
+
+\subsection{Two electron Hamiltonian}
+The two electron Hamiltonian is given by
+\begin{equation}
+    H=H_0+\sum_\omega H_\omega, 
+\end{equation}
+with free evolution Hamiltonian
+\begin{align}
+    H_0 = \frac{1}{2}g_e\mu_BB_0(\sigma_{z,1}+\sigma_{z,2}) + A_1\hbar\sigma_{z,1}+A_2\hbar\sigma_{z,2} + J\bm{\sigma}\cdot\bm{\sigma},
+\end{align}
+and applied control Hamiltonians
+\begin{align}
+    H_\omega = \frac{1}{2}g_e\mu_BB_\omega \left[\cos\omega t (\sigma_{x,1}+\sigma_{x,2}) + \sin\omega t(\sigma_{y,1} + \sigma_{y,2})\right]
+\end{align}
+
+The hyperfine interaction is\cite{kane_silicon-based_1998,tsai_optimal_2009,kalra_robust_2014} $A=29.2$ MHz, and we take $A_1=+A,\ A_2=-A$.
+
+
+The free evolution Hamiltonian in matrix form is
+\begin{align}
+    H_0 = \begin{pmatrix}
+    E_0+A_1\hbar+A_2\hbar+J &0 &0 &0\\
+    0 &A_1\hbar-A_2\hbar-J &2J &0\\ 
+    0 &2J &-A_1\hbar+A_2\hbar-J &0 \\ 
+    0 &0 &0 &-E_0-A_1\hbar-A_2\hbar+J
+    \end{pmatrix}
+\end{align}
+We can now determine transition frequencies. 
+\begin{align} 
+\omega_{12} &= (E_0+2A_2\hbar + 2J)/\hbar\\
+\omega_{13} &= (E_0+2A_1\hbar +2J)/\hbar\\
+\omega_{14} &= (2E_0 + 2A_1\hbar + 2A_2\hbar)/\hbar\\
+\omega_{23} &= 2(A_1 -A_2)\\
+\omega_{24} &= (E_0+2A_1\hbar -2J)/\hbar\\
+\omega_{34} &= (E_0+2A_2\hbar-2J)/\hbar
+\end{align}
+
+Transitions between states are achieved by application of control fields at resonant frequency $\omega=\Delta E/\hbar$ wher e $\Delta E$ is the energy difference between the states. It is best to use control fields at these frequencies so fluctuations in the pulse amplitude are minimised, which allows for better insight into the working of the gate, and presumably eassier implementation on hardware. If the free evolution Hamiltonian is diagonal, then the amplitude of the resonant frequency control field will remain constant throughout the gate. If $H_0$ is non-diagonal, then there will be some variation.
+
+\subsection{Diagonalisation}
+Following what Oscar has done, it is useful to diagonalise $H_0$ so that the time dependence on $H_0$ can be removed analytically. I think this also puts us in a good position to utilise the rotating wave approximation. Taking $\Delta A = A_1-A_2$, the eigenvalues of $H_0$ are 
+\begin{align}
+    E_1&=E_z+A_1\hbar+A_2\hbar+J\\
+    E_2 &= -J + \sqrt{\Delta A^2 + 4J^2}\\
+    E_3 &=  -J - \sqrt{\Delta A^2 + 4J^2}\\
+    E_4 &= -E_z-A_1\hbar-A_2\hbar+J,
+\end{align}
+We can write 
+\begin{equation}
+    H_0 = SH_0^D S^{T}
+\end{equation}
+with 
+\begin{align}
+    H_0^D &= \text{diag}\left\{E_1,\ E_2,\ E_3,\ E_4\right\}\\
+    S &= \begin{pmatrix}
+    1\\
+     &\alpha &-\beta\\
+    &\beta &\alpha\\
+    & & &1
+    \end{pmatrix},
+\end{align}
+defining 
+\begin{align}
+    \alpha = 2J/d,\quad \beta = \frac{1}{d}\left(-\Delta A + \sqrt{\Delta A^2 + 4J^2}\right)
+\end{align}
+where
+\begin{equation}
+    d = \sqrt{8J^2+2\Delta A^2 - 2\Delta A\sqrt{\Delta A^2 + 4J^2}}
+\end{equation}
+serves to normalise $S$ to simplify the algebra.
+
+Transition frequencies which will excite transitions are $\omega_{ab}=E_a-A_n$. The transition frequencies which can be used in control fields to excite desired transitions can be determined by calculating time evolution operator corresponding to $H_0$. These are
+\begin{align}
+    \omega_{12} &= \omega_z+A_1+A_2+2J-\sqrt{(A_1-A_2)^2+4J^2}\\
+    \omega_{13} &= \omega_z+A_1+A_2+2J+\sqrt{(A_1-A_2)^2+4J^2}\\
+    \omega_{24} &= \omega_z+A_1+A_2-2J+\sqrt{(A_1-A_2)^2+4J^2}\\
+    \omega_{34} &= \omega_z+A_1+A_2-2J-\sqrt{(A_1-A_2)^2+4J^2}
+\end{align}
+where $\omega_z = g\mu B_z$ (no factor of 1/2!).
+
+Working in the rotating frame with $\omega_z=0$, and with hyperfine strengths from Kane where $A_1=-A_2$, we have
+\begin{align}
+    \omega_{12} &= 2J-\sqrt{\Delta A^2+4J^2}\\
+    \omega_{13} &= 2J+\sqrt{\Delta A^2+4J^2}\\
+    \omega_{24} &= -\omega_{12}\\
+    \omega_{34} &= -\omega_{13}
+\end{align}
+
+\subsubsection{More recent update..}
+Given $A_1+A_2=0$, Hamiltonian simplifies to
+\begin{equation}
+    H = \begin{pmatrix}
+        J \\ &\Delta A-J &2J\\ &2J &-\Delta A-J\\ & & &J
+    \end{pmatrix}
+\end{equation}
+In terms of $\alpha,\beta$ from before, time evolution operator due to free Hamiltonian is
+\begin{equation}
+    U=\begin{bmatrix}
+    e^{-E_1t}\\ & \alpha^2e^{-E_2t}+\beta^2e^{-E_3t} &\alpha\beta\left(e^{-E_2t}-e^{-E_3t}\right)\\
+    &\alpha\beta\left(e^{-E_2t}-e^{-E_3t}\right) &\beta^2e^{-E_2t}+\alpha^2e^{-E_3t}\\
+    & & &e^{-E_4t}\end{bmatrix}
+\end{equation}
+
+Resonant frequencies can be found be calculating $U^\dagger H_\omega U$. It turns out that frequencies $\omega_{12} = 2J-\sqrt{\Delta A^2+4J^2},\ \omega_{13}=2J+\sqrt{\Delta A^2+4J^2}$ are both simultaneously responsible for transitions $\ket{00}\mapsto\ket{01}$ and $\ket{00}\mapsto\ket{10}$, while frequencies $\omega_{24}=-2J+\sqrt{\Delta A^2+4J^2}$ and $\omega_{34} = -2J-\sqrt{\Delta A^2+4J^2}$ are associated with transitions $\ket{01}\mapsto\ket{11}$ and $\ket{10}\mapsto\ket{11}$.
+
+\subsection{Rotating frame Hamiltonian}
+Can write Hamiltonian as 
+\begin{equation}
+    H = \left(\frac{1}{2}\omega_z + A_2\right)(\sigma_{z1}+\sigma_{z2}) + \Delta A\sigma_{z1} + J\bm{\sigma}_1\cdot\bm{\sigma}_2
+\end{equation}
+where $\Delta A=A_1-A_2$. Then transform to frame rotating with frequency $\omega_z+A_2$. Hamiltonian in this frame is
+\begin{equation}
+    H = \Delta A\sigma_{z1} + J\bm{\sigma}_1\cdot\bm{\sigma}_2.
+\end{equation}
+This is trash as it turns out..
+
+\subsection{Three electron Hamiltonian}
+\begin{dmath}
+    H_0 = \frac{1}{2}g_e\mu_BB_0(\sigma_{z,1}+\sigma_{z,2}+\sigma_{z,3}) + A_1\hbar\sigma_{z,1}+A_2\hbar\sigma_{z,2} + A_3\sigma_{z,3} + J_{12}\bm{\sigma}_1\cdot\bm{\sigma}_2+J_{23}\bm{\sigma}_2\cdot\bm{\sigma}_3+J_{13}\bm{\sigma}_1\cdot\bm{\sigma}_3
+\end{dmath}
+\begin{equation}
+H_\omega = \frac{1}{2}g_e\mu_BB_\omega \left[\cos\omega t (\sigma_{x,1}+\sigma_{x,2}+\sigma_{x,3}) + \sin\omega t(\sigma_{y,1} + \sigma_{y,2} + \sigma_{y,3})\right]
+\end{equation}
+
+\subsection{Interaction picture}
+It is sensible to solve the Schrodinger equation in the interaction picture, as the large background static field is responsible for by far the most rapid evolution of the system. Dealing with this evolution analytically drastically reduces the number of timesteps required to obtain accurate results.
+\begin{equation}
+    H_I(t)\ket{\psi} = i\hbar\frac{\partial\ket{\psi}}{\partial t}
+\end{equation}
+where $\ket{\psi}=\ket{\psi}_I = e^{iH_0t/\hbar}\ket{\psi}_S$, and $H_I(t) = e^{iH_0t/\hbar} \left( \sum_\omega H_\omega\right) e^{-iH_0t/\hbar}$.
+
+\subsection{Rotating frame}
+We will work in a frame which rotates at the electron Larmor frequency, $\omega_z=g\mu B_z$, corresponding to the static background magnetic field $B_z=2$ T. It can be shown that this transformation is achieved simply by setting the background static field to zero. We can write the Hamiltonian as 
+\begin{align}
+    H = H_z+H_0+\sum_\omega H_\omega
+\end{align}
+where 
+\begin{align}
+    H_z &= \frac{\omega_z}{2}\sum_j\sigma_{z,j},\quad H_0 = \sum_j A_j \sigma_{z,j} + \sum_{\langle i,j\rangle} J_{ij}\bm{\sigma}_i\cdot\bm{\sigma}_j,\\
+    H_\omega &= 
+\end{align}
+dont need to be so general - do 3 qubits 
+
+\begin{align}
+    H_z &= \frac{\omega_z}{2}(\sigma_{z,1}+\sigma_{z,2}+\sigma_{z,3}),\\ 
+    H_0 &= A_1 \sigma_{z,1} +A_2 \sigma_{z,2}+A_3\sigma_{z,3} +  J_{12}\bm{\sigma}_1\cdot\bm{\sigma}_2+ J_{23}\bm{\sigma}_2\cdot\bm{\sigma}_3,\label{eq:free-evol}\\
+    H_\omega &= \cos(\omega t - \phi_\omega)[\sigma_{x,1} + \sigma_{x,2}+\sigma_{x,3}] + \sin(\omega t - \phi_\omega)[\sigma_{y,1} + \sigma_{y,2}+\sigma_{y,3}] \label{eq:ctrl-field}
+\end{align}
+The free evolution $H_0$ term commutes with $H_z$, and is thus unaffected by transforming to the rotating frame. For the control field, we have
+\begin{align}
+    e^{iH_{0}t}H_{\omega} e^{-iH_0t} &= \cos{[(\omega-\omega_z) t - \phi_\omega]}(\sigma_{x,1} + \sigma_{x,2}+\sigma_{x,3}) + \sin {[(\omega-\omega_z) t - \phi_{\omega}]} (\sigma_{y,1} + \sigma_{y,2}+\sigma_{y,3})
+\end{align}
+To work in the rotating frame, we simply employ equations (\ref{eq:free-evol}) and (\ref{eq:ctrl-field}) with $B_0=0$, and the understanding that control frequencies $\omega$ correspond to actual frequencies of $\omega_{\text{lab}} = \omega+\omega_z$ in the lab (non-rotating) frame.
+
+\section{Transition Frequencies}
+If high fidelity pulses are to be attained, appropriately chosen control field frequencies must be determined which can excite the desired transitions. Resonant energies are given by the energy difference between certain allowed energy levels of the system. That is to say, not all pairs of eigenvalues of the Hamiltonian can be used to find a resonant frequency, as not all transitions can be directly excited. To understand how these resonant frequencies arise, it is instructive to calculate $e^{iH_0t}H_\omega e^{-\H_0 t}$. This matrix has terms of the form $\exp\{i(\omega-\omega_{ij})\}$ where $\omega$ as the control frequency and $\omega_{ij}$ is the gap between $H_0$ eigenstates $i$ and $j$. This is feasible for 2 qubit system, not for 3 qubit.
+
+Let $S$,$D$ encode the eigenvectors and eigenvalues of $H_0$ such that $H_0 = SDS^T$. Transform $H_\omega$ to $H_0$ eigenbasis as $H_\omega^D=S^TH_\omega S$. Now calculate interaction picture control Hamiltonian 
+\begin{equation}
+    H_\omega^D' = \begin{pmatrix}
+    e^{i\omega_1 t}\\
+    &\ddots\\ & & e^{i\omega_n t}\end{pmatrix} S^TH_\omega S
+     \begin{pmatrix}
+    e^{-i\omega_1 t}\\
+    &\ddots\\ & & e^{-i\omega_n t}\end{pmatrix}
+\end{equation}
+
+\section{Cost function}
+\subsection{Fidelity cost}
+The base cost function employed in GRAPE is $J=1-\Phi$ where $\Phi\in [0,1]$ is  the fidelity of a target unitary $U_t$ with the unitary resulting from the control fields, $U_f$. The fidelity and its derivative are calculated as\cite{rowland_implementing_2012}
+\begin{align}
+    \Phi&=\bra{U_t}\ket{U_f}\bra{U_f}\ket{U_t},\\
+    \frac{\partial\Phi}{\partial u_{kj}} &= -2\text{Re}\bra{P_j}\ket{i\delta t\mathcal{H}_k X_j}\bra{X_j}\ket{P_j}
+\end{align}
+using the standard inner product for matrices
+\begin{equation}
+    \bra{A}\ket{B} = \frac{1}{N}\text{tr}(A^\dagger B).
+\end{equation}
+The cost function for GRAPE is then taken as
+\begin{align}
+    J = 1-\Phi,\quad
+    \frac{\partial J}{\partial u_{jk}} &= -\frac{\partial\Phi}{\partial u_{kj}}
+\end{align}
+
+\subsection{Fluctuation cost}
+Term added to cost function to reduce fluctuation in control field amplitudes.
+\begin{align}
+    J_f &= \alpha\sum_{j=0}^{N-1}\sum_{k=1}^m \left[u_k(j+1)-u_k(j)\right]^2,\\
+    \nabla_{jk} J_f&= 2\alpha\left[2u_k(j) - u_k(j-1) - u_k(j+1)\right],\quad 1\leq j\leq N-1,\\
+    \nabla_{0k}J_f &= \nabla_{Nk} = 0.
+\end{align}
+Using this cost function term with a large $\alpha$ usually results in a much more stable amplitude without any reduction in fidelity. Often the fidelity goes up! It does slow things down though. Can cause inconsistent convergence behaviour as N is increased. Eg increasing timesteps sometimes causes preveiously successful convergence to not work at all. This turns out to be due to the factor of $N$ in the fluc cost surprise surprise
+
+\subsection{Solfus Activation function}
+    
+    
+\section{Three qubit CNOT}
+Thus far I have attempted to produce 3-qubit CNOTs using the 3-qubit Hamiltonian outlined previously. This is a difficult task, and will much more difficult when attempting to run in parallel. A simpler approach would see the 3-qubit CNOT performed via 2-qubit CNOTs between the two pairs of qubits. The disjoint frequencies provided by the difference in qubit separation (14 vs 18nm) should make performing these CNOTs one at a time a simple task. This will mean that instead of needing to perform 81 3-qubit CNOTs in parallel, we simply need to be able to perform two groups of 15 2-qubit CNOTs, one group for 14nm and one for 18nm. The 3-qubit CNOTs also tend to be very slow, so replacing it with multiple 2-qubit CNOTs is not likely to hinder the speed.
+
+If we assume the coupler qubit is initialised to the $\ket{0}$ state, then a CNOT between qubits 1 and 3 can be accomplished as
+\begin{equation}
+    CX_{13} = CX_{12}CX_{23}CX_{12}
+\end{equation}
+    
+\subsection{Target Unitary}
+Target Unitary needs to be of the form
+\begin{equation}
+    \text{CNOT} = \begin{pmatrix}
+    \alpha_0 &0 &\beta_0 &0 &0 &0 &0 &0 \\
+     0&\alpha_1 &0 &\beta_1 &0 &0 &0  &0\\
+     \beta_2 &0 &\alpha_2 &0 &0 &0 &0 &0\\
+      0 &\beta_3 &0 &\alpha_3 &0 &0 &0 &0 \\
+      0&0&0 &0 &0 &\alpha_4 &0 &\beta_4 \\
+      0&0&0 &0 &\alpha_5 &0 &\beta_5 &0 \\
+      0&0 &0 &0 &0 &\beta_6 &0 &\alpha_6\\
+      0&0&0 &0 &\beta_7 &0 &\alpha_7 &0  
+      \end{pmatrix}
+\end{equation}
+with $\alpha,\beta\in\mathbb{R},\ \alpha^2+\beta^2 = 1$.
+    
+\section{Hartree atomic units}
+When simulating the time evolution of electron spins, it is advisable to utilise a system of units in which certain fundamental constants are set to one. This helps to avoid overflow errors without having to rely on unnecessarily memory intensive data types, which can be appreciated by noting that the smallest possible 32-bit floating point number is on the order of $10^{-38}$, which is only a few orders of magnitude smaller than $\hbar$.
+
+Hartree atomic units have been employed here, with fundamental constants set to one being Planck's reduced constant, the electron mass, the electron charge, and the Bohr radius, $\hbar=m_e=e=a_0=1$.
+
+\begin{align}
+    1\ \unit{\metre} &= 1/\tilde a_0 = 1.89\times 10^{10}\\
+    1\ \unit{\kg} &= 1/\tilde m_e = 1.10\times 10^{30}\\
+    1\ \unit{\second}&= \tilde\hbar \tilde m_e^{-1}\tilde a_0^{-2} =4.13\times 10^{16}\\
+    1\ \unit{\tesla} &= 4.25\times 10^{-6} \\
+\end{align}
+
+\section{Useful Info}
+Two P-atom donor electron systems have different hyperfines due to Stark shift. $\Delta A = A_1-A_2\sim $MHz.\cite{kalra_robust_2014}
+
+Hyperfine Zeeman splitting can also be facilitated by gradient magnetic field
+
+\subsection{Hyperfine values}
+Hyperfine interaction strength is $A=117$ MHz $\approx 10^9 $ rad/s\cite{mccamey_fast_2009}
+
+A=97.5\ \text{MHz} \cite{hile_addressable_2018}
+
+Approximations are going to be needed. Increasing the duration of a gate results in a proportion increase in the required number of time steps to achieve a given fidelity. This is likely because more time means more revolutions of the qubit due to the background field. Interaction picture doesn't seem to be helping sufficiently / at all.
+
+\section{Papers to read}
+``Coherent electron-spin-resonance manipulation of.." and ``An addressable quantum dot qubit with fault-tolerant control fidelity" discuss stark and zeeman shift of hyperfine.
+
+
+\section{Ideas}
+\subsection{Multiple fields per control frequency}
+Mostly just putting in 1 circular magnetic field per control frequency. Have tried decoupling $x$ and $y$ fields, which sometimes improves fidelity, sometimes makes it worse. Decoupling allows for eliptical or transverse fields. This setup is incapable of performing Y gates and often has the wrong phase.
+
+New idea: add a second circular (ie coupled x and y) field which is $\pi/2$ out of phase with the first one. This should hopefully fix phase issues.
+
+\subsection{Write my own Conjugate gradient?}
+Probably not necessary...
+
+
+\section{Lit Review}
+Sweet spot - exchange insensitive to electric fluctuations to first order.
+
+
+\cite{daniel_lec_2016}
+
+\cite{sun_hee_development_2011}
+
+\cite{hill_exchange-based_2021}
+
+
+
+
+
+\section{Appendices}
+
+\bibliographystyle{aip}
+
+\bibliography{references.bib}q
+\end{document}

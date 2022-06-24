@@ -1,0 +1,40 @@
+
+
+\documentclass[../Thesis.tex]{subfiles}
+\graphicspath{{\subfix{../graphics/}}}
+
+
+\begin{document}
+\chapter*{Appendices}
+
+
+\section{Hyperfine interaction}
+The static background field is necessary to prevent nuclear-electron state mixing due to the hyperfine interaction. The Hamiltonian for an isolated electron-nucleus system is written
+\begin{align}
+    H &= \frac{1}{2}g_n\mu_n B_0\sigma_{z,n} + \frac{1}{2}g_e\mu_B B_0\sigma_{z,e} + A\bm{\sigma}_n\cdot\bm{\sigma}_e\\
+    &= \frac{\omega_n}{2}\sigma_{z,n} + \frac{\omega_e}{2}\sigma_{z,e}+A\bm{\sigma}_n\cdot\bm{\sigma}_e\\
+    &= \frac{\omega_n}{2}(\sigma_{z,n}+\sigma_{z,e}) + \frac{\omega_e-\omega_n}{2}\sigma_{z,e}+A\bm{\sigma}_n\cdot\bm{\sigma}_e
+\end{align}
+where $\omega_n,\omega_e$ are the precessional frequencies of the nucleus and electron respectively. In order to gain insight into the influence of the hyperfine term, it is instructive to transform to a frame in which the other terms in the Hamiltonian are not present. We can easily remove the first term by moving to the frame rotating at frequency $\omega_n$, in which
+\begin{align}
+    H= \frac{\Delta\omega}{2}\sigma_{z,e}+A\bm{\sigma}_n\cdot\bm{\sigma}_e
+\end{align}
+where $\Delta\omega=\omega_{e}-\omega_n$. The $\Delta \omega$ term does not commute with the hyperfine term, and as such is requires more work to rotate out. Letting
+\begin{equation}
+    U_0(t) = \exp\left\{-i\frac{\Delta\omega}{2}\omega_{z,e}t\right\} = \cos\left(\frac{\Delta\omega}{2}t\right)\mathds{1} - i\sin\frac{\Delta\omega t}{2} \sigma_{z,e},
+\end{equation}
+it can be shown that
+\begin{align}
+    U_0^\dagger A\bm{\sigma}_n\cdot\bm{\sigma}_e U = A\left[\sigma_{z,n}\sigma_{z,e} + \cos(\Delta \omega t)(\sigma_{x,n}\sigma_{x,e}+\sigma_{y,n}\sigma_{y,e}) + \sin(\Delta \omega t)(\sigma_{y,n}\sigma_{x,e}-\sigma_{x,n}\sigma_{y,e})\right].
+\end{align}
+Since $\Delta\omega\gg A$, the rotating wave approximation gives
+\begin{equation}
+    H'\approx A\sigma_{z,n}\sigma_{z,e}
+\end{equation}
+
+
+
+\end{document}
+
+
+
