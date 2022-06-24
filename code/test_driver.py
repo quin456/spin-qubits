@@ -13,22 +13,19 @@ import pickle
 from pdb import set_trace 
 import numpy as np
 import torch as pt
-import matplotlib.pyplot as plt
-import GRAPE as grape
-import ast
-from GRAPE import g,mu, tesla, A_kane, load_system_data
-import gates as gate
-from gates import cplx_dtype,get_Xn,get_Yn, CX, Id
-from atomic_units import Mhz
-exch_filename = "exchange_data_updated.p"
-exch_data = pickle.load(open(exch_filename,"rb"))
-J_100_18nm = pt.tensor(exch_data['100_18']) 
-J_100_14nm = pt.tensor(exch_data['100_14']) 
-nanosecond = 1e-9*grape.second
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib import pyplot as plt 
 
-#J=20e6*grape.hz
-#A_arr = pt.tensor([[A1, A2],[A1,A2],[A1,A2], [A1, A2], [A1, A2], [A1,A2], [A1,A2], [A1,A2], [A1,A2], [A1,A2]], dtype=grape.real_dtype, device=device)
-#J_arr=pt.tensor([10e6,15e6,20e6,25e6,30e6,35e6,40e6,45e6,50e6,55e6], dtype=grape.real_dtype, device=device)*grape.hz
+
+
+import GRAPE as grape
+from GRAPE import load_system_data
+import ast
+from data import g_e,mu_B,gamma_e, get_A, get_J, J_100_14nm, J_100_18nm, cplx_dtype, dir
+import gates as gate
+from gates import get_Xn, get_Yn, CX, Id
+from atomic_units import *
 
 
 
@@ -37,7 +34,7 @@ nanosecond = 1e-9*grape.second
 ################################################################################################################
 
 def get_fields(filename):
-    u = pt.load(f"fields/{filename}_XY", map_location=pt.device('cpu'))
+    u = pt.load(f"{dir}fields/{filename}_XY", map_location=pt.device('cpu'))
     X = u[0,:]
     Y = u[1,:]
     return X,Y
@@ -76,7 +73,7 @@ def simulate_field(tN,X_field,Y_field,J,A):
         H0 = grape.get_H0(A,J)[q]
         U = pt.eye(2**nq, dtype = grape.cplx_dtype)
         for j in range(N):
-            H = H0 + 0.5*g*mu*tesla*(X_field[j]*get_Xn(nq) + Y_field[j]*get_Yn(nq))
+            H = H0 + 0.5*g_e*mu_B*tesla*(X_field[j]*get_Xn(nq) + Y_field[j]*get_Yn(nq))
             U = pt.matmul(pt.matrix_exp(-1j*dt*H),U)
             X[q][j]=U  
     return X
@@ -143,8 +140,6 @@ def frequency_collisions(fn):
     X = simulate_field(tN, X_field, Y_field, all_J, all_A)
     print(max(fidelity(X,all_target)[1:]))
 
-#frequency_collisions('c302_1S_3q_190ns_500step')
-
 def three_q_from_2q():
 
     fn1='c277_2S_2q_90ns_2000step'
@@ -205,9 +200,7 @@ def compare_fields(times,Ns,Js,As,IDs):
 
 
 
-def run():
-
-    filename = 'c453_1S_2q_90ns_200step'
+def run(filename):
 
     SD,target,_fid = load_system_data(filename)
     X_field,Y_field = get_fields(filename)
@@ -217,6 +210,12 @@ def run():
 
     X=simulate_field(SD.tN,X_field,Y_field,SD.J,SD.A)
     display_results(X,X_field,Y_field,SD.tN,SD.target)
+
+
+
+fn = 'c473_1S_2q_100ns_500step'
+run(fn)
+
 
 
 def all_2q():

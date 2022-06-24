@@ -54,7 +54,6 @@ pt.set_printoptions(sci_mode=True)
 annotate=True 
 
 
-dir = '../'
 log_fn = dir+'logs/log.txt'
 ID_fn = dir+'logs/ID_tracker.txt'
 precision_loss_msg = "Desired error not necessarily achieved due to precision loss."
