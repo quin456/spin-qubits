@@ -101,7 +101,7 @@ if __name__ == '__main__':
 
 
     print("running...")
-    run_CNOTs(100.0, 500, nq=nq, nS=nS, max_time = 10, kappa=1, rf=None, save_data=True, init_u_fn=None, mergeprop=False)
+    run_CNOTs(100.0, 500, nq=nq, nS=nS, max_time = 5, kappa=1, rf=None, save_data=True, init_u_fn=None, mergeprop=False)
 
 
     #grape.process_u_file('c320_1S_3q_190ns_300step')

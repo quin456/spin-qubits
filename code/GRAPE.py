@@ -185,53 +185,7 @@ def mergeMatmul(A, backwards=False):
 ################################################################################################################
 
 
-def time_evol(u,H0,x_cf,y_cf,tN, device=default_device):
-    m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
-    sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
-    dt = tN/N
-    u_mat = uToMatrix(u,m)
-    x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
-    y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
-    H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
-    H=pt.reshape(H, (nS*N,d,d))
-    U = pt.matrix_exp(-1j*H*dt)
-    del H
-    U = pt.reshape(U, (nS,N,d,d))
-    return U
 
-
-
-def propagate(U,target=None,device=default_device):
-    '''
-    Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
-    Backward propagates target evolution operators and stores in X.
-    '''
-    nS=len(U)
-    N=len(U[0])
-    dim = U[0].shape[1]  # forward propagated time evolution operator
-    nq = get_nq(dim)
-    if target is None: target = CNOT_targets(nS,nq)
-    X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
-    X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
-    P = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
-    P[:,N-1,:,:] = target    # backwards propagated target 
-
-    
-    global mergeprop_g
-
-    # vectorized is slower :) 
-    if mergeprop_g:
-        X[:,1:] = U[:,1:]
-        P[:,:-1] = dagger(U[:,1:])
-        X = mergeMatmul(X)
-        P = mergeMatmul(P,backwards=True)
-    
-    else:
-        for j in range(1,N):
-            X[:,j,:,:] = pt.matmul(U[:,j,:,:],X[:,j-1,:,:])
-            P[:,-1-j,:,:] = pt.matmul(dagger(U[:,-j,:,:]),P[:,-j,:,:])
-    
-    return X,P
 
 
 ################       COST FUNCTION        ############################################################
@@ -312,94 +266,6 @@ def new_target(Uf):
     return target_new
 
 
-def fast_fid(u,H0,x_cf,y_cf,tN,target, device=default_device):
-    '''
-    Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
-    '''
-
-    m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
-    sig_xn = gate.get_Xn(nq, device); sig_yn = gate.get_Yn(nq, device)
-
-    t0 = time.time()
-    if pt.cuda.device_count()==2:
-        U2 = time_evol(u,H0,x_cf,y_cf,tN, device='cuda:1')
-        U=U2.to('cuda:0')
-        del U2
-    else:
-        U = time_evol(u,H0,x_cf,y_cf,tN, device=device)
-    global time_exp 
-    time_exp += time.time()-t0
-
-    t0 = time.time()
-    X,P = propagate(U,target, device=device)
-    global time_prop 
-    time_prop += time.time()-t0
-    del U
-
-    Ut = P[:,-1]; Uf = X[:,-1]
-    # fidelity of resulting unitary with target
-    IP = batch_IP(Ut,Uf)
-    Phi = pt.real(IP*pt.conj(IP))
-
-
-    t0 = time.time()
-    # calculate grad of fidelity
-    XP_IP = batch_IP(X,P)
-
-    ox_X = pt.einsum('ab,sjbc->sjac' , sig_xn, X)
-    oy_X = pt.einsum('ab,sjbc->sjac' , sig_yn, X)
-    PoxX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(P), 1j*ox_X)) / d
-    PoyX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(P), 1j*oy_X)) / d
-    del X,P,ox_X, oy_X
-
-    Re_IP_x = -2*pt.real(pt.einsum('sj,sj->sj', PoxX_IP, XP_IP))
-    Re_IP_y = -2*pt.real(pt.einsum('sj,sj->sj', PoyX_IP, XP_IP))
-
-    # sum over systems axis
-    sum_IP_x = pt.sum(Re_IP_x,0)
-    sum_IP_y = pt.sum(Re_IP_y,0)
-    del Re_IP_x, Re_IP_y
-
-    dPhi_x = pt.einsum('kj,j->kj', pt.real(x_cf), sum_IP_x)
-    dPhi_y = pt.einsum('kj,j->kj', pt.real(y_cf), sum_IP_y)
-    del sum_IP_x, sum_IP_y
-
-    dPhi = dPhi_x + dPhi_y
-    del dPhi_x, dPhi_y
-    global time_grad 
-    time_grad += time.time()-t0
-
-
-    return Phi, dPhi
-
-
-def fast_cost(u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1, alpha=0):
-    '''
-    Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
-
-    INPUTS:
-        u: control field amplitudes
-        x_cf: 0.5*g*mu*(1T)*cos(wt-phi) - An (m,N) tensor recording coefficients of sigma_x for Hw_kj
-        y_cf: 0.5*g*mu*(1T)*sin(wt-phi) - An (m,N) tensor recording coefficients of sigma_y for Hw_kj
-            Hw = x_cf * sig_x + y_cf * sig_y
-    
-    '''
-    
-    u=pt.tensor(u, dtype=cplx_dtype, device=default_device)
-    m=len(x_cf)
-    t0 = time.time()
-    Phi,dPhi = fast_fid(u,H0,x_cf,y_cf,tN,target)
-    global time_fid 
-    time_fid += time.time()-t0
-    J = 1 - pt.sum(Phi,0)/nS
-    dJ = -uToVector(dPhi)/nS
-    J=J.item(); dJ = dJ.cpu().detach().numpy()
-    hist.append(J)
-
-    # J_fluc,dJ_fluc = fluc_cost(u,m,alpha)
-    # J+=J_fluc; dJ+=dJ_fluc
-    
-    return J, dJ * tN/nS / kappa
 
 
 
@@ -421,20 +287,6 @@ def get_control_fields(omega,phase,tN,N,device=default_device):
     return x_cf, y_cf
 
 
-def print_info(field_opt,SD, minprint):
-
-    fidelities = fast_fid(field_opt.u, SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
-    avgfid=sum(fidelities)/len(fidelities)
-    minfid = min(fidelities).item()
-
-    print(f"Average fidelity = {avgfid}")
-    if not minprint:
-        print(f"Fidelities = {fidelities}")
-        print(f"Min fidelity = {minfid}")
-        print(f"Time taken = {field_opt.time_taken}")
-        print(f"GPUs requested = {ngpus}")
-        global time_grad, time_exp, time_prop, time_fid 
-        print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
     
 
 
@@ -463,13 +315,50 @@ class SystemData(object):
     def atomic_units(self,J,A,tN):
         return J*Mhz, A*Mhz, tN*nanosecond
 
+class GRAPE:
+    '''
+    General GRAPE class.
+    '''
+    @staticmethod
+    def time_evol(u,H0,x_cf,y_cf,tN, device=default_device):
+        m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
+        sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
+        dt = tN/N
+        u_mat = uToMatrix(u,m)
+        x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
+        y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
+        H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
+        H=pt.reshape(H, (nS*N,d,d))
+        U = pt.matrix_exp(-1j*H*dt)
+        del H
+        U = pt.reshape(U, (nS,N,d,d))
+        return U
+
+    @staticmethod
+    def propagate(U,target=None,device=default_device):
+        '''
+        Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
+        Backward propagates target evolution operators and stores in X.
+        '''
+        nS=len(U)
+        N=len(U[0])
+        dim = U[0].shape[1]  # forward propagated time evolution operator
+        nq = get_nq(dim)
+        if target is None: target = CNOT_targets(nS,nq)
+        X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
+        X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
+        P = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
+        P[:,N-1,:,:] = target    # backwards propagated target 
+
+        for j in range(1,N):
+            X[:,j,:,:] = pt.matmul(U[:,j,:,:],X[:,j-1,:,:])
+            P[:,-1-j,:,:] = pt.matmul(dagger(U[:,-j,:,:]),P[:,-j,:,:])
+        
+        return X,P
 
 
-class FieldOptimiser(object):
-    '''
-    Optimisation object which passes fidelity function to scipy optimiser, and handles termination of 
-    optimisation once predefined time limit is reached.
-    '''
+class ESRGRAPE(GRAPE):
+
     def __init__(self, SD, u0, hist0, max_time, save_data, sp_distance = 99999*3600, alpha=0):
 
         # Log job start
@@ -478,7 +367,7 @@ class FieldOptimiser(object):
 
         if u0 is None: u0=init_u(SD)
         cost_hist=hist0 if hist0 is not None else []    
-        fun = lambda u: fast_cost(u,SD.H0, SD.nS, SD.J, SD.A, SD.x_cf, SD.y_cf, SD.tN, SD.target, cost_hist, alpha=alpha)
+        fun = lambda u: self.cost(u,SD.H0, SD.nS, SD.J, SD.A, SD.x_cf, SD.y_cf, SD.tN, SD.target, cost_hist, alpha=alpha)
 
 
         self.fun=fun
@@ -490,6 +379,102 @@ class FieldOptimiser(object):
         self.cost_hist=cost_hist
         self.save_data = save_data
         self.alpha=alpha
+        
+    def fidelity(self,u,H0,x_cf,y_cf,tN,target, device=default_device):
+        '''
+        Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
+        '''
+
+        m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
+        sig_xn = gate.get_Xn(nq, device); sig_yn = gate.get_Yn(nq, device)
+
+        t0 = time.time()
+        if pt.cuda.device_count()==2:
+            U2 = self.time_evol(u,H0,x_cf,y_cf,tN, device='cuda:1')
+            U=U2.to('cuda:0')
+            del U2
+        else:
+            U = self.time_evol(u,H0,x_cf,y_cf,tN, device=device)
+        global time_exp 
+        time_exp += time.time()-t0
+
+        t0 = time.time()
+        X,P = self.propagate(U,target, device=device)
+        global time_prop 
+        time_prop += time.time()-t0
+        del U
+
+        Ut = P[:,-1]; Uf = X[:,-1]
+        # fidelity of resulting unitary with target
+        IP = batch_IP(Ut,Uf)
+        Phi = pt.real(IP*pt.conj(IP))
+
+
+        t0 = time.time()
+        # calculate grad of fidelity
+        XP_IP = batch_IP(X,P)
+
+        ox_X = pt.einsum('ab,sjbc->sjac' , sig_xn, X)
+        oy_X = pt.einsum('ab,sjbc->sjac' , sig_yn, X)
+        PoxX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(P), 1j*ox_X)) / d
+        PoyX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(P), 1j*oy_X)) / d
+        del X,P,ox_X, oy_X
+
+        Re_IP_x = -2*pt.real(pt.einsum('sj,sj->sj', PoxX_IP, XP_IP))
+        Re_IP_y = -2*pt.real(pt.einsum('sj,sj->sj', PoyX_IP, XP_IP))
+
+        # sum over systems axis
+        sum_IP_x = pt.sum(Re_IP_x,0)
+        sum_IP_y = pt.sum(Re_IP_y,0)
+        del Re_IP_x, Re_IP_y
+
+        dPhi_x = pt.einsum('kj,j->kj', pt.real(x_cf), sum_IP_x)
+        dPhi_y = pt.einsum('kj,j->kj', pt.real(y_cf), sum_IP_y)
+        del sum_IP_x, sum_IP_y
+
+        dPhi = dPhi_x + dPhi_y
+        del dPhi_x, dPhi_y
+        global time_grad 
+        time_grad += time.time()-t0
+
+
+        return Phi, dPhi
+
+
+    def cost(self, u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1, alpha=0):
+        '''
+        Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
+
+        INPUTS:
+            u: control field amplitudes
+            x_cf: 0.5*g*mu*(1T)*cos(wt-phi) - An (m,N) tensor recording coefficients of sigma_x for Hw_kj
+            y_cf: 0.5*g*mu*(1T)*sin(wt-phi) - An (m,N) tensor recording coefficients of sigma_y for Hw_kj
+                Hw = x_cf * sig_x + y_cf * sig_y
+        
+        '''
+        
+        u=pt.tensor(u, dtype=cplx_dtype, device=default_device)
+        m=len(x_cf)
+        t0 = time.time()
+        Phi,dPhi = self.fidelity(u,H0,x_cf,y_cf,tN,target)
+        global time_fid 
+        time_fid += time.time()-t0
+        J = 1 - pt.sum(Phi,0)/nS
+        dJ = -uToVector(dPhi)/nS
+        J=J.item(); dJ = dJ.cpu().detach().numpy()
+        hist.append(J)
+
+        # J_fluc,dJ_fluc = fluc_cost(u,m,alpha)
+        # J+=J_fluc; dJ+=dJ_fluc
+        
+        return J, dJ * tN/nS / kappa
+
+
+    #class FieldOptimiser(object):
+    '''
+    Optimisation object which passes fidelity function to scipy optimiser, and handles termination of 
+    optimisation once predefined time limit is reached.
+    '''
 
     def check_time(self, xk):
         time_passed = time.time() - self.start_time
@@ -518,10 +503,44 @@ class FieldOptimiser(object):
             self.status='UC' #uncomplete
         self.time_taken = time.time() - self.start_time
 
+    def result(self, field_opt, SD, show_plot=True, minprint=False):
+
+
+        self.print_info(field_opt, SD, minprint)
+        X = get_X(field_opt.u, SD)
+        # Plot fields and process data
+        plotFields(field_opt.u, field_opt.cost_hist,SD,X,show_plot=show_plot, save_plot = field_opt.save_data, plotLabel=field_opt.filename)
+
+        fidelities = self.fidelity(field_opt.u,SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
+        avgfid=sum(fidelities)/len(fidelities)
+        minfid = min(fidelities).item()
+        
+
+        alpha=0
+        if field_opt.save_data:
+            # save_system_data will overwrite previous file if job was not terminated by gadi
+            log_result(minfid,avgfid,alpha,SD,field_opt)
+            save_system_data(SD, SD.target, field_opt.filename, fid=fidelities, status=field_opt.status)
+            save_field(field_opt, SD)
+
+    def print_info(self, field_opt,SD, minprint):
+
+        fidelities = self.fidelity(field_opt.u, SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
+        avgfid=sum(fidelities)/len(fidelities)
+        minfid = min(fidelities).item()
+
+        print(f"Average fidelity = {avgfid}")
+        if not minprint:
+            print(f"Fidelities = {fidelities}")
+            print(f"Min fidelity = {minfid}")
+            print(f"Time taken = {field_opt.time_taken}")
+            print(f"GPUs requested = {ngpus}")
+            global time_grad, time_exp, time_prop, time_fid 
+            print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
 
 def get_X(u_opt,SD):
-    U = time_evol(u_opt,SD.H0,SD.x_cf,SD.y_cf,SD.tN)
-    X,P = propagate(U,SD.target)
+    U = ESRGRAPE.time_evol(u_opt,SD.H0,SD.x_cf,SD.y_cf,SD.tN)
+    X,P = ESRGRAPE.propagate(U,SD.target)
     Uf = X[0][-1]
     return X
 
@@ -529,43 +548,23 @@ def get_X(u_opt,SD):
 def setup_optimisation(target, N, tN, J, A, u0=None, rf=None,hist0=[],max_time=None,save_data=True, alpha=0):
 
     SD = SystemData(J,A,tN,N,rf,target)
-    field_opt = FieldOptimiser(SD,u0,hist0,max_time,save_data, alpha=alpha)
+    field_opt = ESRGRAPE(SD,u0,hist0,max_time,save_data, alpha=alpha)
 
     return SD, field_opt
 
 def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, show_plot=True, max_time=None, NI_qub=False, hist0=None, minprint=False, mergeprop=False,alpha=0):
     '''
-    New optimiseFields which uses fast_cost
+    New optimiseFields which uses cost
     '''
 
     global mergeprop_g; mergeprop_g=mergeprop 
     SD, field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
     
     field_opt.run()
-    optimisation_result(field_opt,SD,show_plot=show_plot,minprint=minprint)
+    field_opt.result(field_opt,SD,show_plot=show_plot,minprint=minprint)
 
 
 
-def optimisation_result(field_opt, SD, show_plot=True, minprint=False):
-
-
-
-    print_info(field_opt,SD, minprint)
-    X = get_X(field_opt.u, SD)
-    # Plot fields and process data
-    plotFields(field_opt.u, field_opt.cost_hist,SD,X,show_plot=show_plot, save_plot = field_opt.save_data, plotLabel=field_opt.filename)
-
-    fidelities = fast_fid(field_opt.u,SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
-    avgfid=sum(fidelities)/len(fidelities)
-    minfid = min(fidelities).item()
-    
-
-    alpha=0
-    if field_opt.save_data:
-        # save_system_data will overwrite previous file if job was not terminated by gadi
-        log_result(minfid,avgfid,alpha,SD,field_opt)
-        save_system_data(SD, SD.target, field_opt.filename, fid=fidelities, status=field_opt.status)
-        save_field(field_opt, SD)
 
 
 
@@ -1073,11 +1072,11 @@ def process_u(u,SD,target,cost_hist,save_SP=False):
     '''
     Takes vector form 'u' and system data as input.
     '''
-    fid=fast_fid(u, SD.H0, SD.x_cf, SD.y_cf,SD.tN,target)[0]
+    fid=fidelity(u, SD.H0, SD.x_cf, SD.y_cf,SD.tN,target)[0]
     print(f"Fidelities: {fid}")
 
 
-    U = time_evol(u, SD.H0, SD.x_cf, SD.y_cf, SD.tN)
+    U = ESRGRAPE.time_evol(u, SD.H0, SD.x_cf, SD.y_cf, SD.tN)
     X=get_X(u, SD)
 
     if save_SP:
@@ -1146,33 +1145,6 @@ def refine_u(filename, N_new):
     run_optimisation(target,N_new,tN,J,A,u0=u0)
 
 
-def single_qubit_unitary(target,tN,N,alpha=0,w0=0):
-    '''
-    very broken
-    
-    '''
-    m=2
-    u0 = 1*np.pi/(g_e*mu_B*tN) * pt.ones(m,N) * 1/tesla
-    omega=pt.ones(2)*w0
-
-    H0_single = w0/2 * gate.Z
-    U0_N = pt.matrix_exp(-1j*tN*H0_single)
-    target = matmul3(U0_N,target,dagger(U0_N))
-    H0 = pt.einsum('qj,ab->qjab',pt.ones(1,N),H0_single)
-
-    fun = lambda u: fast_cost(u,m,1,target,tN,H0,alpha=alpha)
-    opt = minimize(fun,u0,method='CG',jac=jac)
-    u=pt.tensor(opt.x, device=default_device, dtype=cplx_dtype)
-    U = time_evol(u,H0,tN)
-    X,P = propagate(U,target)
-
-
-    print(opt.message)
-    print(f"final average cost = {opt.fun}")
-    print(f"Fidelity = {fast_fid(u,m,1,target,tN,H0)[0]}")
-    print(f"Uf = {X[0][-1]}")
-    plotFields(u,m,tN,omega)
-    
 
 
 

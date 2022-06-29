@@ -1,9 +1,4 @@
 
-from pathlib import Path
-import os
-from turtle import forward
-dir = os.path.dirname(__file__)
-os.chdir(dir)
 
 import numpy as np
 import matplotlib

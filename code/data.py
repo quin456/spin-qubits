@@ -10,7 +10,7 @@ real_dtype = pt.float64
 default_device = 'cuda:0' if pt.cuda.is_available() else 'cpu'
 
 dir = '../'
-exch_filename = f"{dir}exchange_data_updated.p"
+exch_filename = f"exchange_data_updated.p"
 exch_data = pickle.load(open(exch_filename,"rb"))
 J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype)
 J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype)
