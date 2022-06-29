@@ -14,12 +14,11 @@ from scipy.optimize import minimize
 
 
 import gates as gate 
-from gates import cplx_dtype
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields
 from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity
 from pulse_maker import square_pulse
-from data import get_A, gamma_e, gamma_P
+from data import get_A, gamma_e, gamma_P, cplx_dtype
 
 from pdb import set_trace
 
@@ -111,7 +110,7 @@ def NE_swap(A,Bz,tN,N,psi0=pt.kron(spin_down,spin_up)):
 
     #Bx,By = NE_swap_pulse(tN,N,A,Bz)
     Bx,By = EN_CX_pulse(tN,N,A,Bz)
-    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) - get_pulse_hamiltonian(Bx, By, gamma_P, 2*Ix, 2*Iy)
+    Hw = - get_pulse_hamiltonian(Bx, By, gamma_P, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) 
     #Hw = get_pulse_hamiltonian(Bx, By, -gamma_P, 2*Ix, 2*Iy)
 
     H = sum_H0_Hw(H0,Hw)
@@ -228,5 +227,5 @@ def optimise_NE_swap_Bz():
 #NE_CX(get_A(1,1)*Mhz, 2*tesla, 1000*nanosecond, 100000, psi0=spin_down); plt.show()
 #EN_CX(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 10000, psi0=spin_down); plt.show()
 
-NE_swap(get_A(1,1)*Mhz, 2*tesla, 9999*nanosecond, 10000, psi0=pt.kron(spin_down,spin_down)); plt.show()
+NE_swap(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 100000, psi0=pt.kron(spin_down,spin_down)); plt.show()
 

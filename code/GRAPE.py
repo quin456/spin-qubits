@@ -465,7 +465,6 @@ class SystemData(object):
 
 
 
-
 class FieldOptimiser(object):
     '''
     Optimisation object which passes fidelity function to scipy optimiser, and handles termination of 

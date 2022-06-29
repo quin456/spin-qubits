@@ -1,13 +1,4 @@
 
-
-# set directory
-from pathlib import Path
-import os
-dir = os.path.dirname(__file__)
-os.chdir(dir)
-
-
-
 device = 'cpu'
 import pickle
 from pdb import set_trace 
