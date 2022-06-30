@@ -24,20 +24,60 @@ from gates import spin_up, spin_down
 
 
 
-def pi_rot_pulse(w_res, gamma, tN, N):
-    Bw = np.pi / (gamma * tN)
+def pi_rot_pulse(w_res, coupling, tN, N):
+    Bw = np.pi / (2*coupling * tN)
     Bx,By = square_pulse(Bw,w_res,tN,N)
     return Bx,By
 
 
+
+def get_coupling(A,Bz):
+    Gbar = (gamma_e + gamma_P) * Bz / 2 # remove Bz from Gamma later on 
+    K = ( 2 * (4*A**2 + Gbar**2 - Gbar*np.sqrt(4*A**2+Gbar**2)) )**(-1/2)
+    alpha = -Gbar + np.sqrt(4*A**2+Gbar**2)
+    beta = 2*K*A
+    Ge = gamma_e/2
+    Gn = gamma_P/2
+    return alpha*Gn + beta*Ge
+
+
 def NE_CX_pulse(tN,N,A,Bz):
     w_res = 2*A + gamma_e * Bz
-    return pi_rot_pulse(w_res, gamma_e, tN, N)
+    return pi_rot_pulse(w_res, gamma_e/2, tN, N)
 
 
 def EN_CX_pulse(tN,N,A,Bz):
+
     w_res = -(2*A+gamma_P*Bz)
-    return pi_rot_pulse(w_res, gamma_P, tN, N)
+
+    # get actual resonant freq
+    H0 = NE_H0(A,Bz)
+    eigs = pt.linalg.eig(H0)
+    E = eigs.eigenvalues
+    S = eigs.eigenvectors
+
+    # get coupling of transition to transverse field
+    Gbar = (gamma_e + gamma_P) * Bz / 2 # remove Bz from Gamma later on 
+    K = ( 2 * (4*A**2 + Gbar**2 - Gbar*np.sqrt(4*A**2+Gbar**2)) )**(-1/2)
+    alpha = K*(-Gbar + np.sqrt(4*A**2+Gbar**2))
+    beta = 2*K*A
+
+    #K =
+    #alpha = 2*A
+    #beta = Gbar + np.sqrt(4*A**2+Gbar**2)
+
+    Ge = gamma_e/2
+    Gn = gamma_P/2
+    #coupling = alpha*Gn + beta*Ge
+    coupling = alpha*Ge+beta*Gn
+    
+    
+
+    w_eigenres = E[1]-E[3]
+
+    set_trace()
+
+    return pi_rot_pulse(w_eigenres, coupling, tN, N)
 
 
 
@@ -216,11 +256,8 @@ def optimise_NE_swap_Bz():
 
 
 
-
-
-
 #NE_CX(get_A(1,1)*Mhz, 2*tesla, 1000*nanosecond, 100000, psi0=spin_down); plt.show()
 #EN_CX(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 10000, psi0=spin_down); plt.show()
 
-NE_swap(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 100000, psi0=pt.kron(spin_down,spin_down)); plt.show()
+NE_swap(get_A(1,1)*Mhz, 2*tesla, 999*nanosecond, 100000, psi0=pt.kron(spin_down,spin_down)); plt.show()
 
