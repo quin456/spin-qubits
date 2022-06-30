@@ -69,6 +69,7 @@ def get_pulse_hamiltonian(Bx, By, gamma, X=gate.X, Y=gate.Y):
     Returns Hamiltonian corresponding to magnetic field pulse (Bx,By,0)
     '''
     Hw = 0.5 * gamma * ( pt.einsum('j,ab->jab', Bx, X) + pt.einsum('j,ab->jab', By, Y) )
+
     return Hw
 
 def sum_H0_Hw(H0, Hw):

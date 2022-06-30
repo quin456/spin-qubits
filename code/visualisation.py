@@ -49,3 +49,22 @@ def plot_psi_and_fields(psi, Bx, By, tN):
     plot_spin_states(psi, tN, ax[0])
     plot_fields(Bx, By, tN, ax[1])
     return ax
+
+    
+def visualise_Hw(Hw,tN):
+    '''
+    Generates an array of plots, one for each matrix element of the Hamiltonian Hw, which
+    shows the evolution of Hw through time.
+
+    Inputs
+        Hw: (N,d,d) tensor describing d x d dimensional Hamiltonian over N timesteps
+        tN: duration spanned by Hw.
+    '''
+    N,d,d = Hw.shape
+    T = pt.linspace(0,tN,N)
+    fig,ax = plt.subplots(4,4)
+    for i in range(d):
+        for j in range(d):
+            y = Hw[:,i,j]
+            ax[i,j].plot(T,pt.real(y))
+            ax[i,j].plot(T,pt.imag(y))

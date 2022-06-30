@@ -10,7 +10,7 @@ from scipy.optimize import minimize
 
 import gates as gate 
 from atomic_units import *
-from visualisation import plot_spin_states, plot_psi_and_fields
+from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw
 from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity
 from pulse_maker import square_pulse
 from data import get_A, gamma_e, gamma_P, cplx_dtype
@@ -58,26 +58,23 @@ def EN_CX_pulse(tN,N,A,Bz):
 
     # get coupling of transition to transverse field
     Gbar = (gamma_e + gamma_P) * Bz / 2 # remove Bz from Gamma later on 
-    K = ( 2 * (4*A**2 + Gbar**2 - Gbar*np.sqrt(4*A**2+Gbar**2)) )**(-1/2)
-    alpha = K*(-Gbar + np.sqrt(4*A**2+Gbar**2))
-    beta = 2*K*A
-
-    #K =
     #alpha = 2*A
     #beta = Gbar + np.sqrt(4*A**2+Gbar**2)
+    alpha = -Gbar - np.sqrt(4*A**2+Gbar**2)
+    beta = 2*A
+    K = 1/np.sqrt(alpha**2+beta**2)
+    alpha*=K; beta*=K 
 
     Ge = gamma_e/2
-    Gn = gamma_P/2
-    #coupling = alpha*Gn + beta*Ge
-    coupling = alpha*Ge+beta*Gn
-    
-    
+    Gn = -gamma_P/2
+    c = alpha*Gn + beta*Ge
+    cwork = alpha*Ge + beta*Gn
 
     w_eigenres = E[1]-E[3]
+    
 
     set_trace()
-
-    return pi_rot_pulse(w_eigenres, coupling, tN, N)
+    return pi_rot_pulse(w_eigenres, c, tN, N)
 
 
 
@@ -146,8 +143,6 @@ def NE_swap(A,Bz,tN,N,psi0=pt.kron(spin_down,spin_up)):
     #Bx,By = NE_swap_pulse(tN,N,A,Bz)
     Bx,By = EN_CX_pulse(tN,N,A,Bz)
     Hw = - get_pulse_hamiltonian(Bx, By, gamma_P, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) 
-    #Hw = get_pulse_hamiltonian(Bx, By, -gamma_P, 2*Ix, 2*Iy)
-
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
     X = forward_prop(U)
@@ -259,5 +254,5 @@ def optimise_NE_swap_Bz():
 #NE_CX(get_A(1,1)*Mhz, 2*tesla, 1000*nanosecond, 100000, psi0=spin_down); plt.show()
 #EN_CX(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 10000, psi0=spin_down); plt.show()
 
-NE_swap(get_A(1,1)*Mhz, 2*tesla, 999*nanosecond, 100000, psi0=pt.kron(spin_down,spin_down)); plt.show()
+NE_swap(get_A(1,1)*Mhz, 2*tesla, 99*nanosecond, 100000, psi0=pt.kron(spin_down,spin_down)); plt.show()
 
