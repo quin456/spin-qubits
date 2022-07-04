@@ -87,7 +87,7 @@ def evaluate_XY_field(fn):
 
     plot_fields(X_field,Y_field,tN)
     X=simulate_field(tN,X_field,Y_field,J,A)
-    fid_progress = grape.get_fidelity_progress(X,tN,target)
+    fid_progress = grape.fidelity_progress(X,target)
     print(f"Fidelities = {fid_progress[:,-1]}")
     _fig,ax = plt.subplots(1,2)
     grape.plot_fidelity_progress(ax[1],fid_progress,tN,False)
@@ -96,7 +96,7 @@ def evaluate_XY_field(fn):
 
 def display_results(X, X_field, Y_field, tN, target):
     fig,ax = plt.subplots(2,1)
-    fid_progress = grape.get_fidelity_progress(X,3*tN,target)
+    fid_progress = grape.fidelity_progress(X,target)
     print(f"Final fidelities = {fid_progress[:,-1]}")
     grape.plot_fidelity_progress(ax[1],fid_progress,tN,False)
     plot_fields(X_field,Y_field,tN,ax[0]); plt.show()
@@ -181,7 +181,7 @@ def compare_fields(times,Ns,Js,As,IDs):
         X_field,Y_field = get_fields(filename)
 
         X = simulate_field(tN,target,X_field,Y_field,_J,_A)
-        fids = grape.get_fidelity_progress(X,tN,target)
+        fids = grape.fidelity_progress(X,target)
         grape.plot_fidelity_progress(ax[i][0],fids,tN)
         plot_fields(X_field,Y_field,tN,ax[i][1])
     
@@ -218,7 +218,7 @@ def all_2q():
     X_field,Y_field = get_fields(filename)
     plot_fields(X_field,Y_field,tN,ax[0])
     X=simulate_field(tN,X_field,Y_field,J,A)
-    fids=grape.get_fidelity_progress(X,tN,target)
+    fids=grape.fidelity_progress(X,target)
     print(f"Fidelities = {fids[:,-1]}")
     grape.plot_fidelity_progress(ax[1],fids,tN, legend=False)
     plt.show()

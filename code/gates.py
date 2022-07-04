@@ -11,13 +11,13 @@ default_device = 'cuda:0' if ngpus>0 else 'cpu'
 
 def kron3(A,B,C):
     '''  Returns kronecker product of 3 matrices A,B,C.  '''
-    return pt.kron(pt.kron(A,B),C)
+    return kron(kron(A,B),C)
 
 def kron4(A,B,C,D):
-    return pt.kron(pt.kron(A,B), pt.kron(C,D))
+    return kron(kron(A,B), kron(C,D))
 
 def kron6(A,B,C,D,E,F):
-    return pt.kron(kron3(A,B,C),kron3(D,E,F))
+    return kron(kron3(A,B,C),kron3(D,E,F))
     
 spin_up = pt.tensor([1,0], dtype=cplx_dtype)
 spin_down = pt.tensor([0,1], dtype=cplx_dtype)
@@ -64,10 +64,10 @@ CX = pt.tensor([
     [0,0,0,1],
     [0,0,1,0]], dtype=cplx_dtype, device=default_device)
 CXr = pt.tensor([
-    [0,1,0,0],
     [1,0,0,0],
+    [0,0,0,1],
     [0,0,1,0],
-    [0,0,0,1]
+    [0,1,0,0]
 ], dtype = cplx_dtype, device=default_device)
 
 CX3q = pt.tensor([
@@ -147,21 +147,6 @@ IIXIII = kron(IIXI,II)
 IIIXII = kron(II,IXII)
 IIIIXI = kron(II,IIXI)
 IIIIIX = kron(II,IIIX)
-
-
-
-
-# maybe bad
-
-# sig4_1 = pt.stack((XIII,YIII,ZIII))
-# sig4_2 = pt.stack((IXII,IYII,IZII))
-# sig4_3 = pt.stack((IIXI,IIYI,IIZI))
-# sig4_4 = pt.stack((IIIX,IIIY,IIIZ))
-
-# def sigdot(sig_i, sig_j):
-#     return pt.einsum('iab,ibc->ac')
-
-
 
 
 def get_nuclear_oz(nq):

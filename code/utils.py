@@ -1,9 +1,5 @@
 
 
-from pathlib import Path
-import os
-dir = os.path.dirname(__file__)
-os.chdir(dir)
 
 
 import gates as gate
@@ -117,3 +113,43 @@ def fidelity(A,B):
     ''' Calculates fidelity of operators A and B '''
     IP = innerProd(A,B)
     return np.real(IP*np.conj(IP))
+
+
+def fidelity_progress(X, target):
+    '''
+    For each system, determines the fidelity of unitaries in P with the target over the time of the pulse
+    '''
+    multisys = True
+    if len(X.shape)==3:
+        X = X.reshape(1,*X.shape)
+        target = target.reshape(1,*target.shape)
+        multisys = False
+    nS=len(X); N = len(X[0])
+    fid = pt.zeros(nS,N)
+    for q in range(nS):
+        for j in range(N):
+            IP = innerProd(target[q],X[q,j])
+            fid[q,j] = np.real(IP*np.conj(IP))
+
+    if not multisys:
+        fid = fid[0]
+    return fid
+
+
+def get_U0(H0, tN, N):
+    T = pt.linspace(0,tN,N)
+    H0T = pt.einsum('j,ab->jab',T,H0)
+    U0 = pt.matrix_exp(-1j*H0T)
+    return U0
+
+
+def get_IP_X(X,H0,tN,N):
+    U0 = get_U0(H0, tN, N)
+    return pt.matmul(dagger(U0),X)
+
+def get_IP_eigen_X(X, H0, tN, N):
+    U0 = get_U0(H0, tN, N)
+    eig = pt.linalg.eig(H0)
+    S = eig.eigenvectors 
+    D = pt.diag(eig.eigenvalues)
+    return dagger(S) @ dagger(U0) @ X

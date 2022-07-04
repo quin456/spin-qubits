@@ -27,6 +27,7 @@ from atomic_units import *
 import gates as gate
 from utils import *
 from data import *
+from visualisation import plot_fidelity_progress
 
 time_exp = 0
 time_prop = 0
@@ -51,7 +52,6 @@ ngpus = pt.cuda.device_count()
 
 np.set_printoptions(4)
 pt.set_printoptions(sci_mode=True)
-annotate=True 
 
 
 log_fn = dir+'logs/log.txt'
@@ -582,27 +582,7 @@ def plot_XY_fields(ax, X_field, Y_field, tN):
     ax.set_xlabel("time (ns)")
     ax.legend()
     
-def get_fidelity_progress(X, tN, target):
-    '''
-    For each system, determines the fidelity of unitaries in P with the target over the time of the pulse
-    '''
-    nS=len(X); N = len(X[0])
-    fid = pt.zeros(nS,N)
-    for q in range(nS):
-        for j in range(N):
-            IP = innerProd(target[q],X[q,j])
-            fid[q,j] = np.real(IP*np.conj(IP))
-    return fid
 
-def plot_fidelity_progress(ax,fids,tN, legend=True):
-    nS=len(fids); N = len(fids[0])
-    T = pt.linspace(0,tN/nanosecond, N)
-    for q in range(nS):
-        ax.plot(T,fids[q], label=f"System {q+1} fidelity")
-    if legend: ax.legend()
-    ax.set_xlabel("time (ns)")
-    if annotate: ax.annotate("Fidelity progress", (0,0.95))
-    return ax
 
 
 def plot_cost_hist(cost_hist, ax):
@@ -644,7 +624,7 @@ def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None)
             
     X_field, Y_field = sum_XY_fields(uToMatrix(u,m),m,rf,tN)
     plot_XY_fields(ax[0,1],X_field,Y_field,tN)
-    transfids = get_fidelity_progress(X,tN,SD.target)
+    transfids = fidelity_progress(X,SD.target)
     plot_fidelity_progress(ax[1,0],transfids,tN,legend=False)
     ax[0,0].set_xlabel("time (ns)")
     #ax[0,j].legend()
@@ -655,17 +635,6 @@ def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None)
     if show_plot: plt.show()
 
 
-def visualise_Hw(Hw,tN,N):
-    T = pt.linspace(0,tN,N)
-    for k in range(Hw.shape[1]):
-        fig,ax = plt.subplots(4,4)
-        for i in range(4):
-            for j in range(4):
-                y = Hw[0,k,:,i,j]
-                ax[i,j].plot(T,pt.real(y))
-                ax[i,j].plot(T,pt.imag(y))
-        fig.suptitle(f"k={k}")
-        plt.show()
 ################################################################################################################
 ################        Hamiltonians        ####################################################################
 ################################################################################################################
