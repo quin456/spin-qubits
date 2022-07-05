@@ -9,11 +9,11 @@ real_dtype = pt.float64
 
 default_device = 'cuda:0' if pt.cuda.is_available() else 'cpu'
 
-dir = '../'
+dir = './'
 exch_filename = f"exchange_data_updated.p"
 exch_data = pickle.load(open(exch_filename,"rb"))
-J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype)
-J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype)
+J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype) * Mhz
+J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype) * Mhz
 
 
 #gyromagnetic ratios (Mrad/T)
@@ -30,7 +30,7 @@ omega0 = g_e*mu_B*B0/hbar   # Larmor frequency
 
 
 # exchange values 
-A_mag = 58.5/2
+A_mag = 58.5/2 * Mhz
 delta_A_kane = 2*A_mag
 A_kane = pt.tensor([A_mag, -A_mag])
 A_kane3 = pt.tensor([A_mag, -A_mag, A_mag])

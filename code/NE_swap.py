@@ -326,7 +326,6 @@ def NE_energy_levels(A=get_A(1,1)*Mhz, Bz=2*tesla):
     ax.axhline(10, label=f'$\psi$')
     ax.legend()
 
-NE_energy_levels(); plt.show()
 
 
 def get_subops(H,dt):
@@ -350,8 +349,9 @@ tN_locked = lock_to_coupling(get_A(1,1)*Mhz,499*nanosecond)
 
 
 tN_locked = lock_to_coupling(get_A(1,1)*Mhz,499*nanosecond)
-#show_NE_swap(get_A(1,1)*Mhz, 2*tesla, tN_locked, 1000000); plt.show()
+show_NE_swap(get_A(1,1)*Mhz, 2*tesla, tN_locked, 1000000); plt.show()
 
 
+#NE_energy_levels(); plt.show()
 
 

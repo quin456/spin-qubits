@@ -72,7 +72,7 @@ def get_nuclear_spins(A):
             spins[i]=spin_down 
     return spins
 
-def nuclear_electron_sim(Bx,By,tN,nq,A,J, psi0=None):
+def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None):
     '''
     Simulation of nuclear and electron spins for single CNOT system.
 
@@ -98,13 +98,17 @@ def nuclear_electron_sim(Bx,By,tN,nq,A,J, psi0=None):
     o_e1e2 = gate.o4_34
 
 
-    nspin1,nspin2 = get_nuclear_spins(A)
 
     if psi0 is None:
         if nq==2:
             psi0 = gate.kron4(spin_up, spin_down, spin_up, spin_down)
         elif nq==3:
             psi0 = gate.kron(spin_up,spin_up,spin_down,spin_up,spin_up,spin_down)
+    if J is None:
+        if nq==2:
+            J = get_J(1,2)[0]
+        elif nq==3:
+            J = get_J(1,3)[0]
     #H0 = 0.5*gamma_e*Bz*oze + A[0]*gate.IIZI + A[1]*gate.IIIZ + J*o_e1e2 
 
 
@@ -155,6 +159,7 @@ def run_NE_sim(tN,N,nq,A,J, psi0=None):
 
 
 if __name__ == '__main__':
+
     tN=2.0
     N=50000
     nq=2

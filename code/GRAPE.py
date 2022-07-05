@@ -293,18 +293,13 @@ def get_control_fields(omega,phase,tN,N,device=default_device):
 class SystemData(object):
 
     def __init__(self, J, A, tN, N, rf,target):
-        self.J_SI=J 
-        self.A_SI=A 
-        self.tN_SI=tN
-        J,A,tN = self.atomic_units(J,A,tN)
-        self.J=J
-        self.A=A
+        self.J=J 
+        self.A=A 
         self.tN=tN
         self.N=N
         self.target=target
         self.nS,self.nq=get_dimensions(A)
         self.rf=get_RFs(A,J) if rf is None else rf
-        print(f"J,A={J},{A}")
         self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
         self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
         self.H0 = get_H0(self.A,self.J)
@@ -312,8 +307,6 @@ class SystemData(object):
         print(f"rf={self.rf}")
 
 
-    def atomic_units(self,J,A,tN):
-        return J*Mhz, A*Mhz, tN*nanosecond
 
 class GRAPE:
     '''
@@ -596,6 +589,7 @@ def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None)
     m=SD.m
     tN=SD.tN
     rf=omegas[:len(omegas)//2]
+    set_trace()
     N = int(len(u)/m)
     u_m = uToMatrix(u,m).cpu()
     w_np = omegas.cpu().detach().numpy()
