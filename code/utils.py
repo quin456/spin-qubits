@@ -1,4 +1,9 @@
 
+import torch as pt 
+import numpy as np
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib import pyplot as plt 
 
 
 
@@ -9,11 +14,6 @@ from atomic_units import *
 
 
 
-import torch as pt 
-import numpy as np
-import matplotlib
-matplotlib.use('Qt5Agg')
-from matplotlib import pyplot as plt 
 
 from pdb import set_trace
 
@@ -36,11 +36,10 @@ def forward_prop(U,device=default_device):
     '''
     Forward propagates U suboperators. U has shape (N,d,d) or (nS,N,d,d)
     '''
+    sys_axis=True
     if len(U.shape)==3: 
         U=U.reshape(1,*U.shape)
-        sys_axis=False 
-    else:
-        sys_axis=True
+        sys_axis=False
 
     nS,N,dim,dim=U.shape
     nq = get_nq(dim)
@@ -52,8 +51,7 @@ def forward_prop(U,device=default_device):
     
     if sys_axis:
         return X
-    else:
-        return X[0]
+    return X[0]
 
 
 def get_pulse_hamiltonian(Bx, By, gamma, X=gate.X, Y=gate.Y):

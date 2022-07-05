@@ -348,6 +348,33 @@ class GRAPE:
             P[:,-1-j,:,:] = pt.matmul(dagger(U[:,-j,:,:]),P[:,-j,:,:])
         
         return X,P
+        
+    def check_time(self, xk):
+        time_passed = time.time() - self.start_time
+        if time_passed > (self.sp_count+1)*self.sp_distance:
+            self.sp_count+=1
+            print(f"Save point {self.sp_count} reached, time passed = {time_passed}.")
+            if self.save_data:
+                pt.save(pt.tensor(xk, dtype=real_dtype), self.filename+'_SP'+str(self.sp_count))
+                pt.save(np.array(self.cost_hist), self.filename+'_cost_hist')
+        if time_passed > self.max_time:
+            global u_opt_timeout
+            u_opt_timeout = xk
+            print(f"Max time of {self.max_time} has been reached. Optimisation terminated.")
+            raise TimeoutError
+
+    def run(self):
+        callback = self.check_time if self.max_time is not None else None
+        try:
+            opt=minimize(self.fun,self.u0,method='CG',jac=True, callback=callback)
+            print(f"nit = {opt.nfev}, nfev = {opt.nit}")
+            self.u=pt.tensor(opt.x, device=default_device)
+            self.status='C' #complete
+        except TimeoutError:
+            global u_opt_timeout
+            self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
+            self.status='UC' #uncomplete
+        self.time_taken = time.time() - self.start_time
 
 
 class ESRGRAPE(GRAPE):
@@ -360,7 +387,7 @@ class ESRGRAPE(GRAPE):
 
         if u0 is None: u0=init_u(SD)
         cost_hist=hist0 if hist0 is not None else []    
-        fun = lambda u: self.cost(u,SD.H0, SD.nS, SD.J, SD.A, SD.x_cf, SD.y_cf, SD.tN, SD.target, cost_hist, alpha=alpha)
+        fun = lambda u: self.cost(u, SD.H0, SD.nS, SD.J, SD.A, SD.x_cf, SD.y_cf, SD.tN, SD.target, cost_hist, alpha=alpha)
 
 
         self.fun=fun
@@ -589,7 +616,6 @@ def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None)
     m=SD.m
     tN=SD.tN
     rf=omegas[:len(omegas)//2]
-    set_trace()
     N = int(len(u)/m)
     u_m = uToMatrix(u,m).cpu()
     w_np = omegas.cpu().detach().numpy()

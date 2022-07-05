@@ -7,7 +7,7 @@ matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
-from utils import get_nq, dagger
+from utils import get_nq, dagger, fidelity_progress
 
 
 from pdb import set_trace
@@ -15,7 +15,8 @@ from pdb import set_trace
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-annotate=True 
+annotate=False
+y_axis_labels = False
 
 def plot_spin_states(psi, tN, ax=None, label_getter = None):
     '''
@@ -36,7 +37,7 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None):
         ax.plot(T,pt.abs(psi[:,i]), label = label_getter(i))
     ax.legend()
     ax.set_xlabel("time (ns)")
-    ax.set_ylabel("Wave function amplitude")
+    if y_axis_labels: ax.set_ylabel("$|\psi|$")
     return ax
 
 def plot_phases(psi, tN, ax=None):
@@ -65,6 +66,7 @@ def plot_fields(Bx,By,tN,ax=None):
     ax.plot(T_axis,Bx/Mhz, label = 'X field (mT)')
     ax.plot(T_axis,By/Mhz, label = 'Y field (mT)')
     ax.set_xlabel('time (ns)')
+    if y_axis_labels: ax.set_ylabel('$B_\omega(t)$ (mT)')
     ax.legend()
     return ax 
 
@@ -108,6 +110,7 @@ def plot_fidelity_progress(ax,fids,tN, legend=True):
         ax.plot(T,pt.real(fids[q]), label=f"System {q+1} fidelity")
     if legend: ax.legend()
     ax.set_xlabel("time (ns)")
+    if y_axis_labels: ax.set_ylabel("Fidelity")
     if annotate: ax.annotate("Fidelity progress", (0,0.95))
     return ax
 
@@ -125,3 +128,12 @@ def plot_energy_spectrum(E, ax=None):
     dim = len(E)
     for i in range(dim):
         ax.axhline(pt.real(E[i]/Mhz), label=f'E{dim-1-i}', color=colors[i])
+
+def show_fidelity(X, tN, target, ax=None):
+    print(f"Final unitary:")
+    print(X[-1])
+    fids = fidelity_progress(X,target)
+    print(f"Final fidelity = {fids[-1]}")
+    
+    if ax is None: ax = plt.subplot()
+    plot_fidelity_progress(ax,fids,tN)

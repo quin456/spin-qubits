@@ -11,8 +11,8 @@ from scipy.optimize import minimize
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum
-from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X
-from pulse_maker import square_pulse
+from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, show_fidelity
+from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 
 from pdb import set_trace
@@ -52,11 +52,6 @@ def N_CX(A, Bz, tN, N, psi0=spin_up):
     psi = pt.matmul(X,psi0)
     plot_psi_and_fields(psi,Bx,By,tN)
 
-
-def pi_rot_pulse(w_res, coupling, tN, N, phase=0):
-    Bw = np.pi / (2*coupling * tN)
-    Bx,By = square_pulse(Bw, w_res, tN, N, phase)
-    return Bx,By
 
 
 def H_zeeman(Bz):
@@ -113,7 +108,7 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
     couplings = NE_couplings(H0)
     c = pt.abs(couplings[2,3])
     w_eigenres = D[2,2]-D[3,3]
-    Bx,By = pi_rot_pulse(w_eigenres, c, tN, N, phase)
+    Bx,By = pi_rot_square_pulse(w_eigenres, c, tN, N, phase)
 
     #Bx,By = pi_rot_pulse(w_res, gamma_e/2, tN, N, phase)
     if ax is not None:
@@ -165,7 +160,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
     couplings = NE_couplings(H0)
     c = pt.abs(couplings[1,3])
     w_eigenres = D[1,1]-D[3,3]
-    Bx,By = pi_rot_pulse(w_eigenres, c, tN, N, phase)
+    Bx,By = pi_rot_square_pulse(w_eigenres, c, tN, N, phase)
 
     if ax is not None: 
         plot_fields(Bx,By,tN,ax)
@@ -199,14 +194,6 @@ def get_NE_X(Bx, By, H0, tN, N):
 
     return X
 
-def show_fidelity(X,tN,N, target, ax=None):
-    print(f"Final unitary:")
-    print(X[-1])
-    fids = fidelity_progress(X,target)
-    print(f"Final fidelity = {fids[-1]}")
-    
-    if ax is None: ax = plt.subplot()
-    plot_fidelity_progress(ax,fids,tN)
 
 def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(1,4)
@@ -290,7 +277,7 @@ def show_NE_swap(A,Bz,tN,N, psi0=spin_down_down):
     X = get_NE_X(Bx, By, H0, tN, N)
     X = get_IP_X(X,H0,tN,N)
 
-    show_fidelity(X,tN,N,gate.swap,ax[1])
+    show_fidelity(X,tN,gate.swap,ax[1])
 
 
     psi = X @ psi0 

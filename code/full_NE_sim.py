@@ -162,7 +162,7 @@ if __name__ == '__main__':
 
     run_NE_sim(
         tN = 500.0*nanosecond,
-        N = 500000,
+        N = 50000,
         nq = 2, 
         Bz = 2*tesla,
         A = get_A(1,1), 
