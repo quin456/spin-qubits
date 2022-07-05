@@ -1,5 +1,6 @@
 
 
+from cProfile import label
 from turtle import shape
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -16,7 +17,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 annotate=True 
 
-def plot_spin_states(psi, tN, ax=None):
+def plot_spin_states(psi, tN, ax=None, label_getter = None):
     '''
     Plots the evolution of each component of psi.
 
@@ -26,13 +27,16 @@ def plot_spin_states(psi, tN, ax=None):
         ax: axis on which to plot
     '''
     if ax is None: ax = plt.subplot()
+    if label_getter is None:
+        label_getter = lambda i: np.binary_repr(i,nq)
     N,dim=psi.shape
     nq=get_nq(dim)
     T=pt.linspace(0,tN/nanosecond,N)
     for i in range(dim):
-        ax.plot(T,pt.abs(psi[:,i]), label = np.binary_repr(i,nq))
+        ax.plot(T,pt.abs(psi[:,i]), label = label_getter(i))
     ax.legend()
     ax.set_xlabel("time (ns)")
+    ax.set_ylabel("Wave function amplitude")
     return ax
 
 def plot_phases(psi, tN, ax=None):

@@ -10,7 +10,7 @@ import pickle
 import GRAPE as grape
 import gates as gate 
 from atomic_units import *
-from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_P
+from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
 
 from pdb import set_trace
 
@@ -93,16 +93,17 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
 
 
 if __name__ == '__main__':
-    run_CNOTs(100.0*nanosecond, 
-        N=500, 
-        nq=2, 
-        nS=1, 
+    run_CNOTs(
+        tN = 100.0*nanosecond, 
+        N = 500, 
+        nq = 2, 
+        nS = 1, 
         max_time = 5, 
-        kappa=1, 
-        rf=None, 
-        save_data=True, 
-        init_u_fn=None, 
-        mergeprop=False
+        kappa = 1, 
+        rf = None, 
+        save_data = True, 
+        init_u_fn = None, 
+        mergeprop = False
         )
 
 

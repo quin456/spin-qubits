@@ -17,7 +17,7 @@ J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype) * Mhz
 
 
 #gyromagnetic ratios (Mrad/T)
-gamma_P = 17.235 * Mhz/tesla
+gamma_n = 17.235 * Mhz/tesla
 gamma_e = 28025 * Mhz/tesla
 
 

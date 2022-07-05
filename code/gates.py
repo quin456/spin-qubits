@@ -21,6 +21,28 @@ def kron6(A,B,C,D,E,F):
     
 spin_up = pt.tensor([1,0], dtype=cplx_dtype)
 spin_down = pt.tensor([0,1], dtype=cplx_dtype)
+spin_0 = spin_up 
+spin_1 = spin_down 
+spin_00 = kron(spin_0, spin_0)
+spin_01 = kron(spin_0, spin_1)
+spin_10 = kron(spin_1, spin_0)
+spin_11 = kron(spin_1, spin_1)
+spin_0000 = kron(spin_00, spin_00)
+spin_0001 = kron(spin_00, spin_01)
+spin_0010 = kron(spin_00, spin_10)
+spin_0011 = kron(spin_00, spin_11)
+spin_0100 = kron(spin_01, spin_00)
+spin_0101 = kron(spin_01, spin_01)
+spin_0110 = kron(spin_01, spin_10)
+spin_0111 = kron(spin_01, spin_11)
+spin_1000 = kron(spin_10, spin_00)
+spin_1001 = kron(spin_10, spin_01)
+spin_1010 = kron(spin_10, spin_10)
+spin_1011 = kron(spin_10, spin_11)
+spin_1100 = kron(spin_11, spin_00)
+spin_1101 = kron(spin_11, spin_01)
+spin_1110 = kron(spin_11, spin_10)
+spin_1111 = kron(spin_11, spin_11)
 
 X = pt.tensor([
     [0,1],
@@ -149,41 +171,41 @@ IIIIXI = kron(II,IIXI)
 IIIIIX = kron(II,IIIX)
 
 
-def get_nuclear_oz(nq):
+def get_Iz_sum(nq):
     if nq==2:
-        return ZIII + IZII 
+        return 0.5 * (ZIII + IZII)
     elif nq==3:
-        return ZIIIII + IZIIII + IIZIII
+        return 0.5 * (ZIIIII + IZIIII + IIZIII)
 
-def get_nuclear_ox(nq):
+def get_Ix_sum(nq):
     if nq==2:
-        return XIII + IXII 
+        return 0.5 * (XIII + IXII)
     elif nq==3:
-        return XIIIII + IXIIII + IIXIII
+        return 0.5 * (XIIIII + IXIIII + IIXIII)
         
-def get_nuclear_oy(nq):
+def get_Iy_sum(nq):
     if nq==2:
-        return YIII + IYII 
+        return 0.5 * (YIII + IYII)
     elif nq==3:
-        return YIIIII + IYIIII + IIYIII
+        return 0.5* (YIIIII + IYIIII + IIYIII)
 
-def get_electron_oz(nq):
+def get_Sz_sum(nq):
     if nq==2:
-        return IIZI+IIIZ 
+        return 0.5 * (IIZI+IIIZ )
     elif nq==3:
-        return IIIZII + IIIIZI + IIIIIZ
+        return 0.5 * (IIIZII + IIIIZI + IIIIIZ)
 
-def get_electron_oy(nq):
+def get_Sy_sum(nq):
     if nq==2:
-        return IIYI+IIIY 
+        return 0.5 * (IIYI+IIIY)
     elif nq==3:
-        return IIIYII + IIIIYI + IIIIIY
+        return 0.5 * (IIIYII + IIIIYI + IIIIIY)
 
-def get_electron_ox(nq):
+def get_Sx_sum(nq):
     if nq==2:
-        return IIXI+IIIX 
+        return 0.5 * (IIXI+IIIX)
     elif nq==3:
-        return IIIXII + IIIIXI + IIIIIX
+        return 0.5 * (IIIXII + IIIIXI + IIIIIX)
 
 
 X2 = XI+IX

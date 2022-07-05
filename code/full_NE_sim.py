@@ -1,10 +1,9 @@
 
-
-from pathlib import Path
-import os
-dir = os.path.dirname(__file__)
-os.chdir(dir)
-
+import torch as pt 
+import numpy as np
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib import pyplot as plt 
 
 from GRAPE import *
 import gates as gate
@@ -12,13 +11,9 @@ from atomic_units import *
 from data import get_A, get_J
 from visualisation import plot_spin_states
 from pulse_maker import square_pulse
+from utils import get_pulse_hamiltonian
+from NE_swap import NE_swap_pulse, lock_to_coupling
 
-
-import torch as pt 
-import numpy as np
-import matplotlib
-matplotlib.use('Qt5Agg')
-from matplotlib import pyplot as plt 
 
 from pdb import set_trace
 
@@ -33,7 +28,7 @@ spin_down = pt.tensor([0,1], dtype=cplx_dtype)
 
 
 
-def get_n_e_label(j):
+def get_NE_label(j):
     ''' Returns state label corresponding to integer j\in[0,dim] '''
     uparrow = u'\u2191'
     downarrow = u'\u2193'
@@ -57,7 +52,7 @@ def plot_nuclear_electron_wf(psi,tN, ax=None):
     
     if ax is None: ax=plt.subplot()
     for j in range(dim):
-        ax.plot(T,pt.abs(psi[:,j]), label = get_n_e_label(j))
+        ax.plot(T,pt.abs(psi[:,j]), label = get_NE_label(j))
     ax.legend()
 
 
@@ -71,6 +66,44 @@ def get_nuclear_spins(A):
         else:
             spins[i]=spin_down 
     return spins
+
+
+def multi_NE_H0(Bz, A, J, nq):
+    """
+    Returns free evolution Hamiltonian of nq==2 or nq==3 electron-nucleus pairs. Each electron interacts with its
+    nucleus via hyperfine term 4AS.I, each neighboring electron interacts via exchange 4JS.S, and nulear and electrons
+    experience Zeeman splitting due to background static field, Bz.
+    """
+
+    Iz = gate.get_Iz_sum(nq)
+    Sz = gate.get_Sz_sum(nq)
+    if nq==2:
+        o_n1e1 = gate.o4_13 
+        o_n2e2 = gate.o4_24 
+        o_e1e2 = gate.o4_34
+        H0 = gamma_e*Bz*Sz - gamma_n*Bz*Iz + A*o_n1e1 + A*o_n2e2 #+ J*o_e1e2 
+    elif nq==3:
+        o_n1e1 = gate.o6_14
+        o_n2e2 = gate.o6_25
+        o_n3e3 = gate.o6_36
+        o_e1e2 = gate.o6_45 
+        o_e2e3 = gate.o6_56 
+        H0 = gamma_e*Bz*Sz - gamma_n*Bz*Iz + A*(o_n1e1+o_n2e2+o_n3e3) + J[0]*o_e1e2 + J[1]*o_e2e3
+    return H0
+
+def get_NE_Hw(Bx, By, nq):
+    """
+    Returns Hamiltonian resulting from transverse magnetic field (Bx, By, 0) applied to system of
+    nq==2 or nq==3 nuclear-electron pairs.
+    """
+    Ix = gate.get_Ix_sum(nq)
+    Iy = gate.get_Iy_sum(nq)
+    Sx = gate.get_Sx_sum(nq)
+    Sy = gate.get_Sy_sum(nq)
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) - get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy)
+    return Hw
+
+
 
 def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None):
     '''
@@ -86,19 +119,6 @@ def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None):
     N = len(Bx)
     Bz = 2*tesla
 
-    # unit conversions
-    A,J=convert_Mhz(A,J)
-    tN*=nanosecond
-    Bx*=tesla; By*=tesla
-    A_mag = np.abs(A[0])
-
-
-    o_n1e1 = gate.o4_13 
-    o_n2e2 = gate.o4_24 
-    o_e1e2 = gate.o4_34
-
-
-
     if psi0 is None:
         if nq==2:
             psi0 = gate.kron4(spin_up, spin_down, spin_up, spin_down)
@@ -109,63 +129,46 @@ def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None):
             J = get_J(1,2)[0]
         elif nq==3:
             J = get_J(1,3)[0]
-    #H0 = 0.5*gamma_e*Bz*oze + A[0]*gate.IIZI + A[1]*gate.IIIZ + J*o_e1e2 
 
+    H0 = multi_NE_H0(Bz, A, J, nq)
 
-    ozn = gate.ZIIIII + gate.IZIIII + gate.IIZIII 
-    oze = gate.IIIZII + gate.IIIIZI + gate.IIIIIZ
+    Hw = get_NE_Hw(Bx, By, nq)
+    Ix = gate.get_Ix_sum(nq)
+    Iy = gate.get_Iy_sum(nq)
+    Sx = gate.get_Sx_sum(nq)
+    Sy = gate.get_Sy_sum(nq)
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) - get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy)
 
-    o_n1e1 = gate.o6_14
-    o_n2e2 = gate.o6_25
-    o_n3e3 = gate.o6_36
-    o_e1e2 = gate.o6_45 
-    o_e2e3 = gate.o6_56 
-
-    X_nuc = gate.get_nuclear_ox(nq)
-    X_elec = gate.get_electron_ox(nq)
-    Y_nuc = gate.get_nuclear_oy(nq)
-    Y_elec = gate.get_electron_oy(nq)
-
-    if psi0==None:
-        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_P*Bz*ozn + A_mag*o_n1e1 + A_mag*o_n2e2 + J*o_e1e2 
-    elif nq==3:
-        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_P*Bz*ozn + A_mag*(o_n1e1+o_n2e2+o_n3e3) + J[0]*o_e1e2 + J[1]*o_e2e3
-
-
-    else:
-        raise Exception("Invalid nq")
-
-    Hw_nuc = 0.5*gamma_P * (pt.einsum('j,ab->jab',Bx,X_nuc) + pt.einsum('j,ab->jab',By,Y_nuc))
-    Hw_elec = 0.5*gamma_e * (pt.einsum('j,ab->jab',Bx,X_elec) + pt.einsum('j,ab->jab',By,Y_elec))
-    Hw = Hw_elec+Hw_nuc
     # H0 has shape (d,d), Hw has shape (N,d,d). H0+Hw automatically adds H0 to all N Hw timestep values.
-    H=Hw+H0
+    H=sum_H0_Hw(H0, Hw)
     dt=tN/N
     U = pt.matrix_exp(-1j*H*dt)
     X=forward_prop(U)
     psi = pt.matmul(X,psi0)
 
     fig,ax=plt.subplots(1,1)
-    plot_spin_states(psi,tN,ax)
+    plot_spin_states(psi,tN,ax, label_getter=get_NE_label)
 
     return
 
 
-def run_NE_sim(tN,N,nq,A,J, psi0=None):
-
-    
-
-    nuclear_electron_sim(Bx,By,tN,N,nq,A,J,psi0)
+def run_NE_sim(tN,N,nq,Bz,A,J, psi0=None):
+    tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
+    Bx, By = NE_swap_pulse(tN_locked, N, A, Bz)
+    nuclear_electron_sim(Bx,By,tN_locked,nq,A,J,psi0)
 
 
 if __name__ == '__main__':
 
-    tN=2.0
-    N=50000
-    nq=2
-    A=get_A(1,2)[0]
-    J=get_J(1,2)[0]
-    run_NE_sim(2.0,5000,2, get_A(1,2)[0], get_J(1,2)[0])
+    run_NE_sim(
+        tN = 500.0*nanosecond,
+        N = 500000,
+        nq = 2, 
+        Bz = 2*tesla,
+        A = get_A(1,1), 
+        J = get_J(1,2)[0],
+        psi0 = gate.spin_1001
+        )
 
 
     plt.show()

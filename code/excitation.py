@@ -20,11 +20,8 @@ from matplotlib import pyplot as plt
 
 from pdb import set_trace
 
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-
-gamma_P = 17.235 * Mhz/tesla
-gamma_e = 1.7609e5 * Mhz/tesla
+from data import gamma_e, gamma_n
 
 
 spin_up = pt.tensor([1,0],dtype=cplx_dtype)
@@ -425,7 +422,7 @@ def nuclear_electron_sim(Bx,By,tN,N,nq,A,J, psi0=None):
         if psi0==None:
             psi0 = gate.kron4(nspin1, nspin2, spin_up, spin_down)
         print(f"psi0={psi0}")
-        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_P*Bz*ozn + A_mag*o_n1e1 + A_mag*o_n2e2 + J*o_e1e2 
+        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_n*Bz*ozn + A_mag*o_n1e1 + A_mag*o_n2e2 + J*o_e1e2 
         #H0 = 0.5*gamma_e*Bz*oze + A[0]*gate.IIZI + A[1]*gate.IIIZ + J*o_e1e2 
     
     elif nq==3:
@@ -439,13 +436,13 @@ def nuclear_electron_sim(Bx,By,tN,N,nq,A,J, psi0=None):
         o_e1e2 = gate.o6_45 
         o_e2e3 = gate.o6_56 
 
-        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_P*Bz*ozn + A_mag*(o_n1e1+o_n2e2+o_n3e3) + J[0]*o_e1e2 + J[1]*o_e2e3
+        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_n*Bz*ozn + A_mag*(o_n1e1+o_n2e2+o_n3e3) + J[0]*o_e1e2 + J[1]*o_e2e3
 
 
     else:
         raise Exception("Invalid nq")
 
-    Hw_nuc = 0.5*gamma_P * (pt.einsum('j,ab->jab',Bx,X_nuc) + pt.einsum('j,ab->jab',By,Y_nuc))
+    Hw_nuc = 0.5*gamma_n * (pt.einsum('j,ab->jab',Bx,X_nuc) + pt.einsum('j,ab->jab',By,Y_nuc))
     Hw_elec = 0.5*gamma_e * (pt.einsum('j,ab->jab',Bx,X_elec) + pt.einsum('j,ab->jab',By,Y_elec))
     Hw = Hw_elec+Hw_nuc
     # H0 has shape (d,d), Hw has shape (N,d,d). H0+Hw automatically adds H0 to all N Hw timestep values.

@@ -13,7 +13,7 @@ from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum
 from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X
 from pulse_maker import square_pulse
-from data import get_A, gamma_e, gamma_P, cplx_dtype
+from data import get_A, gamma_e, gamma_n, cplx_dtype
 
 from pdb import set_trace
 
@@ -43,8 +43,8 @@ def E_CX(A, Bz, tN, N, psi0=spin_up):
 
 def N_CX(A, Bz, tN, N, psi0=spin_up):
     Bx,By = EN_CX_pulse(tN,N,A,Bz)
-    H0 = (-A-gamma_P*Bz/2)*gate.Z 
-    Hw = get_pulse_hamiltonian(Bx, By, gamma_P)
+    H0 = (-A-gamma_n*Bz/2)*gate.Z 
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_n)
     T = pt.linspace(0,tN,N)
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
@@ -60,7 +60,7 @@ def pi_rot_pulse(w_res, coupling, tN, N, phase=0):
 
 
 def H_zeeman(Bz):
-    return gamma_e*Bz*Sz - gamma_P*Bz*Iz
+    return gamma_e*Bz*Sz - gamma_n*Bz*Iz
 
 def H_hyperfine(A):
     return A * gate.sigDotSig
@@ -88,17 +88,17 @@ def NE_eigensystem(H0):
 
 def NE_couplings(H0):
     S,D = NE_eigensystem(H0)
-    Hw_mag = 0.5*gamma_e*gate.IX - 0.5*gamma_P*gate.XI
+    Hw_mag = 0.5*gamma_e*gate.IX - 0.5*gamma_n*gate.XI
     couplings = S.T @ Hw_mag @ S
     return couplings
 
 def get_coupling(A,Bz):
-    Gbar = (gamma_e + gamma_P) * Bz / 2 # remove Bz from Gamma later on 
+    Gbar = (gamma_e + gamma_n) * Bz / 2 # remove Bz from Gamma later on 
     K = ( 2 * (4*A**2 + Gbar**2 - Gbar*np.sqrt(4*A**2+Gbar**2)) )**(-1/2)
     alpha = -Gbar + np.sqrt(4*A**2+Gbar**2)
     beta = 2*K*A
     Ge = gamma_e/2
-    Gn = gamma_P/2
+    Gn = gamma_n/2
     return alpha*Gn + beta*Ge
 
 
@@ -139,7 +139,7 @@ def show_NE_CX(A,Bz,tN,N, psi0=spin_down_down):
 
 def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
-    w_res = -(2*A+gamma_P*Bz)
+    w_res = -(2*A+gamma_n*Bz)
     phase = 0
 
 
@@ -179,7 +179,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
 
 def get_NE_Hw(Bx,By):
-    return -get_pulse_hamiltonian(Bx, By, gamma_P, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
+    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
 
 def get_NE_X(Bx, By, H0, tN, N):
 
@@ -260,7 +260,7 @@ def NE_swap(A,Bz,tN,N):
 
     Bx,By = NE_swap_pulse(tN,N,A,Bz)
     #Bx,By = NE_CX_pulse(tN,N,A,Bz)
-    Hw = - get_pulse_hamiltonian(Bx, By, gamma_P, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) 
+    Hw = - get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) 
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
 
@@ -339,17 +339,19 @@ def lock_to_coupling(c, tN):
     return tN_locked
 
 
-psi0=pt.kron(spin_up,spin_down)
+if __name__ == '__main__':
 
-tN = lock_to_coupling(get_A(1,1)*Mhz,50*nanosecond)
-#show_NE_CX(get_A(1,1)*Mhz, 2*tesla, tN, 100000, psi0=pt.kron(spin_down, spin_up)); plt.show()
+    psi0=pt.kron(spin_up,spin_down)
 
-tN_locked = lock_to_coupling(get_A(1,1)*Mhz,499*nanosecond)
-#show_EN_CX(get_A(1,1)*Mhz, 2*tesla, tN_locked, 5000); plt.show()
+    tN = lock_to_coupling(get_A(1,1),50*nanosecond)
+    #show_NE_CX(get_A(1,1)*Mhz, 2*tesla, tN, 100000, psi0=pt.kron(spin_down, spin_up)); plt.show()
+
+    tN_locked = lock_to_coupling(get_A(1,1),499*nanosecond)
+    #show_EN_CX(get_A(1,1)*Mhz, 2*tesla, tN_locked, 5000); plt.show()
 
 
-tN_locked = lock_to_coupling(get_A(1,1)*Mhz,499*nanosecond)
-show_NE_swap(get_A(1,1)*Mhz, 2*tesla, tN_locked, 1000000); plt.show()
+    tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
+    show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()
 
 
 #NE_energy_levels(); plt.show()
