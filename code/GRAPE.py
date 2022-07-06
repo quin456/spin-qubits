@@ -328,6 +328,37 @@ class GRAPE:
         return U
 
     @staticmethod
+    def time_evolution(u,m, nq,Hw,H0,tN, simSteps=1):
+        '''
+        Calculates the time-evolution operators corresponding to each of the N timesteps,
+        and returns as an array, U.
+        '''
+        d=2**nq
+        nS=len(H0)
+        simSteps=1
+        N = int(len(u)/m)
+        dt = tN/N
+        H_control = pt.einsum('kj,skjab->sjab', uToMatrix(u,m), Hw)
+
+
+        if interaction_picture:
+            H = H_control
+        else:
+            H = H_control + H0
+            
+        if simSteps==1:
+            U_flat = pt.matrix_exp(-1j*pt.reshape(H, (nS*N,d,d))*(dt/hbar))
+            U = pt.reshape(U_flat, (nS,N,d,d))
+            return U
+        else:
+            # scrap this?
+            U = pt.matrix_exp(pt.zeros(N,2**nq,2**nq, dtype=cplx_dtype, device=device))
+            U_s = pt.matrix_exp(-1j*H*((dt/simSteps)/hbar))
+            for i in range(simSteps):
+                U = pt.matmul(U_s, U)
+            return U
+
+    @staticmethod
     def propagate(U,target=None,device=default_device):
         '''
         Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
@@ -363,6 +394,79 @@ class GRAPE:
             print(f"Max time of {self.max_time} has been reached. Optimisation terminated.")
             raise TimeoutError
 
+
+    def fidelity(u,m,nq,target,Hw,tN,H0):
+
+        '''
+        Determines the time evolution resulting from control field amplitudes in 'u', and 
+        calculates the corresponding fidelity Phi=<Uf,Ut> of the final time evolution operator 
+        Uf with the target operator Ut, and its gradient with respect to 'u'.
+
+        Inputs:
+
+            u: vector containing learning parameters, which are magnetic field amplitudes
+                for each control field at each timestep.
+
+            m: number of control fields
+
+            target: target unitary for time evolution operator
+
+            Hw: function of time which returns vector of control Hamiltonian values
+                at each time.
+            
+            H0: Unperturbed Hamiltonian due to static background z-field
+
+            tN: duration of gate
+
+        '''
+
+
+        # determine time evolution resulting from control fields
+        d=2**nq
+        U = time_evolution(u,m,nq,Hw,H0,tN)
+        
+        X,P = propagate(U,target)
+        
+        Uf = P[:,-1]; Ut = X[:,-1]
+        # fidelity of resulting unitary with target
+        Phi = batch_IP(Ut,Uf); Phi = pt.real(Phi*pt.conj(Phi))
+
+        # calculate grad of fidelity
+
+        XP_IP = batch_IP(X,P)
+        #PHX_IP = batch_IP(P,1j*dt*pt.matmul(Hw,X))
+        HwX=pt.einsum('skjab,sjbc->skjac' , Hw, X)
+        dt = tN/len(X)
+        PHX_IP =  batch_trace(pt.einsum('sjab,skjbc->skjac', dagger(P), 1j*dt*HwX)) / d
+
+
+        dPhi = -2*pt.real( pt.einsum('skj,sj->skj', PHX_IP, XP_IP) ) / hbar
+        return Phi, dPhi
+
+
+    @staticmethod
+    def cost(u,target,Hw,tN,H0):
+        '''
+        Generalised GRAPE cost function, taking arbitrary Hamiltonians as input. 
+        More optimised cost functions may be needed for specific implementations
+        (ie running many CNOTs in parallel, where Hw is constructed on the fly).
+        '''
+        nS,m,N,d = Hw.shape[:-1]; nq=int(np.log2(d))
+        u = pt.tensor(u,dtype=cplx_dtype, device=default_device)
+
+        Phi, dPhi = fidelity(u,m,nq,target,Hw,tN,H0)
+
+
+        J = 1 - pt.sum(Phi,0)/nS
+        dJ = -uToVector(pt.sum(dPhi,0))/nS
+
+
+
+        
+        J=J.item(); dJ = dJ.cpu().detach().numpy() 
+        return J, dJ
+
+
     def run(self):
         callback = self.check_time if self.max_time is not None else None
         try:
@@ -375,6 +479,7 @@ class GRAPE:
             self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
             self.status='UC' #uncomplete
         self.time_taken = time.time() - self.start_time
+
 
 
 class ESRGRAPE(GRAPE):

@@ -17,13 +17,12 @@ from data import gamma_e, dir
 from utils import get_pulse_hamiltonian, sum_H0_Hw, get_U0, forward_prop
 from GRAPE import GRAPE
 
-plots_folder = f"{dir}thesis-plots/"
 
 def single_spin_H0(Bz, gamma=gamma_e):
     return 0.5*gamma_e*Bz*gate.Z
 
 
-def show_single_spin_evolution(Bz = 2*tesla, tN = 1*nanosecond, N=100000, target = gate.X, psi0=spin_up, fn=None):
+def show_single_spin_evolution(Bz = 2*tesla, tN = 1*nanosecond, N=100000, target = gate.X, psi0=spin_up, fp=None):
 
     w_res = gamma_e*Bz
     fig,ax = plt.subplots(3,1)
@@ -46,8 +45,8 @@ def show_single_spin_evolution(Bz = 2*tesla, tN = 1*nanosecond, N=100000, target
     plot_spin_states(psi, tN, ax[2], label_getter=label_getter)
     plt.tight_layout()
 
-    if fn is not None:
-        plt.savefig(f"{plots_folder}{fn}")
+    if fp is not None:
+        plt.savefig(fp)
 
 
 class SingleElectronGRAPE(GRAPE):
@@ -74,4 +73,4 @@ def run_single_electron_grape():
 
 
 if __name__ == '__main__':
-    show_single_spin_evolution(fn = "Ch1-single-spin-flip.pdf"); plt.show()
+    show_single_spin_evolution(fp = "Ch1-single-spin-flip.pdf"); plt.show()

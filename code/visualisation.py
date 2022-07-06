@@ -1,13 +1,14 @@
 
 
-from cProfile import label
-from turtle import shape
 import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
-from utils import get_nq, dagger, fidelity_progress
+from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian
+
+import qiskit
+from qiskit.visualization import plot_bloch_vector
 
 
 from pdb import set_trace
@@ -137,3 +138,12 @@ def show_fidelity(X, tN, target, ax=None):
     
     if ax is None: ax = plt.subplot()
     plot_fidelity_progress(ax,fids,tN)
+
+
+
+
+def bloch_sphere(psi, fp=None):
+    blochs = psi_to_cartesian(psi).numpy()
+    plot_bloch_vector(blochs)
+    if fp is not None: plt.savefig(fp)
+
