@@ -59,8 +59,6 @@ def psi_from_polar(theta,phi):
         theta = pt.tensor([theta]); phi = pt.tensor([phi])
     return pt.stack((pt.cos(theta/2), pt.einsum('j,j->j',pt.exp(1j*phi),pt.sin(theta/2)))).T
 
-print(psi_from_polar(pt.tensor([np.pi/2]), pt.tensor([np.pi/3])))
-print(psi_from_polar(np.pi/2, np.pi/3))
 
 def get_single_qubit_angles(psi):
     '''
@@ -126,8 +124,16 @@ def get_pulse_hamiltonian(Bx, By, gamma, X=gate.X, Y=gate.Y):
         gamma: gyromagnetic ratio
     Returns Hamiltonian corresponding to magnetic field pulse (Bx,By,0)
     '''
-    Hw = 0.5 * gamma * ( pt.einsum('j,ab->jab', Bx, X) + pt.einsum('j,ab->jab', By, Y) )
+    reshaped=False
+    if len(Bx.shape) == 1:
+        Bx = Bx.reshape(1,*Bx.shape)
+        By = By.reshape(1,*By.shape)
+        reshaped=True 
 
+    Hw = 0.5 * gamma * ( pt.einsum('kj,ab->kjab', Bx, X) + pt.einsum('kj,ab->kjab', By, Y) )
+
+    if reshaped:
+        return Hw[0]
     return Hw
 
 def sum_H0_Hw(H0, Hw):
@@ -177,3 +183,15 @@ def fidelity_progress(X, target):
     if not multisys:
         fid = fid[0]
     return fid
+
+
+def lock_to_coupling(c, tN):
+    t_HF = 2*np.pi/c
+    tN_locked = int(tN / (t_HF) ) * t_HF
+    if tN_locked == 0:
+        tN_locked=t_HF
+        print(f"tN={tN/nanosecond}ns too small to lock to coupling period {t_HF/nanosecond}ns.")
+        return tN
+    else:
+        print(f"Locking tN={tN/nanosecond}ns to coupling period {t_HF/nanosecond}ns. New tN={tN_locked/nanosecond}ns.")
+    return tN_locked

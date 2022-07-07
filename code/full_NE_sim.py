@@ -11,8 +11,8 @@ from atomic_units import *
 from data import get_A, get_J
 from visualisation import plot_spin_states
 from pulse_maker import square_pulse
-from utils import get_pulse_hamiltonian
-from NE_swap import NE_swap_pulse, lock_to_coupling
+from utils import get_pulse_hamiltonian, lock_to_coupling
+from NE_swap import NE_swap_pulse, NE_CX_pulse
 
 
 from pdb import set_trace
@@ -81,7 +81,7 @@ def multi_NE_H0(Bz, A, J, nq):
         o_n1e1 = gate.o4_13 
         o_n2e2 = gate.o4_24 
         o_e1e2 = gate.o4_34
-        H0 = gamma_e*Bz*Sz - gamma_n*Bz*Iz + A*o_n1e1 + A*o_n2e2 #+ J*o_e1e2 
+        H0 = gamma_e*Bz*Sz - gamma_n*Bz*Iz + A*o_n1e1 + A*o_n2e2 + J*o_e1e2/10
     elif nq==3:
         o_n1e1 = gate.o6_14
         o_n2e2 = gate.o6_25
@@ -153,15 +153,15 @@ def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None):
 
 
 def run_NE_sim(tN,N,nq,Bz,A,J, psi0=None):
-    tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
-    Bx, By = NE_swap_pulse(tN_locked, N, A, Bz)
+    tN_locked = lock_to_coupling(get_A(1,1),tN)
+    Bx, By = NE_CX_pulse(tN_locked, N, A, Bz)
     nuclear_electron_sim(Bx,By,tN_locked,nq,A,J,psi0)
 
 
 if __name__ == '__main__':
 
     run_NE_sim(
-        tN = 500.0*nanosecond,
+        tN = 10.0*nanosecond,
         N = 50000,
         nq = 2, 
         Bz = 2*tesla,

@@ -1,6 +1,7 @@
 
 
 # coding tools
+from abc import abstractmethod
 from pdb import set_trace
 import time
 import warnings
@@ -288,23 +289,7 @@ def get_control_fields(omega,phase,tN,N,device=default_device):
 
 
     
-
-
-class SystemData(object):
-
-    def __init__(self, J, A, tN, N, rf,target):
-        self.J=J 
-        self.A=A 
-        self.tN=tN
-        self.N=N
-        self.target=target
-        self.nS,self.nq=get_dimensions(A)
-        self.rf=get_RFs(A,J) if rf is None else rf
-        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
-        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
-        self.H0 = get_H0(self.A,self.J)
-
-        print(f"rf={self.rf}")
+        
 
 
 
@@ -312,33 +297,75 @@ class GRAPE:
     '''
     General GRAPE class.
     '''
-    @staticmethod
-    def time_evol(u,H0,x_cf,y_cf,tN, device=default_device):
-        m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
-        sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
-        dt = tN/N
-        u_mat = uToMatrix(u,m)
-        x_sum = pt.einsum('kj,kj->j',u_mat,x_cf).to(device)
-        y_sum = pt.einsum('kj,kj->j',u_mat,y_cf).to(device)
-        H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
-        H=pt.reshape(H, (nS*N,d,d))
-        U = pt.matrix_exp(-1j*H*dt)
-        del H
-        U = pt.reshape(U, (nS,N,d,d))
-        return U
+    def __init__(self, tN, N, target, rf, u0, hist0, max_time, save_data, sp_distance = 99999*3600):
+        self.tN=tN
+        self.N=N
+        self.target=target
+        self.rf = self.get_RFs() if rf is None else rf
+        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
+        self.m = len(self.omega)
+        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
 
-    @staticmethod
-    def time_evolution(u,m, nq,Hw,H0,tN, simSteps=1):
+        if u0 is None: u0=init_u(self)
+        self.u0=u0
+        self.max_time=max_time
+        self.start_time = time.time()
+        self.save_data = save_data
+        self.H0 = self.get_H0()
+
+        # allow for H0 with no systems axis
+        self.reshaped=False
+        if len(self.H0.shape)==2:
+            self.H0 = self.H0.reshape(1,*self.H0.shape)
+            self.target = self.target.reshape(1,*self.target.shape)
+            self.reshaped=True
+            
+        self.nS = len(self.H0)
+
+        self.sp_count = 0
+        self.sp_distance = sp_distance
+
+        self.cost_hist=hist0 if hist0 is not None else []  
+        self.filename = None
+
+    @abstractmethod
+    def get_RFs(self):
+        pass
+    
+    def u_mat(self):
+        return uToMatrix(self.u, self.m)
+
+
+    def get_rec_min_N(self, printFreqs=False, printPeriods=False):
+        
+        N_period=40 # recommended min number of timesteps per period
+        rf=self.get_RFs()
+        T=1e3/rf
+        max_w=pt.max(rf).item()
+        rec_min_N = int(np.ceil(N_period*max_w*Mhz*self.tN*nanosecond/(2*np.pi)))
+        
+        if printFreqs: print(f"resonant freqs = {rf}")
+        if printPeriods: print(f"T = {T}")
+        print(f"Recommened min N = {rec_min_N}")
+
+        return rec_min_N
+
+    def time_evolution(self, u, simSteps=1):
         '''
         Calculates the time-evolution operators corresponding to each of the N timesteps,
         and returns as an array, U.
         '''
-        d=2**nq
-        nS=len(H0)
+        d=2**self.nq
+        nS=len(self.H0)
         simSteps=1
-        N = int(len(u)/m)
-        dt = tN/N
-        H_control = pt.einsum('kj,skjab->sjab', uToMatrix(u,m), Hw)
+        N = int(len(u)/self.m)
+        dt = self.tN/self.N
+
+        # add axes
+        Hw = pt.einsum('s,kjab->skjab', pt.ones(nS), self.Hw)
+        H0 = pt.einsum('j,sab->sjab', pt.ones(N), self.H0)
+
+        H_control = pt.einsum('kj,skjab->sjab', uToMatrix(u,self.m), Hw)
 
 
         if interaction_picture:
@@ -352,18 +379,20 @@ class GRAPE:
             return U
         else:
             # scrap this?
-            U = pt.matrix_exp(pt.zeros(N,2**nq,2**nq, dtype=cplx_dtype, device=device))
+            U = pt.matrix_exp(pt.zeros(N,2**self.nq,2**self.nq, dtype=cplx_dtype, device=default_device))
             U_s = pt.matrix_exp(-1j*H*((dt/simSteps)/hbar))
             for i in range(simSteps):
                 U = pt.matmul(U_s, U)
             return U
 
-    @staticmethod
-    def propagate(U,target=None,device=default_device):
+    def propagate(self, U, device=default_device):
         '''
         Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
         Backward propagates target evolution operators and stores in X.
+
+        This function is sufficiently general to work on all GRAPE implementations.
         '''
+        target=self.target
         nS=len(U)
         N=len(U[0])
         dim = U[0].shape[1]  # forward propagated time evolution operator
@@ -395,7 +424,7 @@ class GRAPE:
             raise TimeoutError
 
 
-    def fidelity(u,m,nq,target,Hw,tN,H0):
+    def fidelity(self, u):
 
         '''
         Determines the time evolution resulting from control field amplitudes in 'u', and 
@@ -422,10 +451,24 @@ class GRAPE:
 
 
         # determine time evolution resulting from control fields
+        nq=self.nq
+        target=self.target
+        tN=self.tN
+        N = self.N
+        nS=self.nS
+        H0 = self.H0
+        Hw = self.Hw
         d=2**nq
-        U = time_evolution(u,m,nq,Hw,H0,tN)
-        
-        X,P = propagate(U,target)
+        m = self.m
+
+        # add axes
+        Hw = pt.einsum('s,kjab->skjab', pt.ones(nS), Hw)
+        H0 = pt.einsum('j,sab->sjab', pt.ones(N), H0)
+
+
+        U = self.time_evolution(u)
+
+        X,P = self.propagate(U)
         
         Uf = P[:,-1]; Ut = X[:,-1]
         # fidelity of resulting unitary with target
@@ -444,17 +487,16 @@ class GRAPE:
         return Phi, dPhi
 
 
-    @staticmethod
-    def cost(u,target,Hw,tN,H0):
+    def cost(self, u):
         '''
         Generalised GRAPE cost function, taking arbitrary Hamiltonians as input. 
         More optimised cost functions may be needed for specific implementations
         (ie running many CNOTs in parallel, where Hw is constructed on the fly).
         '''
-        nS,m,N,d = Hw.shape[:-1]; nq=int(np.log2(d))
+        nS=self.nS
         u = pt.tensor(u,dtype=cplx_dtype, device=default_device)
 
-        Phi, dPhi = fidelity(u,m,nq,target,Hw,tN,H0)
+        Phi, dPhi = self.fidelity(u)
 
 
         J = 1 - pt.sum(Phi,0)/nS
@@ -481,50 +523,228 @@ class GRAPE:
         self.time_taken = time.time() - self.start_time
 
 
+    def result(self, show_plot=True, minprint=False):
 
-class ESRGRAPE(GRAPE):
 
-    def __init__(self, SD, u0, hist0, max_time, save_data, sp_distance = 99999*3600, alpha=0):
+        self.print_info(minprint)
+        X = self.get_X()
+        # Plot fields and process data
+        self.plotFields(self.u,X,show_plot=show_plot)
 
+        fidelities = self.fidelity(self.u)[0]
+        avgfid=sum(fidelities)/len(fidelities)
+        minfid = min(fidelities).item()
+        
+
+        alpha=0
+        if self.save_data:
+            # save_system_data will overwrite previous file if job was not terminated by gadi
+            log_result(minfid,avgfid,alpha,self,self)
+            save_system_data(self, self.target, self.filename, fid=fidelities, status=self.status)
+            save_field(self, self)
+
+    def print_info(self, minprint):
+
+        fidelities = self.fidelity(self.u)[0]
+        avgfid=sum(fidelities)/len(fidelities)
+        minfid = min(fidelities).item()
+
+        print(f"Average fidelity = {avgfid}")
+        if not minprint:
+            print(f"Fidelities = {fidelities}")
+            print(f"Min fidelity = {minfid}")
+            print(f"Time taken = {self.time_taken}")
+            print(f"GPUs requested = {ngpus}")
+            global time_grad, time_exp, time_prop, time_fid 
+            print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
+
+
+    def get_X(self):
+        U = self.time_evolution(self.u)
+        X,P = self.propagate(U)
+        Uf = X[0][-1]
+        return X
+
+
+    def sum_XY_fields(self, u):
+        '''
+        Sum contributions of all control fields along x and y axes
+        '''
+        N = u.shape[1] 
+        T = pt.linspace(0,self.tN,N,device=default_device)
+        wt = pt.einsum('k,j->kj', self.rf, T)
+        cos_wt = pt.cos(wt)
+        sin_wt = pt.sin(wt)
+        X_field = pt.sum(pt.einsum('kj,kj->kj', u[:self.m//2,:],cos_wt),0) + pt.sum(pt.einsum('kj,kj->kj', u[self.m//2:,:],sin_wt),0)
+        Y_field = pt.sum(pt.einsum('kj,kj->kj', u[:self.m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', u[self.m//2:,:],cos_wt),0)
+        return X_field, Y_field
+
+
+    ################################################################################################################
+    ################        VISUALISATION        ###################################################################
+    ################################################################################################################
+
+    def plotFields(self, u, X, show_plot=True):
+        omegas=self.omega
+        m=self.m
+        tN=self.tN
+        rf=omegas[:len(omegas)//2]
+        N = int(len(u)/m)
+        u_m = uToMatrix(u,m).cpu()
+        w_np = omegas.cpu().detach().numpy()
+        T = np.linspace(0, tN, N)
+        t_axis = np.linspace(0, tN/nanosecond, N)
+        fig,ax = plt.subplots(2,2)
+        for i in range(len(w_np)):
+            if i<len(w_np)//2:
+                B1 = np.cos(w_np[i]*T)
+            else:
+                B1=np.sin(w_np[i]*T)
+            #ax[0,1].plot(t_axis,B1, label="Hw"+str(i))
+
+        self.plot_cost_hist(ax[1,1])
+            
+
+        for i in range(len(w_np)):
+            if i<len(w_np)//2:
+                B1 = np.cos(w_np[i]*T)
+            else:
+                B1=np.sin(w_np[i]*T)
+            prod=np.multiply(u_m[i],B1)
+            
+            ax[0,0].plot(t_axis,u_m[i], label='u'+str(i))
+            #ax[1,0].plot(t_axis,1e3*prod,label='u'+str(i)+'*Hw'+str(i)+" (mT)")
+                
+        X_field, Y_field = self.sum_XY_fields(uToMatrix(u,m))
+        self.plot_XY_fields(ax[0,1],X_field,Y_field)
+        transfids = fidelity_progress(X,self.target)
+        plot_fidelity_progress(ax[1,0],transfids,tN,legend=False)
+        ax[0,0].set_xlabel("time (ns)")
+
+
+        if self.save_data:
+            fig.savefig(f"{dir}plots/{self.filename}")
+        if show_plot: plt.show()
+
+
+    def plot_XY_fields(self, ax, X_field, Y_field):
+        X_field = X_field.cpu(); Y_field=Y_field.cpu()
+        N=len(X_field)
+        t_axis = np.linspace(0, self.tN/nanosecond, N)
+        ax.plot(t_axis,X_field*1e3,label='total x-field (mT)')
+        ax.plot(t_axis,Y_field*1e3,label='total y-field (mT)')
+        ax.set_xlabel("time (ns)")
+        ax.legend()
+        
+    def plot_cost_hist(self, ax):
+        ax.plot(self.cost_hist, label='cost')
+        ax.set_xlabel('Iterations')
+        ax.legend()
+        return ax
+
+
+
+class GrapeESR(GRAPE):
+
+    def __init__(self, J, A, tN, N, rf, target, u0, hist0, max_time, save_data, alpha=0):
+
+        self.J=J 
+        self.A=A 
+        self.tN=tN
+        self.N=N
+        self.target=target
+        self.nS,self.nq=get_dimensions(A)
+        self.rf=self.get_RFs() if rf is None else rf
+        super().__init__(tN, N, target, rf, u0, hist0, max_time, save_data)
+        
         # Log job start
-        self.ID,self.filename = preLog(SD,save_data)
+        self.ID,self.filename = preLog(self,save_data)  
 
-
-        if u0 is None: u0=init_u(SD)
-        cost_hist=hist0 if hist0 is not None else []    
-        fun = lambda u: self.cost(u, SD.H0, SD.nS, SD.J, SD.A, SD.x_cf, SD.y_cf, SD.tN, SD.target, cost_hist, alpha=alpha)
+        fun = self.cost
 
 
         self.fun=fun
-        self.u0=u0
-        self.max_time=max_time
-        self.start_time = time.time()
-        self.sp_count = 0
-        self.sp_distance = sp_distance
-        self.cost_hist=cost_hist
-        self.save_data = save_data
         self.alpha=alpha
+
+    def get_H0(self, include_HZ=False, device=default_device):
+        '''
+        Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
         
-    def fidelity(self,u,H0,x_cf,y_cf,tN,target, device=default_device):
+        Inputs:
+            A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
+        '''
+        nS, nq = get_dimensions(self.A)
+        d = 2**nq
+
+        # Zeeman splitting term is generally rotated out and does not need to be simulated.
+        if include_HZ:
+            gamma_e = g_e*mu_B
+            HZ = 0.5 * gamma_e * B0 * gate.get_Zn(nq)
+        else:
+            HZ = pt.zeros(d,d)
+
+
+        if nq==3:
+            H0 = pt.einsum('sq,qab->sab', self.A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+        elif nq==2:
+            H0 = pt.einsum('sq,qab->sab', self.A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+        
+        
+        return H0.to(device)
+
+    def get_RFs(self, device=default_device):
+        A = self.A; J=self.J
+        nS,nq= get_dimensions(A)
+        rf = pt.tensor([], dtype = real_dtype, device=device)
+        H0 = self.get_H0()
+        Hw_shape = gate.get_Xn(nq)
+        for q in range(nS):
+            rf_q=getFreqs(H0[q], Hw_shape)
+            rf=pt.cat((rf,rf_q))
+        return rf
+
+        
+
+    def time_evolution(self, u, device=default_device):
+        m,N = self.x_cf.shape; nS,d = self.H0.shape[:-1]; nq = get_nq(d)
+        sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
+        dt = self.tN/N
+        u_mat = uToMatrix(u,m)
+        x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf).to(device)
+        y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf).to(device)
+        H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),self.H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
+        H=pt.reshape(H, (nS*N,d,d))
+        U = pt.matrix_exp(-1j*H*dt)
+        del H
+        U = pt.reshape(U, (nS,N,d,d))
+        return U
+
+    def fidelity(self,u, device=default_device):
         '''
         Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
         '''
+
+        H0=self.H0
+        x_cf=self.x_cf
+        y_cf=self.y_cf
+        tN=self.tN
+        target=self.target
 
         m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
         sig_xn = gate.get_Xn(nq, device); sig_yn = gate.get_Yn(nq, device)
 
         t0 = time.time()
         if pt.cuda.device_count()==2:
-            U2 = self.time_evol(u,H0,x_cf,y_cf,tN, device='cuda:1')
+            U2 = self.time_evolution(u, device='cuda:1')
             U=U2.to('cuda:0')
             del U2
         else:
-            U = self.time_evol(u,H0,x_cf,y_cf,tN, device=device)
+            U = self.time_evolution(u, device=device)
         global time_exp 
         time_exp += time.time()-t0
 
         t0 = time.time()
-        X,P = self.propagate(U,target, device=device)
+        X,P = self.propagate(U,device=device)
         global time_prop 
         time_prop += time.time()-t0
         del U
@@ -566,7 +786,7 @@ class ESRGRAPE(GRAPE):
         return Phi, dPhi
 
 
-    def cost(self, u,H0,nS,J,A,x_cf,y_cf,tN,target,hist,MP=False, kappa=1, alpha=0):
+    def cost(self,u):
         '''
         Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
 
@@ -577,17 +797,27 @@ class ESRGRAPE(GRAPE):
                 Hw = x_cf * sig_x + y_cf * sig_y
         
         '''
-        
+        MP=False; kappa=1; alpha=0
+        H0=self.H0
+        nS=self.nS
+        J=self.J
+        A=self.A
+        x_cf=self.x_cf
+        y_cf=self.y_cf
+        tN=self.tN
+        target=self.target
+        cost_hist=self.cost_hist
+
         u=pt.tensor(u, dtype=cplx_dtype, device=default_device)
         m=len(x_cf)
         t0 = time.time()
-        Phi,dPhi = self.fidelity(u,H0,x_cf,y_cf,tN,target)
+        Phi,dPhi = self.fidelity(u)
         global time_fid 
         time_fid += time.time()-t0
         J = 1 - pt.sum(Phi,0)/nS
         dJ = -uToVector(dPhi)/nS
         J=J.item(); dJ = dJ.cpu().detach().numpy()
-        hist.append(J)
+        cost_hist.append(J)
 
         # J_fluc,dJ_fluc = fluc_cost(u,m,alpha)
         # J+=J_fluc; dJ+=dJ_fluc
@@ -628,54 +858,15 @@ class ESRGRAPE(GRAPE):
             self.status='UC' #uncomplete
         self.time_taken = time.time() - self.start_time
 
-    def result(self, field_opt, SD, show_plot=True, minprint=False):
 
 
-        self.print_info(field_opt, SD, minprint)
-        X = get_X(field_opt.u, SD)
-        # Plot fields and process data
-        plotFields(field_opt.u, field_opt.cost_hist,SD,X,show_plot=show_plot, save_plot = field_opt.save_data, plotLabel=field_opt.filename)
-
-        fidelities = self.fidelity(field_opt.u,SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
-        avgfid=sum(fidelities)/len(fidelities)
-        minfid = min(fidelities).item()
-        
-
-        alpha=0
-        if field_opt.save_data:
-            # save_system_data will overwrite previous file if job was not terminated by gadi
-            log_result(minfid,avgfid,alpha,SD,field_opt)
-            save_system_data(SD, SD.target, field_opt.filename, fid=fidelities, status=field_opt.status)
-            save_field(field_opt, SD)
-
-    def print_info(self, field_opt,SD, minprint):
-
-        fidelities = self.fidelity(field_opt.u, SD.H0, SD.x_cf, SD.y_cf, SD.tN, SD.target)[0]
-        avgfid=sum(fidelities)/len(fidelities)
-        minfid = min(fidelities).item()
-
-        print(f"Average fidelity = {avgfid}")
-        if not minprint:
-            print(f"Fidelities = {fidelities}")
-            print(f"Min fidelity = {minfid}")
-            print(f"Time taken = {field_opt.time_taken}")
-            print(f"GPUs requested = {ngpus}")
-            global time_grad, time_exp, time_prop, time_fid 
-            print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
-
-def get_X(u_opt,SD):
-    U = ESRGRAPE.time_evol(u_opt,SD.H0,SD.x_cf,SD.y_cf,SD.tN)
-    X,P = ESRGRAPE.propagate(U,SD.target)
-    Uf = X[0][-1]
-    return X
 
 
 def setup_optimisation(target, N, tN, J, A, u0=None, rf=None,hist0=[],max_time=None,save_data=True, alpha=0):
 
-    SD = SystemData(J,A,tN,N,rf,target)
-    field_opt = ESRGRAPE(SD,u0,hist0,max_time,save_data, alpha=alpha)
+    field_opt = GrapeESR(J,A,tN,N,rf,target,u0,hist0,max_time,save_data)
 
-    return SD, field_opt
+    return field_opt
 
 def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, show_plot=True, max_time=None, NI_qub=False, hist0=None, minprint=False, mergeprop=False,alpha=0):
     '''
@@ -683,81 +874,18 @@ def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, sho
     '''
 
     global mergeprop_g; mergeprop_g=mergeprop 
-    SD, field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
+    field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
     
     field_opt.run()
-    field_opt.result(field_opt,SD,show_plot=show_plot,minprint=minprint)
+    field_opt.result(show_plot=show_plot,minprint=minprint)
 
 
 
 
 
 
-################################################################################################################
-################        VISUALISATION        ###################################################################
-################################################################################################################
 
 
-def plot_XY_fields(ax, X_field, Y_field, tN):
-    X_field = X_field.cpu(); Y_field=Y_field.cpu()
-    N=len(X_field)
-    t_axis = np.linspace(0, tN/nanosecond, N)
-    ax.plot(t_axis,X_field*1e3,label='total x-field (mT)')
-    ax.plot(t_axis,Y_field*1e3,label='total y-field (mT)')
-    ax.set_xlabel("time (ns)")
-    ax.legend()
-    
-
-
-
-def plot_cost_hist(cost_hist, ax):
-    ax.plot(cost_hist, label='cost')
-    ax.set_xlabel('Iterations')
-    ax.legend()
-    return ax
-
-def plotFields(u,cost_hist, SD, X,show_plot=True,save_plot=True, plotLabel=None):
-    omegas=SD.omega
-    m=SD.m
-    tN=SD.tN
-    rf=omegas[:len(omegas)//2]
-    N = int(len(u)/m)
-    u_m = uToMatrix(u,m).cpu()
-    w_np = omegas.cpu().detach().numpy()
-    T = np.linspace(0, tN, N)
-    t_axis = np.linspace(0, tN/nanosecond, N)
-    fig,ax = plt.subplots(2,2)
-    for i in range(len(w_np)):
-        if i<len(w_np)//2:
-            B1 = np.cos(w_np[i]*T)
-        else:
-            B1=np.sin(w_np[i]*T)
-        #ax[0,1].plot(t_axis,B1, label="Hw"+str(i))
-
-    plot_cost_hist(cost_hist, ax[1,1])
-        
-
-    for i in range(len(w_np)):
-        if i<len(w_np)//2:
-            B1 = np.cos(w_np[i]*T)
-        else:
-            B1=np.sin(w_np[i]*T)
-        prod=np.multiply(u_m[i],B1)
-        
-        ax[0,0].plot(t_axis,u_m[i], label='u'+str(i))
-        #ax[1,0].plot(t_axis,1e3*prod,label='u'+str(i)+'*Hw'+str(i)+" (mT)")
-            
-    X_field, Y_field = sum_XY_fields(uToMatrix(u,m),m,rf,tN)
-    plot_XY_fields(ax[0,1],X_field,Y_field,tN)
-    transfids = fidelity_progress(X,SD.target)
-    plot_fidelity_progress(ax[1,0],transfids,tN,legend=False)
-    ax[0,0].set_xlabel("time (ns)")
-    #ax[0,j].legend()
-
-
-    if save_plot:
-        fig.savefig(f"{dir}plots/{plotLabel}")
-    if show_plot: plt.show()
 
 
 ################################################################################################################
@@ -845,32 +973,7 @@ def get_HJ(J,nq, device=default_device):
         HJ =pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device))
     return HJ.to(device)
 
-def get_H0(A,J, include_HZ=False, device=default_device):
-    '''
-    Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
-    
-    Inputs:
-        A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
-    '''
-    nS, nq = get_dimensions(A)
-    d = 2**nq
 
-    # Zeeman splitting term is generally rotated out and does not need to be simulated.
-    if include_HZ:
-        gamma_e = g_e*mu_B
-        HZ = 0.5 * gamma_e * B0 * gate.get_Zn(nq)
-    else:
-        HZ = pt.zeros(d,d)
-
-
-    if nq==3:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-    elif nq==2:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-    
-    
-    return H0.to(device)
-    
 
 
 
@@ -986,15 +1089,6 @@ def getFreqs(H0,Hw_shape,device=default_device):
     return freqs
 
 
-def get_RFs(A,J, device=default_device):
-    nS,nq= get_dimensions(A)
-    rf = pt.tensor([], dtype = real_dtype, device=device)
-    H0 = get_H0(A,J)
-    Hw_shape = gate.get_Xn(nq)
-    for q in range(nS):
-        rf_q=getFreqs(H0[q], Hw_shape)
-        rf=pt.cat((rf,rf_q))
-    return rf
 
 def config_90deg_phase_fields(rf, device=default_device):
     '''
@@ -1040,18 +1134,6 @@ def get_2q_freqs(J,A, all_freqs=True, device=default_device):
 
 
 
-def sum_XY_fields(u,m,rf,tN):
-    '''
-    Sum contributions of all control fields along x and y axes
-    '''
-    N = u.shape[1] 
-    T = pt.linspace(0,tN,N,device=default_device)
-    wt = pt.einsum('k,j->kj', rf, T)
-    cos_wt = pt.cos(wt)
-    sin_wt = pt.sin(wt)
-    X_field = pt.sum(pt.einsum('kj,kj->kj', u[:m//2,:],cos_wt),0) + pt.sum(pt.einsum('kj,kj->kj', u[m//2:,:],sin_wt),0)
-    Y_field = pt.sum(pt.einsum('kj,kj->kj', u[:m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', u[m//2:,:],cos_wt),0)
-    return X_field, Y_field
 
 def save_field(field_opt, SD):
     '''
@@ -1150,7 +1232,7 @@ def load_system_data(filename):
         try:
             fid = ast.literal_eval(lines[6][11:-1])
         except: fid=None
-    SD = SystemData(J,A,tN,N,None,target)
+    SD = GrapeESR(J,A,tN,N,None,target)
     return SD,target,fid
 
 def load_u(filename, SP=None):
@@ -1170,7 +1252,7 @@ def process_u(u,SD,target,cost_hist,save_SP=False):
     print(f"Fidelities: {fid}")
 
 
-    U = ESRGRAPE.time_evol(u, SD.H0, SD.x_cf, SD.y_cf, SD.tN)
+    U = GrapeESR.time_evolution(u, SD.H0, SD.x_cf, SD.y_cf, SD.tN)
     X=get_X(u, SD)
 
     if save_SP:

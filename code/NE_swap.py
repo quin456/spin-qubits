@@ -10,8 +10,8 @@ from scipy.optimize import minimize
 
 import gates as gate 
 from atomic_units import *
-from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum
-from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, show_fidelity
+from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
+from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 
@@ -320,10 +320,6 @@ def get_subops(H,dt):
     return pt.matrix_exp(-1j*H*dt)
 
 
-def lock_to_coupling(c, tN):
-    t_HF = 2*np.pi/c
-    tN_locked = int(tN / (t_HF) ) * t_HF
-    return tN_locked
 
 
 if __name__ == '__main__':

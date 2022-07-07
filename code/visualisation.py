@@ -48,7 +48,7 @@ def plot_phases(psi, tN, ax=None):
     nq=get_nq(dim)
     T=pt.linspace(0,tN/nanosecond,N)
     for i in range(dim):
-        ax.plot(T,pt.angle(psi[:,i]-pt.angle(psi[:,0])), label = np.binary_repr(i,nq))
+        ax.plot(T,pt.angle(psi[:,i]), label = '$\phi_i$')
     ax.legend()
     ax.set_xlabel("time (ns)")
     return ax
@@ -64,8 +64,8 @@ def plot_fields(Bx,By,tN,ax=None):
     N = len(Bx)
     T_axis = pt.linspace(0,tN/nanosecond, N)
     if ax==None: ax = plt.subplot()
-    ax.plot(T_axis,Bx/Mhz, label = 'X field (mT)')
-    ax.plot(T_axis,By/Mhz, label = 'Y field (mT)')
+    ax.plot(T_axis,Bx*1e3/tesla, label = 'X field (mT)')
+    ax.plot(T_axis,By*1e3/tesla, label = 'Y field (mT)')
     ax.set_xlabel('time (ns)')
     if y_axis_labels: ax.set_ylabel('$B_\omega(t)$ (mT)')
     ax.legend()
@@ -138,6 +138,10 @@ def show_fidelity(X, tN, target, ax=None):
     
     if ax is None: ax = plt.subplot()
     plot_fidelity_progress(ax,fids,tN)
+
+
+
+
 
 
 

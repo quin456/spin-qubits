@@ -15,27 +15,9 @@ from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_devic
 from pdb import set_trace
 
 
-def get_rec_min_N(A,J,tN, printFreqs=False, printPeriods=False):
-
-    N_period=40 # recommended min number of timesteps per period
-    rf=grape.get_RFs(A,J)
-    T=1e3/rf
-    max_w=pt.max(rf).item()
-    rec_min_N = int(np.ceil(N_period*max_w*Mhz*tN*nanosecond/(2*np.pi)))
-    
-    if printFreqs: print(f"resonant freqs = {rf}")
-    if printPeriods: print(f"T = {T}")
-    print(f"Recommened min N = {rec_min_N}")
-
-    return rec_min_N
-
 def count_RFs(nS,nq):
     return len(grape.get_RFs(get_A(nS,nq), get_J(nS,nq)))
 
-def recommended_steps(nS,nq,tN):
-    A=grape.get_A(nS,nq)
-    J=get_J(nS,nq)
-    return get_rec_min_N(A,J,tN)
 
 def memory_requirement(nS,nq,N):
     rf = grape.get_RFs(get_A(nS,nq), get_J(nS,nq))
@@ -66,8 +48,6 @@ def sim2q_3q():
 
     N=2000
     tN=90
-    get_rec_min_N(A,J1,tN)   
-
 
     grape.optimise2(target1, N, tN, J1, A, show_plot=True, save_data=True, max_time=None)
     grape.optimise2(target2, N, tN, J1, A, show_plot=True, save_data=True, max_time=None)
@@ -81,7 +61,6 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
     if A is None: A = get_A(nS,nq)
     if J is None: J = get_J(nS,nq)
     target = grape.CNOT_targets(nS,nq)
-    if not minprint: get_rec_min_N(A,J,tN)
     if init_u_fn is not None:
         u0,hist0 = grape.load_u(init_u_fn); hist0=list(hist0)
     else:
