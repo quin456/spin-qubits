@@ -12,12 +12,20 @@ from visualisation import bloch_sphere
 from single_spin import show_single_spin_evolution
 from data import dir
 from atomic_units import *
+from architecture_design import plot_cell_array, plot_annotated_cell, generate_CNOTs, numbered_qubits_cell, plot_single_cell
 
 plots_folder = f"{dir}thesis-plots/"
 
 
 ################################################################################################################
 ################        ALL PLOTS TO BE USED IN THESIS WILL BE GENERATED HERE        ###########################
+################################################################################################################
+
+
+
+
+################################################################################################################
+################        CHAPTER 1 INTRODUCTION        ##########################################################
 ################################################################################################################
 
 def two_electron_energy_level_picture(ax=None, fp = None):
@@ -53,11 +61,24 @@ def two_electron_energy_level_picture(ax=None, fp = None):
         plt.savefig(fp)
 
 
-#bloch_sphere(psi_from_polar(np.pi/2,np.pi/4), fp = f'{plots_folder}Ch1-bloch-sphere.pdf')
-#show_single_spin_evolution(tN=100*nanosecond, fp = f"{plots_folder}Ch1-analytic-example.pdf")
-two_electron_energy_level_picture(fp=f"{plots_folder}Ch1-2E-energy-levels.pdf")
+
+def chapter_1():
+    #bloch_sphere(psi_from_polar(np.pi/2,np.pi/4), fp = f'{plots_folder}Ch1-bloch-sphere.pdf')
+    #show_single_spin_evolution(tN=100*nanosecond, fp = f"{plots_folder}Ch1-analytic-example.pdf")
+    two_electron_energy_level_picture(fp=f"{plots_folder}Ch1-2E-energy-levels.pdf")
+
+
+def chapter_2():
+    plot_cell_array(4,4, filename=f"{plots_folder}cell_array")
+    generate_CNOTs()
+    plot_annotated_cell(filename=f"{plots_folder}single_cell")
+    numbered_qubits_cell()
+    plot_single_cell()
+    plt.show()
 
 
 
 
-plt.show()
+if __name__=='__main__':
+    chapter_2()
+    plt.show()

@@ -1,11 +1,4 @@
 
-# set directory
-from pathlib import Path
-import os
-dir = os.path.dirname(__file__)
-os.chdir(dir)
-
-
 import numpy as np
 import matplotlib.pyplot as plt 
 from pdb import set_trace
@@ -324,7 +317,7 @@ def plot_annotated_cell(filename=None):
     plot_single_cell(ax)
     annotate_cell(ax)
     if filename is not None:
-        fig.savefig("pyplot_figures/"+filename)
+        fig.savefig(filename)
 
 
 def number_qubits(ax):
@@ -348,7 +341,7 @@ def numbered_qubits_cell(filename=None):
     ax.set_xlabel('x (nm)')
     ax.set_ylabel('y (nm)')
     if filename is not None:
-        fig.savefig("pyplot_figures/"+filename)
+        fig.savefig(filename)
 
 
 def is_populated(i,j):
@@ -495,7 +488,7 @@ def plot_cell_array(m,n, filename=None):
     ax.set_ylabel('y (nm)')
     ax.set_aspect('equal')
     if filename is not None:
-        fig.savefig("pyplot_figures/"+filename+".pdf")
+        fig.savefig(filename)
         
 # green, purple, yellow, red, blue
 Phi_L = [-3,-3,0,-2,-1,0]
