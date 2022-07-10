@@ -293,11 +293,11 @@ def get_control_fields(omega,phase,tN,N,device=default_device):
 
 
 
-class GRAPE:
+class Grape:
     '''
     General GRAPE class.
     '''
-    def __init__(self, tN, N, target, rf, u0, hist0, max_time, save_data, sp_distance = 99999*3600):
+    def __init__(self, tN, N, target, rf, u0=None, hist0=[], max_time=9999999, save_data=False, sp_distance = 99999*3600):
         self.tN=tN
         self.N=N
         self.target=target
@@ -306,7 +306,7 @@ class GRAPE:
         self.m = len(self.omega)
         self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
 
-        if u0 is None: u0=init_u(self)
+        if u0 is None: u0=self.init_u()
         self.u0=u0
         self.max_time=max_time
         self.start_time = time.time()
@@ -327,6 +327,10 @@ class GRAPE:
 
         self.cost_hist=hist0 if hist0 is not None else []  
         self.filename = None
+
+        
+        # Log job start
+        if save_data: self.preLog(save_data)  
 
     @abstractmethod
     def get_RFs(self):
@@ -508,6 +512,15 @@ class GRAPE:
         J=J.item(); dJ = dJ.cpu().detach().numpy() 
         return J, dJ
 
+    def init_u(self, device='cpu'):
+        '''
+        Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
+        Initialised onto the cpu by default as it will normally be passed to scipy minimize.
+        '''
+        mult=1
+        u0 = hbar/(g_e*mu_B*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/tesla * mult
+        u0[2::3] /= mult 
+        return uToVector(u0)*0.1
 
     def run(self):
         callback = self.check_time if self.max_time is not None else None
@@ -527,9 +540,8 @@ class GRAPE:
 
 
         self.print_info(minprint)
-        X = self.get_X()
         # Plot fields and process data
-        self.plotFields(self.u,X,show_plot=show_plot)
+        self.plotFields(show_plot=show_plot)
 
         fidelities = self.fidelity(self.u)[0]
         avgfid=sum(fidelities)/len(fidelities)
@@ -539,8 +551,8 @@ class GRAPE:
         alpha=0
         if self.save_data:
             # save_system_data will overwrite previous file if job was not terminated by gadi
-            log_result(minfid,avgfid,alpha,self,self)
-            save_system_data(self, self.target, self.filename, fid=fidelities, status=self.status)
+            self.log_result(minfid,avgfid,alpha)
+            self.save_system_data(self, self.target, self.filename, fid=fidelities, status=self.status)
             self.save_field()
 
     def print_info(self, minprint):
@@ -583,7 +595,9 @@ class GRAPE:
     ################        VISUALISATION        ###################################################################
     ################################################################################################################
 
-    def plotFields(self, u, X, show_plot=True):
+    def plotFields(self, show_plot=True):
+        u=self.u 
+        X = self.get_X()
         omegas=self.omega
         m=self.m
         tN=self.tN
@@ -655,21 +669,54 @@ class GRAPE:
         pt.save(np.array(self.cost_hist), f"{filepath}_cost_hist")
 
 
-class GrapeESR(GRAPE):
 
-    def __init__(self, J, A, tN, N, rf, target, u0, hist0, max_time, save_data, alpha=0):
+    # LOGGING
 
+    def log_result(self, minfid,avgfid,alpha):
+        '''
+        Logs key details of result:
+            field filename, minfid, J (MHz), A (MHz), avgfid, fidelities, time date, alpha, kappa, nS, nq, tN (ns), N, ID
+        '''
+
+        field_filename = self.get_field_filename()
+        #fids_formatted = [round(elem,4) for elem in fidelities.tolist()]
+        #A_formatted = [round(elem,2) for elem in (pt.real(A)[0]/Mhz).tolist()]
+        #J_formatted = [round(elem,2) for elem in (pt.real(J).flatten()/Mhz).tolist()]
+        now = datetime.now().strftime("%H:%M:%S %d-%m-%y")
+        with open(log_fn, 'a') as f:
+            f.write("{},{:.4f},{:.4f},{},{:.3e},{},{},{:.1f},{},{},{}\n".format(
+                field_filename, avgfid, minfid, now, alpha, self.nS, self.nq, self.tN/nanosecond, self.N, self.status, self.time_taken))
+
+
+    def preLog(self,save_data):
+        '''
+        Logs some data prior to running job incase job is terminated and doesn't get a chance to log at the end.
+        If job completes, system_data will be rewritten with more info (eg fidelities).
+        '''
+        self.ID = self.get_next_ID()
+        self.filename = self.get_field_filename()
+        if save_data: 
+            self.save_system_data(self.filename)
+            with open(ID_fn, 'a') as f:
+                f.write(f"{self.ID}\n")
+
+
+
+
+
+class GrapeESR(Grape):
+
+    def __init__(self, J, A, tN, N, target=None, rf=None, u0=None, hist0=[], max_time=9999999, save_data=False, alpha=0):
+
+        self.nS,self.nq=get_dimensions(A)
         self.J=J 
         self.A=A 
         self.tN=tN
         self.N=N
-        self.target=target
-        self.nS,self.nq=get_dimensions(A)
+        self.target=target if target is not None else CNOT_targets(self.nS, self.nq)
         self.rf=self.get_RFs() if rf is None else rf
-        super().__init__(tN, N, target, rf, u0, hist0, max_time, save_data)
+        super().__init__(tN, N, self.target, rf, u0, hist0, max_time, save_data)
         
-        # Log job start
-        self.ID,self.filename = preLog(self,save_data)  
 
         fun = self.cost
 
@@ -870,29 +917,91 @@ class GrapeESR(GRAPE):
         self.time_taken = time.time() - self.start_time
 
 
+        
+    ################################################################################################################
+    ################        Save Data        #######################################################################
+    ################################################################################################################
+    def save_system_data(self, filename, fid=None, status='T'):
+        '''
+        Saves system data to a file.
+        
+        status carries information about how the optimisation exited, and can take 3 possible values:
+            C = complete
+            UC = uncomplete - ie reached maximum time and terminated minimize
+            T = job terminated by gadi, which means files are not saved (except savepoints)
+
+        '''
+        J=pt.real(self.J)/Mhz; A=pt.real(self.A)/Mhz; tN = self.tN/nanosecond
+        if type(J)==pt.Tensor: J=J.tolist()
+        with open(f"{dir}fields/{filename}.txt", 'w') as f:
+            f.write("J = "+str(J)+"\n")
+            f.write("A = "+str((A).tolist())+"\n")
+            f.write("tN = "+str(tN)+"\n")
+            f.write("N = "+str(self.N)+"\n")
+            f.write("target = "+str(self.target.tolist())+"\n")
+            f.write("Completion status = "+status+"\n")
+            if fid is not None: f.write("fidelity = "+str(fid.tolist())+"\n")
+
+    @staticmethod
+    def get_next_ID():
+        with open(ID_fn, 'r') as f:
+            prev_ID = f.readlines()[-1].split(',')[-1]
+        if prev_ID[-1]=='\n': prev_ID = prev_ID[:-1]
+        ID = prev_ID[0] + str(int(prev_ID[1:])+1)
+        return ID
+
+    def get_field_filename(self):
+        filename = "{}_{}S_{}q_{}ns_{}step".format(self.ID,self.nS,self.nq,int(round(self.tN/nanosecond,0)),self.N)
+        return filename
 
 
 
-def setup_optimisation(target, N, tN, J, A, u0=None, rf=None,hist0=[],max_time=None,save_data=True, alpha=0):
 
-    field_opt = GrapeESR(J,A,tN,N,rf,target,u0,hist0,max_time,save_data)
 
-    return field_opt
-
-def run_optimisation(target, N, tN, J, A, u0=None, rf=None, save_data=False, show_plot=True, max_time=None, NI_qub=False, hist0=None, minprint=False, mergeprop=False,alpha=0):
+def load_u(filename, SP=None):
     '''
-    New optimiseFields which uses cost
+    Loads saved 'u' tensor and cost history from files
     '''
-
-    global mergeprop_g; mergeprop_g=mergeprop 
-    field_opt = setup_optimisation(target, N, tN, J, A, u0=u0, rf=rf,hist0=hist0,max_time=max_time,save_data=save_data,alpha=alpha)
-    
-    field_opt.run()
-    field_opt.result(show_plot=show_plot,minprint=minprint)
+    u_path = f"{dir}fields/{filename}" if SP is None else f"fields/{filename}_SP{SP}"
+    u = pt.load(u_path, map_location=pt.device('cpu')).type(cplx_dtype)
+    cost_hist = pt.load(f"{dir}fields/{filename}_cost_hist")
+    return u,cost_hist
 
 
 
 
+
+
+def process_u_file(filename,SP=None, save_SP = False):
+    '''
+    Gets fidelities and plots from files. save_SP param can get set to True if a save point needs to be logged.
+    '''
+    grape = load_system_data(filename)
+    u,cost_hist = load_u(filename,SP=SP)
+    grape.u=u 
+    grape.hist=cost_hist
+    grape.plotFields()
+
+
+
+
+
+def load_system_data(filename):
+    '''
+    Retrieves system data (exchange, hyperfine, pulse length, target, fidelity) from file.
+    '''
+    with open(dir+"fields/"+filename+'.txt','r') as f:
+        lines = f.readlines()
+        J = pt.tensor(ast.literal_eval(lines[0][4:-1]), dtype=cplx_dtype)
+        A = pt.tensor(ast.literal_eval(lines[1][4:-1]), dtype=cplx_dtype)
+        tN = float(lines[2][4:-1])
+        N = int(lines[3][3:-1])
+        target = pt.tensor(ast.literal_eval(lines[4][9:-1]),dtype=cplx_dtype)
+        try:
+            fid = ast.literal_eval(lines[6][11:-1])
+        except: fid=None
+    grape = GrapeESR(J,A,tN,N,None,target)
+    return grape
 
 
 
@@ -1138,143 +1247,6 @@ def get_2q_freqs(J,A, all_freqs=True, device=default_device):
 
     return w
 
-################################################################################################################
-################        Save Data        #######################################################################
-################################################################################################################
-
-
-
-
-    
-
-
-def save_system_data(SD, target, filename, fid=None, status='T'):
-    '''
-    Saves system data to a file.
-    
-    status carries information about how the optimisation exited, and can take 3 possible values:
-        C = complete
-        UC = uncomplete - ie reached maximum time and terminated minimize
-        T = job terminated by gadi, which means files are not saved (except savepoints)
-
-    '''
-    J=pt.real(SD.J)/Mhz; A=pt.real(SD.A)/Mhz; tN = SD.tN/nanosecond
-    if type(J)==pt.Tensor: J=J.tolist()
-    with open(f"{dir}fields/{filename}.txt", 'w') as f:
-        f.write("J = "+str(J)+"\n")
-        f.write("A = "+str((A).tolist())+"\n")
-        f.write("tN = "+str(tN)+"\n")
-        f.write("N = "+str(SD.N)+"\n")
-        f.write("target = "+str(target.tolist())+"\n")
-        f.write("Completion status = "+status+"\n")
-        if fid is not None: f.write("fidelity = "+str(fid.tolist())+"\n")
-
-def get_next_ID():
-    with open(ID_fn, 'r') as f:
-        prev_ID = f.readlines()[-1].split(',')[-1]
-    if prev_ID[-1]=='\n': prev_ID = prev_ID[:-1]
-    ID = prev_ID[0] + str(int(prev_ID[1:])+1)
-    return ID
-
-def get_field_filename(SD,ID):
-    filename = "{}_{}S_{}q_{}ns_{}step".format(ID,SD.nS,SD.nq,int(round(SD.tN/nanosecond,0)),SD.N)
-    return filename
-
-
-def log_result(minfid,avgfid,alpha,SD,field_opt):
-    '''
-    Logs key details of result:
-        field filename, minfid, J (MHz), A (MHz), avgfid, fidelities, time date, alpha, kappa, nS, nq, tN (ns), N, ID
-    '''
-
-    field_filename = get_field_filename(SD,field_opt.ID)
-    #fids_formatted = [round(elem,4) for elem in fidelities.tolist()]
-    #A_formatted = [round(elem,2) for elem in (pt.real(A)[0]/Mhz).tolist()]
-    #J_formatted = [round(elem,2) for elem in (pt.real(J).flatten()/Mhz).tolist()]
-    now = datetime.now().strftime("%H:%M:%S %d-%m-%y")
-    with open(log_fn, 'a') as f:
-       f.write("{},{:.4f},{:.4f},{},{:.3e},{},{},{:.1f},{},{},{}\n".format(
-           field_filename, avgfid, minfid, now, alpha, SD.nS, SD.nq, SD.tN/nanosecond, SD.N, field_opt.status, field_opt.time_taken))
-
-
-def preLog(SD,save_data):
-    '''
-    Logs some data prior to running job incase job is terminated and doesn't get a chance to log at the end.
-    If job completes, system_data will be rewritten with more info (eg fidelities).
-    '''
-    ID = get_next_ID()
-    filename = get_field_filename(SD,ID)
-    if save_data: 
-        save_system_data(SD, SD.target, filename)
-        with open(ID_fn, 'a') as f:
-            f.write(f"{ID}\n")
-    return ID,filename
-
-
-################################################################################################################
-################        Access Data        #####################################################################
-################################################################################################################
-
-
-
-def load_system_data(filename):
-    '''
-    Retrieves system data (exchange, hyperfine, pulse length, target, fidelity) from file.
-    '''
-    with open(dir+"fields/"+filename+'.txt','r') as f:
-        lines = f.readlines()
-        J = pt.tensor(ast.literal_eval(lines[0][4:-1]), dtype=cplx_dtype)
-        A = pt.tensor(ast.literal_eval(lines[1][4:-1]), dtype=cplx_dtype)
-        tN = float(lines[2][4:-1])
-        N = int(lines[3][3:-1])
-        target = pt.tensor(ast.literal_eval(lines[4][9:-1]),dtype=cplx_dtype)
-        try:
-            fid = ast.literal_eval(lines[6][11:-1])
-        except: fid=None
-    SD = GrapeESR(J,A,tN,N,None,target)
-    return SD,target,fid
-
-def load_u(filename, SP=None):
-    '''
-    Loads saved 'u' tensor and cost history from files
-    '''
-    u_path = f"{dir}fields/{filename}" if SP is None else f"fields/{filename}_SP{SP}"
-    u = pt.load(u_path, map_location=pt.device('cpu')).type(cplx_dtype)
-    cost_hist = pt.load(f"{dir}fields/{filename}_cost_hist")
-    return u,cost_hist
-
-def process_u(u,SD,target,cost_hist,save_SP=False):
-    '''
-    Takes vector form 'u' and system data as input.
-    '''
-    fid=fidelity(u, SD.H0, SD.x_cf, SD.y_cf,SD.tN,target)[0]
-    print(f"Fidelities: {fid}")
-
-
-    U = GrapeESR.time_evolution(u, SD.H0, SD.x_cf, SD.y_cf, SD.tN)
-    X=get_X(u, SD)
-
-    if save_SP:
-        print("ERROR: savepoints no longer supported.")
-        # preLog(SD,True)
-        # ID = get_next_ID()
-        # filename = get_field_filename(SD,ID)
-        # avgfid=sum(fid)/len(fid) 
-        # log_result(min(fid), avgfid,0,1,SD,'SP',ID)
-        # save_system_data(SD,target,filename,fid)
-        # save_field(field_opt,SD)
-    else:
-        filename = None
-
-    plotFields(u,cost_hist,SD,X,True,False)
-
-def process_u_file(filename,SP=None, save_SP = False):
-    '''
-    Gets fidelities and plots from files. save_SP param can get set to True if a save point needs to be logged.
-    '''
-    SD,target,_fid = load_system_data(filename)
-    u,cost_hist = load_u(filename,SP=SP)
-    process_u(u,SD,target,cost_hist,save_SP=save_SP)
 
 
 
@@ -1283,15 +1255,6 @@ def process_u_file(filename,SP=None, save_SP = False):
 ################################################################################################################
 
 
-def init_u(SD, device='cpu'):
-    '''
-    Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
-    Initialised onto the cpu by default as it will normally be passed to scipy minimize.
-    '''
-    mult=1
-    u0 = hbar/(g_e*mu_B*SD.tN) * pt.ones(SD.m,SD.N,dtype=cplx_dtype, device=device)/tesla * mult
-    u0[2::3] /= mult 
-    return uToVector(u0)*0.1
 
 def interpolate_u(u,m, N_new):
     '''

@@ -187,7 +187,7 @@ def fidelity_progress(X, target):
 
 def lock_to_coupling(c, tN):
     t_HF = 2*np.pi/c
-    tN_locked = int(tN / (t_HF) ) * t_HF
+    tN_locked = int(tN/t_HF) * t_HF
     if tN_locked == 0:
         tN_locked=t_HF
         print(f"tN={tN/nanosecond}ns too small to lock to coupling period {t_HF/nanosecond}ns.")

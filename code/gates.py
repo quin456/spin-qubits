@@ -267,3 +267,7 @@ def get_Zn(nq, device=default_device):
     elif nq==3:
         Zn = Z3
     return Zn.to(device)
+
+
+def get_2E_H0(A,J):
+    return A*ZI-A*IZ + J*sigDotSig

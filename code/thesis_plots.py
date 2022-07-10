@@ -6,13 +6,14 @@ from matplotlib.pyplot import figure
 import numpy as np 
 import torch as pt
 
-
-from utils import psi_from_polar
-from visualisation import bloch_sphere
+from GRAPE import GrapeESR
+from utils import psi_from_polar, get_A, get_J, get_U0, normalise
+from visualisation import bloch_sphere, plot_spin_states
 from single_spin import show_single_spin_evolution
-from data import dir
+from data import dir, cplx_dtype
 from atomic_units import *
 from architecture_design import plot_cell_array, plot_annotated_cell, generate_CNOTs, numbered_qubits_cell, plot_single_cell
+from gates import get_2E_H0
 
 plots_folder = f"{dir}thesis-plots/"
 
@@ -88,7 +89,19 @@ def NE_energy_level_picture(ax=None, fp=None):
     if fp is not None:
         plt.savefig(fp)
 
-        
+
+def free_2E_evolution(fp=None):
+    A = get_A(1,1); J=get_J(1,2); tN=10*nanosecond
+    H0 = get_2E_H0(A,J)
+    U0 = get_U0(H0, tN, 1000)
+    psi0 = pt.tensor([0.1, 0.3, 0.7, 0.2], dtype=cplx_dtype); normalise(psi0)
+    psi0 = normalise(pt.tensor([0.5, 0, 0.5, 0], dtype=cplx_dtype))
+    psi = U0@psi0
+
+    plot_spin_states(psi, tN, squared=True, fp=fp)
+
+
+
 def chapter_1():
     #bloch_sphere(psi_from_polar(np.pi/2,np.pi/4), fp = f'{plots_folder}Ch1-bloch-sphere.pdf')
     #show_single_spin_evolution(tN=100*nanosecond, fp = f"{plots_folder}Ch1-analytic-example.pdf")
@@ -105,7 +118,11 @@ def chapter_2():
 
 
 def chapter_3():
-    NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
+    #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
+
+    free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
+    #grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=100*nanosecond,N=500); grape.run()
+    #grape.result()
 
 
 if __name__=='__main__':

@@ -2,12 +2,13 @@
 
 import numpy as np
 import matplotlib
+
 matplotlib.use('TKAgg')
 from matplotlib import pyplot as plt 
 import torch as pt
 from scipy.optimize import minimize
 
-
+from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
@@ -60,7 +61,7 @@ def H_zeeman(Bz):
 def H_hyperfine(A):
     return A * gate.sigDotSig
 
-def NE_H0(A,Bz):
+def get_NE_H0(A,Bz):
     return H_zeeman(Bz) + H_hyperfine(A)
 
 
@@ -103,7 +104,7 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
     phase = 0
 
 
-    H0 = NE_H0(A,Bz)
+    H0 = get_NE_H0(A,Bz)
     S,D = NE_eigensystem(H0)
 
     couplings = NE_couplings(H0)
@@ -120,17 +121,13 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
 def show_NE_CX(A,Bz,tN,N, psi0=spin_down_down): 
     fig,ax = plt.subplots(1,4)
     Bx,By = NE_CX_pulse(tN,N,A,Bz, ax[0])
-    H0 = NE_H0(A,Bz)
-    X = get_NE_X(Bx, By, H0, tN, N)
-    show_fidelity(X,tN,N, gate.CX, ax=ax[1])
+    X = get_NE_X(Bx, By, Bz, A, tN, N)
+    show_fidelity(X,tN, gate.CX, ax=ax[1])
 
     psi = pt.matmul(X,psi0)
     plot_spin_states(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
 
-    Hw = get_NE_Hw(Bx,By)
-
-    H0 = NE_H0(A,Bz)
 
 
 def EN_CX_pulse(tN,N,A,Bz, ax=None):
@@ -155,7 +152,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
 
     # get actual resonant freq
-    H0 = NE_H0(A,Bz)
+    H0 = get_NE_H0(A,Bz)
     S,D = NE_eigensystem(H0)
 
     couplings = NE_couplings(H0)
@@ -182,7 +179,7 @@ def get_NE_X(Bx, By, Bz, A, tN, N):
 
     #Bx,By = NE_CX_pulse(tN,N,A,Bz)
     Hw = get_NE_Hw(Bx,By)
-    H0 = NE_H0(A, Bz)
+    H0 = get_NE_H0(A, Bz)
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
 
@@ -192,8 +189,15 @@ def get_NE_X(Bx, By, Bz, A, tN, N):
     #X = dagger(get_U0(H0,tN,N))@X
 
     #undo only zeeman evolution
-    UZ = get_U0(H_zeeman(Bz),tN,N)
-    X = dagger(UZ) @ X
+    Hz=H_zeeman(Bz)
+    UZ = get_U0(Hz,tN,N)
+    U0 = get_U0(H0, tN, N)
+
+    set_trace()
+
+    X = dagger(U0) @ X
+
+    #visualise_Hw(dagger(S)@dagger(U0)@Hw@U0@S,tN); plt.show()
 
     return X
 
@@ -201,7 +205,6 @@ def get_NE_X(Bx, By, Bz, A, tN, N):
 def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(1,4)
     Bx,By = EN_CX_pulse(tN,N,A,Bz, ax[0])
-    H0 = NE_H0(A,Bz)
     X = get_NE_X(Bx, By, Bz, A, tN, N)
     show_fidelity(X, tN, gate.CXr, ax=ax[1])
 
@@ -243,7 +246,7 @@ def NE_swap_pulse(tN,N,A,Bz, ax=None):
 
 def NE_swap(A,Bz,tN,N):
 
-    H0 = NE_H0(A,Bz)
+    H0 = get_NE_H0(A,Bz)
 
     Bx,By = NE_swap_pulse(tN,N,A,Bz)
     #Bx,By = NE_CX_pulse(tN,N,A,Bz)
@@ -273,7 +276,7 @@ def show_NE_swap(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(1,3)
     Bx,By = NE_swap_pulse(tN,N,A,Bz, ax[0])
 
-    H0 = NE_H0(A, Bz)
+    H0 = get_NE_H0(A, Bz)
     X = get_NE_X(Bx, By, H0, tN, N)
     X = get_IP_X(X,H0,tN,N)
 
@@ -302,7 +305,7 @@ def get_NE_label(j):
     return b[0]+b[1]+L2+L3
     
 def NE_energy_levels(A=get_A(1,1)*Mhz, Bz=2*tesla):
-    H0 = NE_H0(A,Bz)
+    H0 = get_NE_H0(A,Bz)
     S,D = NE_eigensystem(H0)
     E = pt.diagonal(D)/Mhz
     #set_trace()
@@ -320,19 +323,50 @@ def get_subops(H,dt):
     return pt.matrix_exp(-1j*H*dt)
 
 
+class NuclearElectronGrape(Grape):
+
+    def __init__(self, Bz, A, tN, N, target, rf, u0,  save_data):
+        self.A = A
+        self.Bz = Bz
+        super().__init__(tN, N, target, rf, u0=u0, save_data=save_data)
+
+    def get_H0(self):
+        return get_NE_H0(self.A, self.Bz)
+
+    def get_Hw(self):
+        return get_NE_Hw(self.x_cf, self.y_cf)
+
+
+def test():
+    Bz = 2*tesla 
+    A = get_A(1,1)
+    tN = lock_to_coupling(A, 50*nanosecond)
+    N=10000
+
+    H0 = get_NE_H0(A,Bz)
+    U0 = get_U0(H0, tN, N)
+    S,D = NE_eigensystem(H0)
+    U0_d = get_U0(D,tN,N)
+
+    Bx,By = EN_CX_pulse(tN,N,A,Bz)
+    Hw = get_NE_Hw(Bx,By)
+
+    visualise_Hw(dagger(S)@dagger(U0)@Hw@U0@S,tN)
+
 
 
 if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
 
-    #tN = lock_to_coupling(get_A(1,1),50*nanosecond)
-    #show_NE_CX(get_A(1,1)*Mhz, 2*tesla, tN, 100000, psi0=pt.kron(spin_down, spin_up)); plt.show()
+    #tN = lock_to_coupling(get_A(1,1),40*nanosecond)
+    #tN=100*nanosecond
+    #show_NE_CX(get_A(1,1), 2*tesla, tN, 300000, psi0=pt.kron(spin_down, spin_up)); plt.show()
 
-    tN = 100*nanosecond
+    tN = 400*nanosecond
     tN_locked = lock_to_coupling(get_A(1,1),tN)
-    show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 5000); plt.show()
-
+    show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 500000); plt.show()
+    #test(); plt.show()
 
     #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
     #show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()

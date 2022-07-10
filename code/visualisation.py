@@ -19,7 +19,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 annotate=False
 y_axis_labels = False
 
-def plot_spin_states(psi, tN, ax=None, label_getter = None):
+def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=False, fp=None):
     '''
     Plots the evolution of each component of psi.
 
@@ -35,10 +35,17 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None):
     nq=get_nq(dim)
     T=pt.linspace(0,tN/nanosecond,N)
     for i in range(dim):
-        ax.plot(T,pt.abs(psi[:,i]), label = label_getter(i))
+        if squared:
+            y = pt.abs(psi[:,i])**2
+        else:
+            y = pt.abs(psi[:,i])
+        ax.plot(T,y, label = label_getter(i))
     ax.legend()
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
+
+    if fp is not None: plt.savefig(fp)
+
     return ax
 
 def plot_phases(psi, tN, ax=None):
@@ -88,7 +95,7 @@ def visualise_Hw(Hw,tN, eigs=None):
         tN: duration spanned by Hw.
     '''
     N,d,d = Hw.shape
-    T = pt.linspace(0,tN,N)
+    T = pt.linspace(0,tN/nanosecond,N)
     if eigs is not None:
         D = pt.diag(eigs.eigenvalues)
         U0_e = pt.matrix_exp(-1j*pt.einsum('ab,j->jab',D,T))
@@ -97,7 +104,7 @@ def visualise_Hw(Hw,tN, eigs=None):
     fig,ax = plt.subplots(4,4)
     for i in range(d):
         for j in range(d):
-            y = Hw[:,i,j]
+            y = Hw[:,i,j]/Mhz
             ax[i,j].plot(T,pt.real(y))
             ax[i,j].plot(T,pt.imag(y))
 

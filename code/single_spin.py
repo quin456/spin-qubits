@@ -1,5 +1,5 @@
 
-from tokenize import Single
+
 import torch as pt 
 import matplotlib
 
@@ -18,7 +18,7 @@ from visualisation import plot_fields, plot_spin_states, show_fidelity, plot_pha
 from data import gamma_e, dir, cplx_dtype
 from utils import get_pulse_hamiltonian, sum_H0_Hw, get_U0, forward_prop, lock_to_coupling
 from data import get_A
-from GRAPE import GRAPE
+from GRAPE import Grape
 
 
 
@@ -61,7 +61,7 @@ def show_single_spin_evolution(Bz = 0*tesla, A=get_A(1,1), tN = 500*nanosecond, 
         plt.savefig(fp)
 
 
-class SingleElectronGRAPE(GRAPE):
+class SingleElectronGRAPE(Grape):
     def __init__(self, tN, N, target, rf=None, u0=None, hist0=[], max_time=60, save_data=False, Bz=0, A=get_A(1,1)):
         self.nq = 1
         self.nS = 1

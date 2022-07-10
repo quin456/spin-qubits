@@ -7,7 +7,8 @@ matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import pickle
 
-import GRAPE as grape
+import GRAPE
+from GRAPE import GrapeESR, CNOT_targets
 import gates as gate 
 from atomic_units import *
 from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
@@ -60,14 +61,16 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
 
     if A is None: A = get_A(nS,nq)
     if J is None: J = get_J(nS,nq)
-    target = grape.CNOT_targets(nS,nq)
+
+    target = CNOT_targets(nS,nq)
     if init_u_fn is not None:
         u0,hist0 = grape.load_u(init_u_fn); hist0=list(hist0)
     else:
         u0=None; hist0=None
-
-    grape.run_optimisation(target, N, tN, J, A, u0=u0, rf=rf, save_data=save_data, max_time=max_time,NI_qub=True,hist0=hist0, minprint=minprint, mergeprop=mergeprop)
-
+   
+    grape = GrapeESR(J,A,tN,N,rf,target,u0,hist0, save_data=save_data)
+    grape.run()
+    grape.result(show_plot=show_plot,minprint=minprint)
 
 
 
