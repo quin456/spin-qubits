@@ -541,7 +541,7 @@ class GRAPE:
             # save_system_data will overwrite previous file if job was not terminated by gadi
             log_result(minfid,avgfid,alpha,self,self)
             save_system_data(self, self.target, self.filename, fid=fidelities, status=self.status)
-            save_field(self, self)
+            self.save_field()
 
     def print_info(self, minprint):
 
@@ -566,17 +566,16 @@ class GRAPE:
         return X
 
 
-    def sum_XY_fields(self, u):
+    def sum_XY_fields(self):
         '''
         Sum contributions of all control fields along x and y axes
         '''
-        N = u.shape[1] 
-        T = pt.linspace(0,self.tN,N,device=default_device)
+        T = pt.linspace(0, self.tN, self.N, device=default_device)
         wt = pt.einsum('k,j->kj', self.rf, T)
         cos_wt = pt.cos(wt)
         sin_wt = pt.sin(wt)
-        X_field = pt.sum(pt.einsum('kj,kj->kj', u[:self.m//2,:],cos_wt),0) + pt.sum(pt.einsum('kj,kj->kj', u[self.m//2:,:],sin_wt),0)
-        Y_field = pt.sum(pt.einsum('kj,kj->kj', u[:self.m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', u[self.m//2:,:],cos_wt),0)
+        X_field = pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[:self.m//2,:],cos_wt),0) + pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[self.m//2:,:],sin_wt),0)
+        Y_field = pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[:self.m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[self.m//2:,:],cos_wt),0)
         return X_field, Y_field
 
 
@@ -615,7 +614,7 @@ class GRAPE:
             ax[0,0].plot(t_axis,u_m[i], label='u'+str(i))
             #ax[1,0].plot(t_axis,1e3*prod,label='u'+str(i)+'*Hw'+str(i)+" (mT)")
                 
-        X_field, Y_field = self.sum_XY_fields(uToMatrix(u,m))
+        X_field, Y_field = self.sum_XY_fields()
         self.plot_XY_fields(ax[0,1],X_field,Y_field)
         transfids = fidelity_progress(X,self.target)
         plot_fidelity_progress(ax[1,0],transfids,tN,legend=False)
@@ -642,6 +641,18 @@ class GRAPE:
         ax.legend()
         return ax
 
+
+    def save_field(self):
+        '''
+        Saves total control field. Assumes each omega has x field and y field part, so may need to send only half of 
+        omega tensor to this function while pi/2 offset is being handled manually.
+        '''
+        filepath = f"{dir}fields/{self.filename}"
+        pt.save(self.u, filepath)
+        X_field, Y_field = self.sum_XY_fields()
+        fields = pt.stack((X_field,Y_field))
+        pt.save(fields, f"{filepath}_XY")
+        pt.save(np.array(self.cost_hist), f"{filepath}_cost_hist")
 
 
 class GrapeESR(GRAPE):
@@ -1134,18 +1145,6 @@ def get_2q_freqs(J,A, all_freqs=True, device=default_device):
 
 
 
-
-def save_field(field_opt, SD):
-    '''
-    Saves total control field. Assumes each omega has x field and y field part, so may need to send only half of 
-    omega tensor to this function while pi/2 offset is being handled manually.
-    '''
-    filepath = f"{dir}fields/{field_opt.filename}"
-    pt.save(field_opt.u, filepath)
-    X_field, Y_field = sum_XY_fields(uToMatrix(field_opt.u, SD.m), SD.m, SD.rf, SD.tN)
-    fields = pt.stack((X_field,Y_field))
-    pt.save(fields, f"{filepath}_XY")
-    pt.save(np.array(field_opt.cost_hist), f"{filepath}_cost_hist")
     
 
 

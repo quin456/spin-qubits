@@ -79,6 +79,7 @@ def NE_eigensystem(H0):
     E = reorder(E.reshape((1,len(S)))).flatten()
     D = pt.diag(E)
 
+
     return reorder(S), D
 
 def NE_couplings(H0):
@@ -164,6 +165,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
     if ax is not None: 
         plot_fields(Bx,By,tN,ax)
+
     return Bx,By
 
 
@@ -176,10 +178,11 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 def get_NE_Hw(Bx,By):
     return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
 
-def get_NE_X(Bx, By, H0, tN, N):
+def get_NE_X(Bx, By, Bz, A, tN, N):
 
     #Bx,By = NE_CX_pulse(tN,N,A,Bz)
     Hw = get_NE_Hw(Bx,By)
+    H0 = NE_H0(A, Bz)
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
 
@@ -189,7 +192,7 @@ def get_NE_X(Bx, By, H0, tN, N):
     #X = dagger(get_U0(H0,tN,N))@X
 
     #undo only zeeman evolution
-    UZ = get_U0(H_zeeman(2*tesla),tN,N)
+    UZ = get_U0(H_zeeman(Bz),tN,N)
     X = dagger(UZ) @ X
 
     return X
@@ -199,16 +202,13 @@ def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(1,4)
     Bx,By = EN_CX_pulse(tN,N,A,Bz, ax[0])
     H0 = NE_H0(A,Bz)
-    X = get_NE_X(Bx, By, H0, tN, N)
-    show_fidelity(X,tN,N, gate.CXr, ax=ax[1])
+    X = get_NE_X(Bx, By, Bz, A, tN, N)
+    show_fidelity(X, tN, gate.CXr, ax=ax[1])
 
     psi = pt.matmul(X,psi0)
     plot_spin_states(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
 
-    Hw = get_NE_Hw(Bx,By)
-
-    H0 = NE_H0(A,Bz)
 
 
 def get_swap_pulse_times(tN, A):
@@ -326,15 +326,16 @@ if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
 
-    tN = lock_to_coupling(get_A(1,1),50*nanosecond)
+    #tN = lock_to_coupling(get_A(1,1),50*nanosecond)
     #show_NE_CX(get_A(1,1)*Mhz, 2*tesla, tN, 100000, psi0=pt.kron(spin_down, spin_up)); plt.show()
 
-    tN_locked = lock_to_coupling(get_A(1,1),499*nanosecond)
-    #show_EN_CX(get_A(1,1)*Mhz, 2*tesla, tN_locked, 5000); plt.show()
+    tN = 100*nanosecond
+    tN_locked = lock_to_coupling(get_A(1,1),tN)
+    show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 5000); plt.show()
 
 
-    tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
-    show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()
+    #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
+    #show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()
 
 
 #NE_energy_levels(); plt.show()
