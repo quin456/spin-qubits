@@ -69,7 +69,7 @@ class SingleElectronGRAPE(Grape):
         self.A=A
         super().__init__(tN,N,target, rf, u0, hist0, max_time, save_data)
         self.Hw = self.get_Hw()
-        self.rf = self.get_RFs() if rf is None else rf
+        self.rf = self.get_all_resonant_frequencies() if rf is None else rf
 
         self.fun = self.cost
 
@@ -80,11 +80,11 @@ class SingleElectronGRAPE(Grape):
     def get_Hw(self):
         return get_pulse_hamiltonian(self.x_cf, self.y_cf, gamma_e)
 
-    def get_RFs(self):
+    def get_all_resonant_frequencies(self):
         return pt.tensor([gamma_e*self.Bz + 2*self.A])
 
 
-    def plotFields(self, u, X, psi0 = spin_up, show_plot=True):
+    def plot_results(self, u, X, psi0 = spin_up, show_plot=True):
 
         fig,ax = plt.subplots(3,1)
 

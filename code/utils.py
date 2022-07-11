@@ -4,14 +4,15 @@ import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
-
+import math
+import itertools
 
 
 import gates as gate
 from gates import default_device, cplx_dtype
 from data import *
 from atomic_units import *
-
+from electrons import get_ordered_2E_eigensystem
 
 
 
@@ -184,6 +185,61 @@ def fidelity_progress(X, target):
         fid = fid[0]
     return fid
 
+
+
+def remove_duplicates(A):
+    '''
+    Removes duplicates from A where equivalence is required to 9 decimal places
+    '''
+    i=0
+    while i<len(A):
+        j=i+1
+        while j<len(A):
+            if math.isclose(A[i],A[j],rel_tol=1e-9):
+                A.pop(j)
+                continue 
+            j+=1
+        i+=1
+    return A
+
+
+def get_resonant_frequencies(H0,Hw_shape,device=default_device):
+    '''
+    Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
+    Useful for >2qubit systems where analytically determining frequencies becomes difficult. 
+    '''
+    eig = pt.linalg.eig(H0)
+    E=eig.eigenvalues
+    S = eig.eigenvectors
+    S=S.to(device)
+
+    #S,D = get_ordered_2E_eigensystem(get_A(1,1), get_J(1,2))
+    #E = pt.diagonal(D)
+    #S = pt.transpose(pt.stack((S[:,2],S[:,1],S[:,0],S[:,3])),0,1)
+    #evals = pt.stack((evals[2],evals[1],evals[0],evals[3]))
+    S_T = pt.transpose(S,0,1)
+    d = len(E)
+    pairs = list(itertools.combinations(pt.linspace(0,d-1,d,dtype=int),2))
+
+    # transform shape of control Hamiltonian to basis of energy eigenstates
+
+    Hw_trans = matmul3(S_T,Hw_shape,S)
+    Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
+    Hw_angle = pt.angle(Hw_trans)
+    freqs = []
+    for i in range(d):
+        for j in range(d):
+            # The difference between energy levels i,j will be a resonant frequency if the control field Hamiltonian
+            # has a non-zero (i,j) element.
+            #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
+            if Hw_nz[i,j] and Hw_angle[i,j] < 0:
+                freqs.append((pt.real(E[j]-E[i])).item())
+            #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
+            # if Hw_nz[idx2,idx1]:
+            #     freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
+    freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
+
+    return freqs
 
 def lock_to_coupling(c, tN):
     t_HF = 2*np.pi/c

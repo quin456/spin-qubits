@@ -28,7 +28,7 @@ from atomic_units import *
 import gates as gate
 from utils import *
 from data import *
-from visualisation import plot_fidelity_progress
+from visualisation import plot_fidelity_progress, y_axis_labels, colors
 
 time_exp = 0
 time_prop = 0
@@ -297,11 +297,12 @@ class Grape:
     '''
     General GRAPE class.
     '''
-    def __init__(self, tN, N, target, rf, u0=None, hist0=[], max_time=9999999, save_data=False, sp_distance = 99999*3600):
+    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600):
         self.tN=tN
         self.N=N
+        self.nS=nS
         self.target=target
-        self.rf = self.get_RFs() if rf is None else rf
+        self.rf = self.get_all_resonant_frequencies() if rf is None else rf
         self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
         self.m = len(self.omega)
         self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
@@ -325,17 +326,24 @@ class Grape:
         self.sp_count = 0
         self.sp_distance = sp_distance
 
-        self.cost_hist=hist0 if hist0 is not None else []  
+        self.cost_hist=cost_hist if cost_hist is not None else []  
         self.filename = None
 
         
         # Log job start
         if save_data: self.preLog(save_data)  
 
-    @abstractmethod
-    def get_RFs(self):
-        pass
-    
+
+    def get_all_resonant_frequencies(self, device=default_device):
+        rf = pt.tensor([], dtype = real_dtype, device=device)
+        H0 = self.get_H0()
+        nq = get_nq(H0.shape[-1])
+        Hw_shape = (gate.get_Xn(self.nq) + gate.get_Yn(self.nq)) / np.sqrt(2)
+        for q in range(self.nS):
+            rf_q=get_resonant_frequencies(H0[q], Hw_shape)
+            rf=pt.cat((rf,rf_q))
+        return rf
+
     def u_mat(self):
         return uToMatrix(self.u, self.m)
 
@@ -343,7 +351,7 @@ class Grape:
     def get_rec_min_N(self, printFreqs=False, printPeriods=False):
         
         N_period=40 # recommended min number of timesteps per period
-        rf=self.get_RFs()
+        rf=self.get_all_resonant_frequencies()
         T=1e3/rf
         max_w=pt.max(rf).item()
         rec_min_N = int(np.ceil(N_period*max_w*Mhz*self.tN*nanosecond/(2*np.pi)))
@@ -517,15 +525,13 @@ class Grape:
         Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         '''
-        mult=1
-        u0 = hbar/(g_e*mu_B*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/tesla * mult
-        u0[2::3] /= mult 
+        u0 = hbar/(g_e*mu_B*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/tesla
         return uToVector(u0)*0.1
 
     def run(self):
         callback = self.check_time if self.max_time is not None else None
         try:
-            opt=minimize(self.fun,self.u0,method='CG',jac=True, callback=callback)
+            opt=minimize(self.cost,self.u0,method='CG',jac=True, callback=callback)
             print(f"nit = {opt.nfev}, nfev = {opt.nit}")
             self.u=pt.tensor(opt.x, device=default_device)
             self.status='C' #complete
@@ -541,7 +547,7 @@ class Grape:
 
         self.print_info(minprint)
         # Plot fields and process data
-        self.plotFields(show_plot=show_plot)
+        self.plot_results(show_plot=show_plot)
 
         fidelities = self.fidelity(self.u)[0]
         avgfid=sum(fidelities)/len(fidelities)
@@ -552,8 +558,12 @@ class Grape:
         if self.save_data:
             # save_system_data will overwrite previous file if job was not terminated by gadi
             self.log_result(minfid,avgfid,alpha)
-            self.save_system_data(self, self.target, self.filename, fid=fidelities, status=self.status)
+            self.save_system_data(fid=fidelities)
             self.save_field()
+
+    @abstractmethod
+    def save_system_data(self, fid=None):
+        raise Exception(NotImplemented)
 
     def print_info(self, minprint):
 
@@ -595,7 +605,31 @@ class Grape:
     ################        VISUALISATION        ###################################################################
     ################################################################################################################
 
-    def plotFields(self, show_plot=True):
+    def plot_field_and_evolution(self, psi0):
+        '''
+        Nicely presented plots for thesis. Plots 
+        '''
+        pass
+
+    def plot_control_fields(self, ax):
+        T = np.linspace(0, self.tN/nanosecond, self.N)
+        x_cf, y_cf = get_unit_CFs(self.omega, self.phase, self.tN, self.N)
+        x_cf = x_cf.cpu().numpy()/tesla
+        y_cf = y_cf.cpu().numpy()/tesla
+
+
+        for k in range(self.m):
+            if k<self.m/2:
+                linestyle = '-'  
+                color = colors[k]
+            else:
+                linestyle = '--'
+                color = colors[k-self.m//2]
+            ax.plot(T,y_cf[k], linestyle=linestyle, color=color)
+        set_trace()
+
+
+    def plot_results(self, show_plot=True):
         u=self.u 
         X = self.get_X()
         omegas=self.omega
@@ -604,34 +638,16 @@ class Grape:
         rf=omegas[:len(omegas)//2]
         N = int(len(u)/m)
         u_m = uToMatrix(u,m).cpu()
-        w_np = omegas.cpu().detach().numpy()
         T = np.linspace(0, tN, N)
-        t_axis = np.linspace(0, tN/nanosecond, N)
         fig,ax = plt.subplots(2,2)
-        for i in range(len(w_np)):
-            if i<len(w_np)//2:
-                B1 = np.cos(w_np[i]*T)
-            else:
-                B1=np.sin(w_np[i]*T)
-            #ax[0,1].plot(t_axis,B1, label="Hw"+str(i))
-
         self.plot_cost_hist(ax[1,1])
             
-
-        for i in range(len(w_np)):
-            if i<len(w_np)//2:
-                B1 = np.cos(w_np[i]*T)
-            else:
-                B1=np.sin(w_np[i]*T)
-            prod=np.multiply(u_m[i],B1)
-            
-            ax[0,0].plot(t_axis,u_m[i], label='u'+str(i))
-            #ax[1,0].plot(t_axis,1e3*prod,label='u'+str(i)+'*Hw'+str(i)+" (mT)")
+        self.plot_u(ax[0,0])
                 
         X_field, Y_field = self.sum_XY_fields()
         self.plot_XY_fields(ax[0,1],X_field,Y_field)
         transfids = fidelity_progress(X,self.target)
-        plot_fidelity_progress(ax[1,0],transfids,tN,legend=False)
+        plot_fidelity_progress(ax[1,0],transfids,tN,legend=True)
         ax[0,0].set_xlabel("time (ns)")
 
 
@@ -639,20 +655,40 @@ class Grape:
             fig.savefig(f"{dir}plots/{self.filename}")
         if show_plot: plt.show()
 
+    def plot_u(self, ax):
+        u_mat = self.u_mat()
+        t_axis = np.linspace(0, self.tN/nanosecond, self.N)
+        w_np = self.omega.cpu().detach().numpy()
+        for k in range(self.m):
+            if k<self.m/2:
+                linestyle = '-'  
+                color = colors[k]
+            else:
+                linestyle = '--'
+                color = colors[k-self.m//2]
+
+            ax.plot(t_axis,u_mat[k]*1e3, label=f'u{str(k)} (mT)', color=color, linestyle=linestyle)
+            if y_axis_labels: ax.set_ylabel("Field strength (mT)")
+
 
     def plot_XY_fields(self, ax, X_field, Y_field):
         X_field = X_field.cpu(); Y_field=Y_field.cpu()
         N=len(X_field)
         t_axis = np.linspace(0, self.tN/nanosecond, N)
-        ax.plot(t_axis,X_field*1e3,label='total x-field (mT)')
-        ax.plot(t_axis,Y_field*1e3,label='total y-field (mT)')
+        ax.plot(t_axis,X_field*1e3,label='$B_x$ (mT)')
+        ax.plot(t_axis,Y_field*1e3,label='$B_y$ (mT)')
         ax.set_xlabel("time (ns)")
+        if y_axis_labels:
+            ax.set_ylabel("Total applied field")
         ax.legend()
         
     def plot_cost_hist(self, ax):
         ax.plot(self.cost_hist, label='cost')
         ax.set_xlabel('Iterations')
-        ax.legend()
+        if y_axis_labels: 
+            ax.set_ylabel('Cost')
+        else:
+            ax.legend()
         return ax
 
 
@@ -696,7 +732,7 @@ class Grape:
         self.ID = self.get_next_ID()
         self.filename = self.get_field_filename()
         if save_data: 
-            self.save_system_data(self.filename)
+            self.save_system_data()
             with open(ID_fn, 'a') as f:
                 f.write(f"{self.ID}\n")
 
@@ -706,7 +742,7 @@ class Grape:
 
 class GrapeESR(Grape):
 
-    def __init__(self, J, A, tN, N, target=None, rf=None, u0=None, hist0=[], max_time=9999999, save_data=False, alpha=0):
+    def __init__(self, J, A, tN, N, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
 
         self.nS,self.nq=get_dimensions(A)
         self.J=J 
@@ -714,8 +750,9 @@ class GrapeESR(Grape):
         self.tN=tN
         self.N=N
         self.target=target if target is not None else CNOT_targets(self.nS, self.nq)
-        self.rf=self.get_RFs() if rf is None else rf
-        super().__init__(tN, N, self.target, rf, u0, hist0, max_time, save_data)
+        self.rf=self.get_all_resonant_frequencies() if rf is None else rf
+        self.status = 'UC'
+        super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
         
 
         fun = self.cost
@@ -750,16 +787,6 @@ class GrapeESR(Grape):
         
         return H0.to(device)
 
-    def get_RFs(self, device=default_device):
-        A = self.A; J=self.J
-        nS,nq= get_dimensions(A)
-        rf = pt.tensor([], dtype = real_dtype, device=device)
-        H0 = self.get_H0()
-        Hw_shape = gate.get_Xn(nq)
-        for q in range(nS):
-            rf_q=getFreqs(H0[q], Hw_shape)
-            rf=pt.cat((rf,rf_q))
-        return rf
 
         
 
@@ -921,7 +948,7 @@ class GrapeESR(Grape):
     ################################################################################################################
     ################        Save Data        #######################################################################
     ################################################################################################################
-    def save_system_data(self, filename, fid=None, status='T'):
+    def save_system_data(self, fid=None):
         '''
         Saves system data to a file.
         
@@ -933,13 +960,13 @@ class GrapeESR(Grape):
         '''
         J=pt.real(self.J)/Mhz; A=pt.real(self.A)/Mhz; tN = self.tN/nanosecond
         if type(J)==pt.Tensor: J=J.tolist()
-        with open(f"{dir}fields/{filename}.txt", 'w') as f:
+        with open(f"{dir}fields/{self.filename}.txt", 'w') as f:
             f.write("J = "+str(J)+"\n")
             f.write("A = "+str((A).tolist())+"\n")
             f.write("tN = "+str(tN)+"\n")
             f.write("N = "+str(self.N)+"\n")
             f.write("target = "+str(self.target.tolist())+"\n")
-            f.write("Completion status = "+status+"\n")
+            f.write("Completion status = "+self.status+"\n")
             if fid is not None: f.write("fidelity = "+str(fid.tolist())+"\n")
 
     @staticmethod
@@ -980,7 +1007,7 @@ def process_u_file(filename,SP=None, save_SP = False):
     u,cost_hist = load_u(filename,SP=SP)
     grape.u=u 
     grape.hist=cost_hist
-    grape.plotFields()
+    grape.plot_results()
 
 
 
@@ -1114,21 +1141,6 @@ def get_S_matrix(J,A, device=default_device):
 ################################################################################################################
 ################        Resonant Frequencies        ############################################################
 ################################################################################################################
-def remove_duplicates(A):
-    '''
-    Removes duplicates from A where equivalence is required to 9 decimal places
-    '''
-    i=0
-    while i<len(A):
-        j=i+1
-        while j<len(A):
-            if math.isclose(A[i],A[j],rel_tol=1e-9):
-                A.pop(j)
-                continue 
-            j+=1
-        i+=1
-    return A
-
 
 def getFreqs_broke(H0,Hw_shape,device=default_device):
     '''
@@ -1168,43 +1180,6 @@ def getFreqs_broke(H0,Hw_shape,device=default_device):
     #     #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
     #     # if Hw_nz[idx2,idx1]:
     #     #     freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
-    freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
-    return freqs
-
-
-def getFreqs(H0,Hw_shape,device=default_device):
-    '''
-    Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
-    Useful for >2qubit systems where analytically determining frequencies becomes difficult. Probably won't 
-    end up being used as 3 qubit CNOTs will be performed as sequences of 2 qubit CNOTs.
-    '''
-    eig = pt.linalg.eig(H0)
-    evals=eig.eigenvalues
-    S = eig.eigenvectors
-    S=S.to(device)
-    #S = pt.transpose(pt.stack((S[:,2],S[:,1],S[:,0],S[:,3])),0,1)
-    #evals = pt.stack((evals[2],evals[1],evals[0],evals[3]))
-    S_T = pt.transpose(S,0,1)
-    d = len(evals)
-    pairs = list(itertools.combinations(pt.linspace(0,d-1,d,dtype=int),2))
-
-    # transform shape of control Hamiltonian to basis of energy eigenstates
-
-    Hw_trans = matmul3(S_T,Hw_shape,S)
-    Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
-    freqs = []
-    for i in range(len(pairs)):
-        # The difference between energy levels i,j will be a resonant frequency if the control field Hamiltonian
-        # has a non-zero (i,j) element.
-        pair = pairs[i]
-        idx1=pair[0].item()
-        idx2 = pair[1].item()
-        #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
-        if Hw_nz[idx1,idx2]:
-            freqs.append((pt.real(evals[pair[1]]-evals[pair[0]])).item())
-        #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
-        if Hw_nz[idx2,idx1]:
-            freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
     return freqs
 
@@ -1278,9 +1253,11 @@ def refine_u(filename, N_new):
     '''
     J,A,tN,N,target,_fid = load_system_data(filename)
     u,cost_hist = load_u(filename)
-    m=2*len(get_RFs(A,J))
-    u0 = interpolate_u(u,m,N_new)
-    run_optimisation(target,N_new,tN,J,A,u0=u0)
+    grape = GrapeESR(J, A, tN, N_new, target, cost_hist=cost_hist)
+    m = 2*len(grape.get_all_resonant_frequencies())
+    grape.u = interpolate_u(u,m,N_new)
+    grape.run()
+    grape.result()
 
 
 

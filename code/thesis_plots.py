@@ -117,12 +117,23 @@ def chapter_2():
     plt.show()
 
 
+
 def chapter_3():
+
+    def grape_1s2q():
+        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*nanosecond,N=500, max_time=5); grape.run()
+        fig,ax = plt.subplots(2,2)
+        grape.plot_u(ax[0,0])
+        grape.plot_cost_hist(ax[0,1])
+        grape.plot_control_fields(ax[1,0])
+
+
     #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
 
-    free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
-    #grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=100*nanosecond,N=500); grape.run()
-    #grape.result()
+    #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
+
+
+    grape_1s2q()
 
 
 if __name__=='__main__':

@@ -30,7 +30,10 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=False, fp=No
     '''
     if ax is None: ax = plt.subplot()
     if label_getter is None:
-        label_getter = lambda i: np.binary_repr(i,nq)
+        if squared:
+            label_getter = lambda i: f"Pr({np.binary_repr(i,nq)})"
+        else:
+            label_getter = lambda i: np.binary_repr(i,nq)
     N,dim=psi.shape
     nq=get_nq(dim)
     T=pt.linspace(0,tN/nanosecond,N)
@@ -114,8 +117,11 @@ def plot_fidelity_progress(ax,fids,tN, legend=True):
         fids = fids.reshape(1,*fids.shape)
     nS=len(fids); N = len(fids[0])
     T = pt.linspace(0,tN/nanosecond, N)
-    for q in range(nS):
-        ax.plot(T,pt.real(fids[q]), label=f"System {q+1} fidelity")
+    if nS==1:
+        ax.plot(T,pt.real(fids[0]), label=f"Fidelity")
+    else:
+        for q in range(nS):
+            ax.plot(T,pt.real(fids[q]), label=f"System {q+1} fidelity")
     if legend: ax.legend()
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("Fidelity")

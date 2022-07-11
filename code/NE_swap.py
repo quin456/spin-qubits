@@ -12,7 +12,7 @@ from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
-from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling
+from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling, get_resonant_frequencies
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 
@@ -325,16 +325,26 @@ def get_subops(H,dt):
 
 class NuclearElectronGrape(Grape):
 
-    def __init__(self, Bz, A, tN, N, target, rf, u0,  save_data):
+    def __init__(self, Bz, A, tN, N, nq=2, target=gate.swap, rf=None, u0=None,  save_data=False):
         self.A = A
         self.Bz = Bz
+        self.nq=nq
         super().__init__(tN, N, target, rf, u0=u0, save_data=save_data)
 
     def get_H0(self):
-        return get_NE_H0(self.A, self.Bz)
+        H0 = get_NE_H0(self.A, self.Bz)
+        return H0.reshape(1,*H0.shape)
 
     def get_Hw(self):
         return get_NE_Hw(self.x_cf, self.y_cf)
+
+def run_NE_grape():
+    grape = NuclearElectronGrape(Bz=2*tesla, A=get_A(1,1), tN=400*nanosecond, N=500)
+    
+    grape.run()
+    grape.result()
+
+
 
 
 def test():
@@ -355,6 +365,8 @@ def test():
 
 
 
+
+
 if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
@@ -363,14 +375,15 @@ if __name__ == '__main__':
     #tN=100*nanosecond
     #show_NE_CX(get_A(1,1), 2*tesla, tN, 300000, psi0=pt.kron(spin_down, spin_up)); plt.show()
 
-    tN = 400*nanosecond
-    tN_locked = lock_to_coupling(get_A(1,1),tN)
-    show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 500000); plt.show()
+    #tN = 400*nanosecond
+    #tN_locked = lock_to_coupling(get_A(1,1),tN)
+    #show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 500000); plt.show()
     #test(); plt.show()
 
     #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
     #show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()
 
+    run_NE_grape()
 
 #NE_energy_levels(); plt.show()
 

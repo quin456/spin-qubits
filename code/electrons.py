@@ -1,10 +1,4 @@
 
-#%%
-
-from pathlib import Path
-import os
-dir = os.path.dirname(__file__)
-os.chdir(dir)
 
 
 from GRAPE import *
@@ -21,7 +15,7 @@ from matplotlib import pyplot as plt
 from pdb import set_trace
 
 
-from data import gamma_e, gamma_n
+from data import gamma_e, gamma_n, cplx_dtype, default_device
 
 
 spin_up = pt.tensor([1,0],dtype=cplx_dtype)
@@ -61,7 +55,13 @@ def put_diagonal(E):
         D[j,j] = E[0,j]
     return D
 
-def get_ordered_eigensystem(A,J, include_HZ=False):
+def get_2E_H0(A,J,include_HZ=False):
+    H0 = J*gate.sigDotSig + A * (gate.ZI-gate.IZ)
+    if include_HZ:
+        H0 += 0.5*gamma_e*(gate.get_Zn(2))
+    return H0
+
+def get_ordered_2E_eigensystem(A,J, include_HZ=False):
     '''
     Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
     Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
@@ -69,18 +69,18 @@ def get_ordered_eigensystem(A,J, include_HZ=False):
     '''
     
     # ordering is always based of physical energy levels (so include_HZ always True)
-    E_phys = pt.real(pt.linalg.eig(get_H0(A,J,include_HZ=True)).eigenvalues)
+    E_phys = pt.real(pt.linalg.eig(get_2E_H0(A,J,include_HZ=True)).eigenvalues)
 
     # Eigensystem to be returned usually in rotating frame (so include_HZ usually False)
-    H0 = get_H0(A,J, include_HZ=include_HZ)
+    H0 = get_2E_H0(A,J, include_HZ=include_HZ)
 
     E,S = order_eigensystem(H0,E_phys)
-    return E,S
+    D = pt.diag(E)
+    return S,D
 
 def order_eigensystem(H0, E_order):
-    nS=len(E_order)
 
-    idx_order = [pt.topk(E_order[s], len(E_order[s])).indices for s in range(nS)]
+    idx_order = pt.topk(E_order, len(E_order)).indices
 
     # get unsorted eigensystem
     eig = pt.linalg.eig(H0)
@@ -89,11 +89,9 @@ def order_eigensystem(H0, E_order):
 
     E = pt.zeros_like(E_us)
     S = pt.zeros_like(S_us)
-    for s in range(nS):
-        for i,j in enumerate(idx_order[s]):
-            E[s,i] = E_us[s,j]
-            S[s,:,i] = S_us[s,:,j]
-
+    for i,j in enumerate(idx_order):
+        E[i] = E_us[j]
+        S[:,i] = S_us[:,j]
     return E,S
 
 
@@ -476,6 +474,3 @@ if __name__ == '__main__':
     plt.show()
 
 
-
-
-# %%
