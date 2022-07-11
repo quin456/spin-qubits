@@ -11,7 +11,7 @@ from scipy.optimize import minimize
 from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
-from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity_progress, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
+from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling, get_resonant_frequencies
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
@@ -267,7 +267,7 @@ def NE_swap_fidelity(A,Bz,tN,N):
 
     fig,ax = plt.subplots(1,2)
     fids = fidelity_progress(X,gate.swap)
-    plot_fidelity_progress(ax[0],fids,tN)
+    plot_fidelity(ax[0],fids,tN)
     plot_fields(Bx,By,tN,ax[1])
     
     print(f"Unitary achieved ] \n{X[-1]}")

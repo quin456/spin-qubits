@@ -84,7 +84,7 @@ class SingleElectronGRAPE(Grape):
         return pt.tensor([gamma_e*self.Bz + 2*self.A])
 
 
-    def plot_results(self, u, X, psi0 = spin_up, show_plot=True):
+    def plot_result(self, u, X, psi0 = spin_up, show_plot=True):
 
         fig,ax = plt.subplots(3,1)
 

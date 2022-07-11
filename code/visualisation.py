@@ -19,7 +19,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 annotate=False
 y_axis_labels = False
 
-def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=False, fp=None):
+def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=None):
     '''
     Plots the evolution of each component of psi.
 
@@ -58,7 +58,7 @@ def plot_phases(psi, tN, ax=None):
     nq=get_nq(dim)
     T=pt.linspace(0,tN/nanosecond,N)
     for i in range(dim):
-        ax.plot(T,pt.angle(psi[:,i]), label = '$\phi_i$')
+        ax.plot(T,pt.angle(psi)[:,i]-pt.angle(psi)[:,0], label = f'$\phi_{i}$')
     ax.legend()
     ax.set_xlabel("time (ns)")
     return ax
@@ -112,7 +112,7 @@ def visualise_Hw(Hw,tN, eigs=None):
             ax[i,j].plot(T,pt.imag(y))
 
             
-def plot_fidelity_progress(ax,fids,tN, legend=True):
+def plot_fidelity(ax,fids,tN, legend=True):
     if len(fids.shape)==1:
         fids = fids.reshape(1,*fids.shape)
     nS=len(fids); N = len(fids[0])
@@ -150,7 +150,7 @@ def show_fidelity(X, tN, target, ax=None):
     print(f"Final fidelity = {fids[-1]}")
     
     if ax is None: ax = plt.subplot()
-    plot_fidelity_progress(ax,fids,tN)
+    plot_fidelity(ax,fids,tN)
 
 
 

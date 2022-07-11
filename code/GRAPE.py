@@ -5,6 +5,7 @@ from abc import abstractmethod
 from pdb import set_trace
 import time
 import warnings
+
 warnings.filterwarnings("ignore")
 
 # library imports
@@ -28,7 +29,7 @@ from atomic_units import *
 import gates as gate
 from utils import *
 from data import *
-from visualisation import plot_fidelity_progress, y_axis_labels, colors
+from visualisation import plot_fidelity, y_axis_labels, colors, plot_spin_states, plot_phases
 
 time_exp = 0
 time_prop = 0
@@ -540,24 +541,18 @@ class Grape:
             self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
             self.status='UC' #uncomplete
         self.time_taken = time.time() - self.start_time
+        self.print_result()
 
 
-    def result(self, show_plot=True, minprint=False):
 
-
-        self.print_info(minprint)
-        # Plot fields and process data
-        self.plot_results(show_plot=show_plot)
-
-        fidelities = self.fidelity(self.u)[0]
-        avgfid=sum(fidelities)/len(fidelities)
-        minfid = min(fidelities).item()
         
-
-        alpha=0
+    def save(self):
         if self.save_data:
             # save_system_data will overwrite previous file if job was not terminated by gadi
-            self.log_result(minfid,avgfid,alpha)
+            fidelities = self.fidelity(self.u)[0]
+            avgfid=sum(fidelities)/len(fidelities)
+            minfid = min(fidelities).item()
+            self.log_result(minfid,avgfid)
             self.save_system_data(fid=fidelities)
             self.save_field()
 
@@ -565,17 +560,22 @@ class Grape:
     def save_system_data(self, fid=None):
         raise Exception(NotImplemented)
 
-    def print_info(self, minprint):
+    def print_result(self, verbosity=1):
 
         fidelities = self.fidelity(self.u)[0]
         avgfid=sum(fidelities)/len(fidelities)
         minfid = min(fidelities).item()
 
-        print(f"Average fidelity = {avgfid}")
-        if not minprint:
-            print(f"Fidelities = {fidelities}")
+        if self.nS==1:
+            print(f"Fidelity = {avgfid}")
+        else:
+            print(f"Average fidelity = {avgfid}")
             print(f"Min fidelity = {minfid}")
+        if verbosity>=1:
             print(f"Time taken = {self.time_taken}")
+        if verbosity>=2:
+            print(f"All fidelities = {fidelities}")
+        if verbosity>=3:
             print(f"GPUs requested = {ngpus}")
             global time_grad, time_exp, time_prop, time_fid 
             print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
@@ -605,11 +605,17 @@ class Grape:
     ################        VISUALISATION        ###################################################################
     ################################################################################################################
 
-    def plot_field_and_evolution(self, psi0):
+    def plot_field_and_evolution(self, fp=None, psi0 = pt.tensor([1,0,1,0], dtype=cplx_dtype)/np.sqrt(2)):
         '''
         Nicely presented plots for thesis. Plots 
         '''
-        pass
+        fig,ax = plt.subplots(2,2)
+        self.plot_XY_fields(ax[0,0])
+        plot_fidelity(ax[1,0], fidelity_progress(self.X, self.target), self.tN)
+        psi=self.X@psi0
+        plot_spin_states(psi[0], self.tN, ax[0,1])
+        plot_phases(psi[0], self.tN, ax[1,1])
+        return fig,ax
 
     def plot_control_fields(self, ax):
         T = np.linspace(0, self.tN/nanosecond, self.N)
@@ -629,7 +635,7 @@ class Grape:
         set_trace()
 
 
-    def plot_results(self, show_plot=True):
+    def plot_result(self, show_plot=True):
         u=self.u 
         X = self.get_X()
         omegas=self.omega
@@ -647,7 +653,7 @@ class Grape:
         X_field, Y_field = self.sum_XY_fields()
         self.plot_XY_fields(ax[0,1],X_field,Y_field)
         transfids = fidelity_progress(X,self.target)
-        plot_fidelity_progress(ax[1,0],transfids,tN,legend=True)
+        plot_fidelity(ax[1,0],transfids,tN,legend=True)
         ax[0,0].set_xlabel("time (ns)")
 
 
@@ -670,11 +676,15 @@ class Grape:
             ax.plot(t_axis,u_mat[k]*1e3, label=f'u{str(k)} (mT)', color=color, linestyle=linestyle)
             if y_axis_labels: ax.set_ylabel("Field strength (mT)")
 
+        ax.set_xlabel("time (ns)")
+        ax.legend()
 
-    def plot_XY_fields(self, ax, X_field, Y_field):
-        X_field = X_field.cpu(); Y_field=Y_field.cpu()
-        N=len(X_field)
-        t_axis = np.linspace(0, self.tN/nanosecond, N)
+
+    def plot_XY_fields(self, ax, X_field=None, Y_field=None):
+        if X_field is None:
+            X_field, Y_field = self.sum_XY_fields()
+        X_field = X_field.cpu().numpy(); Y_field=Y_field.cpu().numpy()
+        t_axis = np.linspace(0, self.tN/nanosecond, self.N)
         ax.plot(t_axis,X_field*1e3,label='$B_x$ (mT)')
         ax.plot(t_axis,Y_field*1e3,label='$B_y$ (mT)')
         ax.set_xlabel("time (ns)")
@@ -689,6 +699,7 @@ class Grape:
             ax.set_ylabel('Cost')
         else:
             ax.legend()
+        ax.axhline(0, color='orange', linestyle = '--')
         return ax
 
 
@@ -708,7 +719,7 @@ class Grape:
 
     # LOGGING
 
-    def log_result(self, minfid,avgfid,alpha):
+    def log_result(self, minfid,avgfid):
         '''
         Logs key details of result:
             field filename, minfid, J (MHz), A (MHz), avgfid, fidelities, time date, alpha, kappa, nS, nq, tN (ns), N, ID
@@ -721,7 +732,7 @@ class Grape:
         now = datetime.now().strftime("%H:%M:%S %d-%m-%y")
         with open(log_fn, 'a') as f:
             f.write("{},{:.4f},{:.4f},{},{:.3e},{},{},{:.1f},{},{},{}\n".format(
-                field_filename, avgfid, minfid, now, alpha, self.nS, self.nq, self.tN/nanosecond, self.N, self.status, self.time_taken))
+                field_filename, avgfid, minfid, now, self.alpha, self.nS, self.nq, self.tN/nanosecond, self.N, self.status, self.time_taken))
 
 
     def preLog(self,save_data):
@@ -749,17 +760,32 @@ class GrapeESR(Grape):
         self.A=A 
         self.tN=tN
         self.N=N
+        self.alpha=alpha
         self.target=target if target is not None else CNOT_targets(self.nS, self.nq)
         self.rf=self.get_all_resonant_frequencies() if rf is None else rf
         self.status = 'UC'
         super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
         
-
-        fun = self.cost
-
-
-        self.fun=fun
         self.alpha=alpha
+        self.print_setup_info()
+
+    def print_setup_info(self):
+        if self.nq==2:
+            system_type = "Electron spin qubits coupled via direct exchange"
+        elif self.nq==3:
+            system_type = "Electron spin qubits coupled via intermediate coupler qubit"
+
+        print("==========================")
+        print(f"Running GRAPE optimisation")
+        print("==========================")
+        print(f"Number of systems: {self.nS}")
+        print(f"System type: {system_type}")
+        print(f"Hyperfine: A = {self.A/Mhz} MHz")
+        print(f"Exchange: J = {self.J/Mhz} MHz")
+        print("Resonant frequencies: {", end=" ")
+        for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
+        print("}")
+
 
     def get_H0(self, include_HZ=False, device=default_device):
         '''
@@ -829,12 +855,12 @@ class GrapeESR(Grape):
         time_exp += time.time()-t0
 
         t0 = time.time()
-        X,P = self.propagate(U,device=device)
+        self.X, self.P = self.propagate(U,device=device)
         global time_prop 
         time_prop += time.time()-t0
         del U
 
-        Ut = P[:,-1]; Uf = X[:,-1]
+        Ut = self.P[:,-1]; Uf = self.X[:,-1]
         # fidelity of resulting unitary with target
         IP = batch_IP(Ut,Uf)
         Phi = pt.real(IP*pt.conj(IP))
@@ -842,13 +868,13 @@ class GrapeESR(Grape):
 
         t0 = time.time()
         # calculate grad of fidelity
-        XP_IP = batch_IP(X,P)
+        XP_IP = batch_IP(self.X, self.P)
 
-        ox_X = pt.einsum('ab,sjbc->sjac' , sig_xn, X)
-        oy_X = pt.einsum('ab,sjbc->sjac' , sig_yn, X)
-        PoxX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(P), 1j*ox_X)) / d
-        PoyX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(P), 1j*oy_X)) / d
-        del X,P,ox_X, oy_X
+        ox_X = pt.einsum('ab,sjbc->sjac' , sig_xn, self.X)
+        oy_X = pt.einsum('ab,sjbc->sjac' , sig_yn, self.X)
+        PoxX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(self.P), 1j*ox_X)) / d
+        PoyX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(self.P), 1j*oy_X)) / d
+        del ox_X, oy_X
 
         Re_IP_x = -2*pt.real(pt.einsum('sj,sj->sj', PoxX_IP, XP_IP))
         Re_IP_y = -2*pt.real(pt.einsum('sj,sj->sj', PoyX_IP, XP_IP))
@@ -930,19 +956,6 @@ class GrapeESR(Grape):
             print(f"Max time of {self.max_time} has been reached. Optimisation terminated.")
             raise TimeoutError
 
-    def run(self):
-        callback = self.check_time if self.max_time is not None else None
-        try:
-            opt=minimize(self.fun,self.u0,method='CG',jac=True, callback=callback)
-            print(f"nit = {opt.nfev}, nfev = {opt.nit}")
-            self.u=pt.tensor(opt.x, device=default_device)
-            self.status='C' #complete
-        except TimeoutError:
-            global u_opt_timeout
-            self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
-            self.status='UC' #uncomplete
-        self.time_taken = time.time() - self.start_time
-
 
         
     ################################################################################################################
@@ -1007,7 +1020,7 @@ def process_u_file(filename,SP=None, save_SP = False):
     u,cost_hist = load_u(filename,SP=SP)
     grape.u=u 
     grape.hist=cost_hist
-    grape.plot_results()
+    grape.plot_result()
 
 
 

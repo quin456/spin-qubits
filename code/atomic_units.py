@@ -32,4 +32,5 @@ newton = kg*metre*second**(-2)
 joule = newton*metre
 hz = 2*np.pi/second # because frequencies are expected in rad/second
 Mhz = 1e6*hz
-radpersec = 1/second
+rps = 1/second
+Mrps = 1e6*rps

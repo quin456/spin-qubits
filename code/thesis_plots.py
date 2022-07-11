@@ -22,6 +22,10 @@ downarrow = u'\u2193'
 Uparrow = '⇑'
 Downarrow = '⇓'
 
+double_long_width = 16
+single_long_height = 2.7
+double_long_height = 4.6
+
 ################################################################################################################
 ################        ALL PLOTS TO BE USED IN THESIS WILL BE GENERATED HERE        ###########################
 ################################################################################################################
@@ -120,12 +124,17 @@ def chapter_2():
 
 def chapter_3():
 
-    def grape_1s2q():
-        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*nanosecond,N=500, max_time=5); grape.run()
-        fig,ax = plt.subplots(2,2)
-        grape.plot_u(ax[0,0])
-        grape.plot_cost_hist(ax[0,1])
-        grape.plot_control_fields(ax[1,0])
+    def grape_1s2q(fp=None, fp1=None):
+        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*nanosecond,N=500, max_time=15); grape.run()
+        fig,ax = plt.subplots(1,2)
+        grape.plot_u(ax[0])
+        grape.plot_cost_hist(ax[1])
+        fig.set_size_inches(double_long_width, single_long_height)
+        fig1,ax1 = grape.plot_field_and_evolution()
+        fig1.set_size_inches(double_long_width, double_long_height)
+        plt.tight_layout()
+        if fp is not None: fig.savefig(fp)
+        if fp1 is not None: fig1.savefig(fp1)
 
 
     #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
@@ -133,7 +142,8 @@ def chapter_3():
     #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
 
 
-    grape_1s2q()
+    grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-evolution.pdf")
+
 
 
 if __name__=='__main__':
