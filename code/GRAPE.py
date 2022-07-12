@@ -334,6 +334,16 @@ class Grape:
         # Log job start
         if save_data: self.preLog(save_data)  
 
+        self.print_setup_info()
+
+    def print_setup_info(self):
+        print("==========================")
+        print(f"Running GRAPE optimisation")
+        print("==========================")
+        print(f"Number of systems: {self.nS}")
+        print("Resonant frequencies: {", end=" ")
+        for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
+        print("}")
 
     def get_all_resonant_frequencies(self, device=default_device):
         rf = pt.tensor([], dtype = real_dtype, device=device)
@@ -519,6 +529,7 @@ class Grape:
 
         
         J=J.item(); dJ = dJ.cpu().detach().numpy() 
+        self.cost_hist.append(J)
         return J, dJ
 
     def init_u(self, device='cpu'):
@@ -632,7 +643,6 @@ class Grape:
                 linestyle = '--'
                 color = colors[k-self.m//2]
             ax.plot(T,y_cf[k], linestyle=linestyle, color=color)
-        set_trace()
 
 
     def plot_result(self, show_plot=True):
@@ -767,24 +777,18 @@ class GrapeESR(Grape):
         super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
         
         self.alpha=alpha
-        self.print_setup_info()
+
 
     def print_setup_info(self):
+        super().print_setup_info()
         if self.nq==2:
             system_type = "Electron spin qubits coupled via direct exchange"
         elif self.nq==3:
             system_type = "Electron spin qubits coupled via intermediate coupler qubit"
 
-        print("==========================")
-        print(f"Running GRAPE optimisation")
-        print("==========================")
-        print(f"Number of systems: {self.nS}")
         print(f"System type: {system_type}")
         print(f"Hyperfine: A = {self.A/Mhz} MHz")
         print(f"Exchange: J = {self.J/Mhz} MHz")
-        print("Resonant frequencies: {", end=" ")
-        for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
-        print("}")
 
 
     def get_H0(self, include_HZ=False, device=default_device):

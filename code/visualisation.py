@@ -16,6 +16,11 @@ from pdb import set_trace
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+
+double_long_width = 16
+single_long_height = 2.7
+double_long_height = 4.6
+
 annotate=False
 y_axis_labels = False
 
@@ -57,10 +62,13 @@ def plot_phases(psi, tN, ax=None):
     N,dim = psi.shape 
     nq=get_nq(dim)
     T=pt.linspace(0,tN/nanosecond,N)
+    phase = pt.zeros_like(psi)
     for i in range(dim):
-        ax.plot(T,pt.angle(psi)[:,i]-pt.angle(psi)[:,0], label = f'$\phi_{i}$')
+        phase[:,i] = pt.angle(psi)[:,i]-pt.angle(psi)[:,0]
+        ax.plot(T,phase[:,i], label = f'$\phi_{i}$')
     ax.legend()
     ax.set_xlabel("time (ns)")
+    print(f"Final phase = {phase[-1,:]}")
     return ax
 
 
@@ -151,6 +159,7 @@ def show_fidelity(X, tN, target, ax=None):
     
     if ax is None: ax = plt.subplot()
     plot_fidelity(ax,fids,tN)
+    return fids
 
 
 

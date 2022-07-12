@@ -172,8 +172,9 @@ def fidelity_progress(X, target):
     multisys = True
     if len(X.shape)==3:
         X = X.reshape(1,*X.shape)
-        target = target.reshape(1,*target.shape)
         multisys = False
+    if len(target.shape)==2:
+        target = target.reshape(1,*target.shape)
     nS=len(X); N = len(X[0])
     fid = pt.zeros(nS,N)
     for q in range(nS):
@@ -233,7 +234,7 @@ def get_resonant_frequencies(H0,Hw_shape,device=default_device):
             # has a non-zero (i,j) element.
             #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
             if Hw_nz[i,j] and Hw_angle[i,j] < 0:
-                freqs.append((pt.real(E[j]-E[i])).item())
+                freqs.append((pt.real(E[i]-E[j])).item())
             #if pt.real(Hw_trans[idx1][idx2]) >=1e-9:
             # if Hw_nz[idx2,idx1]:
             #     freqs.append((pt.real(evals[pair[0]]-evals[pair[1]])).item())

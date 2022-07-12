@@ -9,6 +9,7 @@ import torch as pt
 from GRAPE import GrapeESR
 from utils import psi_from_polar, get_A, get_J, get_U0, normalise
 from visualisation import bloch_sphere, plot_spin_states
+from visualisation import double_long_height, double_long_width, single_long_height
 from single_spin import show_single_spin_evolution
 from data import dir, cplx_dtype
 from atomic_units import *
@@ -22,9 +23,6 @@ downarrow = u'\u2193'
 Uparrow = '⇑'
 Downarrow = '⇓'
 
-double_long_width = 16
-single_long_height = 2.7
-double_long_height = 4.6
 
 ################################################################################################################
 ################        ALL PLOTS TO BE USED IN THESIS WILL BE GENERATED HERE        ###########################
@@ -125,7 +123,7 @@ def chapter_2():
 def chapter_3():
 
     def grape_1s2q(fp=None, fp1=None):
-        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*nanosecond,N=500, max_time=15); grape.run()
+        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*nanosecond,N=500, max_time=5); grape.run()
         fig,ax = plt.subplots(1,2)
         grape.plot_u(ax[0])
         grape.plot_cost_hist(ax[1])
@@ -142,10 +140,14 @@ def chapter_3():
     #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
 
 
-    grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-evolution.pdf")
+    #grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-evolution.pdf")
+
+    grape = GrapeESR(get_J(1,3), get_A(1,3), tN=100*nanosecond, N=500); grape.run(); grape.plot_field_and_evolution(f"{plots_folder}Ch3-3E-field-and-evolution.pdf")
 
 
 
 if __name__=='__main__':
     chapter_3()
+
+
     plt.show()

@@ -122,8 +122,7 @@ def show_NE_CX(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(1,4)
     Bx,By = NE_CX_pulse(tN,N,A,Bz, ax[0])
     X = get_NE_X(Bx, By, Bz, A, tN, N)
-    show_fidelity(X,tN, gate.CX, ax=ax[1])
-
+    fids = show_fidelity(X,tN, gate.CX, ax=ax[1])
     psi = pt.matmul(X,psi0)
     plot_spin_states(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
@@ -193,8 +192,6 @@ def get_NE_X(Bx, By, Bz, A, tN, N):
     UZ = get_U0(Hz,tN,N)
     U0 = get_U0(H0, tN, N)
 
-    set_trace()
-
     X = dagger(U0) @ X
 
     #visualise_Hw(dagger(S)@dagger(U0)@Hw@U0@S,tN); plt.show()
@@ -206,7 +203,12 @@ def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(1,4)
     Bx,By = EN_CX_pulse(tN,N,A,Bz, ax[0])
     X = get_NE_X(Bx, By, Bz, A, tN, N)
-    show_fidelity(X, tN, gate.CXr, ax=ax[1])
+
+    phased_target = pt.matrix_exp(1j*np.pi/2 * (gate.IZ-gate.II)/2)@gate.CXr 
+
+    fids=show_fidelity(X, tN, phased_target, ax=ax[1])
+    imax = pt.argmax(fids)
+    print(f"Max fidelity: fids[{imax}] = {fids[imax]}")
 
     psi = pt.matmul(X,psi0)
     plot_spin_states(psi,tN,ax[2])
@@ -308,7 +310,6 @@ def NE_energy_levels(A=get_A(1,1)*Mhz, Bz=2*tesla):
     H0 = get_NE_H0(A,Bz)
     S,D = NE_eigensystem(H0)
     E = pt.diagonal(D)/Mhz
-    #set_trace()
     #plot_energy_spectrum(E)
 
     ax = plt.subplot()
@@ -325,25 +326,35 @@ def get_subops(H,dt):
 
 class NuclearElectronGrape(Grape):
 
-    def __init__(self, Bz, A, tN, N, nq=2, target=gate.swap, rf=None, u0=None,  save_data=False):
+    def __init__(self, Bz, A, tN, N, nq=2, target=gate.swap, rf=None, u0=None,  save_data=False, max_time=99999):
+
+        # save system data before super().__init__
         self.A = A
         self.Bz = Bz
         self.nq=nq
-        super().__init__(tN, N, target, rf, u0=u0, save_data=save_data)
+        super().__init__(tN, N, target, rf, u0=u0, save_data=save_data, max_time=max_time)
 
-    def get_H0(self):
-        H0 = get_NE_H0(self.A, self.Bz)
+        # perform calculations of system parameters after super().__init__
+        self.Hw = self.get_Hw()
+        self.S, self.D = NE_eigensystem(self.H0[0])
+
+    def get_H0(self, interaction_picture=False):
+        if interaction_picture:
+            H0 = H_hyperfine(self.A)
+        else:
+            H0 = get_NE_H0(self.A, self.Bz)
         return H0.reshape(1,*H0.shape)
 
-    def get_Hw(self):
+    def get_Hw(self, interaction_picture=False):
         return get_NE_Hw(self.x_cf, self.y_cf)
 
+
+
 def run_NE_grape():
-    grape = NuclearElectronGrape(Bz=2*tesla, A=get_A(1,1), tN=400*nanosecond, N=500)
+    grape = NuclearElectronGrape(Bz=0.02*tesla, A=get_A(1,1), tN=100*nanosecond, N=2500, target = gate.CXr, max_time = 60)
     
     grape.run()
-    grape.result()
-
+    grape.plot_result()
 
 
 
@@ -366,7 +377,6 @@ def test():
 
 
 
-
 if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
@@ -375,15 +385,17 @@ if __name__ == '__main__':
     #tN=100*nanosecond
     #show_NE_CX(get_A(1,1), 2*tesla, tN, 300000, psi0=pt.kron(spin_down, spin_up)); plt.show()
 
-    #tN = 400*nanosecond
-    #tN_locked = lock_to_coupling(get_A(1,1),tN)
-    #show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 500000); plt.show()
+    tN = 80*nanosecond
+    tN_locked = lock_to_coupling(get_A(1,1),tN)
+    show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 5000); plt.show()
     #test(); plt.show()
 
     #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
     #show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()
 
-    run_NE_grape()
+    #run_NE_grape()
+
+    #test()
 
 #NE_energy_levels(); plt.show()
 
