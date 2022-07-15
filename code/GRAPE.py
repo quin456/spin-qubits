@@ -30,6 +30,7 @@ import gates as gate
 from utils import *
 from data import *
 from visualisation import plot_fidelity, y_axis_labels, colors, plot_spin_states, plot_phases
+from visualisation import double_long_width, double_long_height, single_long_height
 
 time_exp = 0
 time_prop = 0
@@ -101,9 +102,16 @@ def grad(f,x0,dx):
     return df
 
 
-def get_dimensions(A):
+def get_nS_nq_from_A(A):
     ''' Returns (number of systems, number of qubits in each system) '''
-    return len(A), len(A[0])
+    try:
+        if len(A.shape)==2:
+            return len(A), len(A[0])
+        elif len(A.shape)==1:
+            return 1, len(A)
+    except:
+        # A is not an array
+        return 1,1
 
 '''
 The following functions are used to manipulate and access 'u', which contains the control field amplitudes at 
@@ -628,6 +636,18 @@ class Grape:
         plot_phases(psi[0], self.tN, ax[1,1])
         return fig,ax
 
+
+
+    def plot_field_and_fidelity(self, fp=None):
+        fig,ax = plt.subplots(1,2)
+        self.plot_XY_fields(ax[0])
+        fids = fidelity_progress(self.X, self.target)
+        plot_fidelity(ax[1], fids, self.tN)
+        fig.set_size_inches(double_long_width, single_long_height)
+        fig.tight_layout()
+        if fp is not None: 
+            fig.savefig(fp)
+
     def plot_control_fields(self, ax):
         T = np.linspace(0, self.tN/nanosecond, self.N)
         x_cf, y_cf = get_unit_CFs(self.omega, self.phase, self.tN, self.N)
@@ -638,7 +658,7 @@ class Grape:
         for k in range(self.m):
             if k<self.m/2:
                 linestyle = '-'  
-                color = colors[k]
+                color = colors[k%len(colors)]
             else:
                 linestyle = '--'
                 color = colors[k-self.m//2]
@@ -678,10 +698,10 @@ class Grape:
         for k in range(self.m):
             if k<self.m/2:
                 linestyle = '-'  
-                color = colors[k]
+                color = colors[k%len(colors)]
             else:
                 linestyle = '--'
-                color = colors[k-self.m//2]
+                color = colors[(k-self.m//2)%len(colors)]
 
             ax.plot(t_axis,u_mat[k]*1e3, label=f'u{str(k)} (mT)', color=color, linestyle=linestyle)
             if y_axis_labels: ax.set_ylabel("Field strength (mT)")
@@ -763,11 +783,12 @@ class Grape:
 
 class GrapeESR(Grape):
 
-    def __init__(self, J, A, tN, N, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
+    def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
 
-        self.nS,self.nq=get_dimensions(A)
+        self.nS,self.nq=get_nS_nq_from_A(A)
         self.J=J 
         self.A=A 
+        self.Bz=Bz
         self.tN=tN
         self.N=N
         self.alpha=alpha
@@ -791,32 +812,42 @@ class GrapeESR(Grape):
         print(f"Exchange: J = {self.J/Mhz} MHz")
 
 
-    def get_H0(self, include_HZ=False, device=default_device):
+    def get_H0(self, device=default_device):
         '''
         Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
         
         Inputs:
             A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
         '''
-        nS, nq = get_dimensions(self.A)
+
+        if self.nS==1:
+            A = self.A.reshape(1,*self.A.shape)
+            J = self.J.reshape(1,*self.J.shape)
+
+
+        nS, nq = get_nS_nq_from_A(A)
         d = 2**nq
 
-        # Zeeman splitting term is generally rotated out and does not need to be simulated.
-        if include_HZ:
-            gamma_e = g_e*mu_B
-            HZ = 0.5 * gamma_e * B0 * gate.get_Zn(nq)
-        else:
-            HZ = pt.zeros(d,d)
+        # Zeeman splitting term is generally rotated out, which is encoded by setting Bz=0
+        HZ = 0.5 * gamma_e * self.Bz * gate.get_Zn(nq)
 
 
         if nq==3:
-            H0 = pt.einsum('sq,qab->sab', self.A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
         elif nq==2:
-            H0 = pt.einsum('sq,qab->sab', self.A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
         
         
         return H0.to(device)
 
+    def get_Hw(self):
+        '''
+        Gets Hw. Not used for actual optimisation, but sometimes handy for testing and stuff.
+        '''
+        ox = gate.get_Xn(self.nq)
+        oy = gate.get_Yn(self.nq)
+        Hw = pt.einsum('kj,ab->kjab',self.x_cf,ox) + pt.einsum('kj,ab->kjab',self.y_cf,oy)
+        return Hw
 
         
 
@@ -1120,7 +1151,7 @@ def ignore_tensor(trans,d):
 
 
 def get_HA(A, device=default_device):
-    nS, nq = get_dimensions(A)
+    nS, nq = get_nS_nq_from_A(A)
     d = 2**nq
     if nq==3:
         HA = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device))
@@ -1142,7 +1173,7 @@ def get_HJ(J,nq, device=default_device):
 
 
 def get_S_matrix(J,A, device=default_device):
-    nS,nq = get_dimensions(A); d=2**nq
+    nS,nq = get_nS_nq_from_A(A); d=2**nq
     if nq != 2: raise Exception("Not implemented")
     S = pt.zeros(nS,d,d, dtype=cplx_dtype, device=device)
     for s in range(nS):

@@ -37,13 +37,19 @@ A_kane3 = pt.tensor([A_mag, -A_mag, A_mag])
 
 
 
-def get_A(nS,nq, device=default_device):
-    if nq==2:
-        return pt.tensor(nS*[[A_mag, -A_mag]], device=device, dtype = cplx_dtype)
-    elif nq==3:
-        return pt.tensor(nS*[[A_mag, A_mag, -A_mag]], device=device, dtype=cplx_dtype)
-    elif nq==1:
+def get_A(nS,nq, NucSpin=None, device=default_device):
+    if nq==1:
         return A_mag
+    elif nq==2:
+        if NucSpin is None: NucSpin = [1, -1]
+        A = pt.tensor(nS*[[NucSpin[0]*A_mag, NucSpin[1]*A_mag]], device=device, dtype = cplx_dtype)
+    elif nq==3:
+        if NucSpin is None: NucSpin = [1, 1, -1]
+        A = pt.tensor(nS*[[NucSpin[0]*A_mag, NucSpin[1]*A_mag, NucSpin[2]*A_mag]], device=device, dtype=cplx_dtype)
+    if nS==1:
+        return A[0]
+    return A
+
 
 def all_J_pairs(J1, J2, device=default_device):
     nJ=15
@@ -53,17 +59,28 @@ def all_J_pairs(J1, J2, device=default_device):
             J[i*15+j,0] = J1[i]; J[i*15+j,1] = J2[j]
     return J
 
-def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm, device=default_device):
+def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm/2.3, device=default_device):
     if nq==2:
-        return J1[:nS].to(device)
+        J = J1[:nS].to(device)
     elif nq==3:
-        return all_J_pairs(J1,J2)[:nS]
+        J = all_J_pairs(J1,J2)[:nS]
+    if nS==1:
+        return J[0]
+    return J
 
 
-# junk?
-J_10nm = 0.1e-3*qE_n*joule # ~10e-23
-J_Omin = 15e6 * hz * hbar
-J_Omax = 50e6 * hz * hbar
-A_BP = 5e6 * hz
-A_approx = 1e9 * hz
-A_real1 = pt.tensor([183.5e6, 66.5e6]) * hz 
+
+
+
+
+if __name__ == '__main__':
+    print("============================================")
+    print("Printing data used in spin-qubit simulations")
+    print("============================================\n")
+    print(f"gamma_e = {gamma_e*tesla/Mhz:.1f} MHz, gamma_n = {gamma_n*tesla/Mhz:.1f} MHz")
+    print("\nExchange valiues for 18nm separation:")
+    for i in range(15):
+        print(f"J_18nm_{i} = {pt.real(J_100_18nm[i]).item()/Mhz:.1f} MHz")
+    print("\nExchange valiues for 14nm separation:")
+    for i in range(15):
+        print(f"J_14nm_{i} = {pt.real(J_100_14nm[i]).item()/Mhz:.1f} MHz")

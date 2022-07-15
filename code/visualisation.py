@@ -17,14 +17,15 @@ from pdb import set_trace
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-double_long_width = 16
-single_long_height = 2.7
-double_long_height = 4.6
+double_long_width = 10
+single_long_height = 2.3
+double_long_height = 2.6
 
 annotate=False
 y_axis_labels = False
 
-def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=None):
+
+def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=None, legend_loc='upper center'):
     '''
     Plots the evolution of each component of psi.
 
@@ -48,7 +49,7 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=Non
         else:
             y = pt.abs(psi[:,i])
         ax.plot(T,y, label = label_getter(i))
-    ax.legend()
+    ax.legend(loc=legend_loc)
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
 
@@ -105,16 +106,16 @@ def visualise_Hw(Hw,tN, eigs=None):
         Hw: (N,d,d) tensor describing d x d dimensional Hamiltonian over N timesteps
         tN: duration spanned by Hw.
     '''
-    N,d,d = Hw.shape
+    N,dim,dim = Hw.shape
     T = pt.linspace(0,tN/nanosecond,N)
     if eigs is not None:
         D = pt.diag(eigs.eigenvalues)
         U0_e = pt.matrix_exp(-1j*pt.einsum('ab,j->jab',D,T))
         S = eigs.eigenvectors
         Hw = dagger(U0_e) @ dagger(S) @ Hw @ S @ U0_e
-    fig,ax = plt.subplots(4,4)
-    for i in range(d):
-        for j in range(d):
+    fig,ax = plt.subplots(dim,dim)
+    for i in range(dim):
+        for j in range(dim):
             y = Hw[:,i,j]/Mhz
             ax[i,j].plot(T,pt.real(y))
             ax[i,j].plot(T,pt.imag(y))
@@ -153,7 +154,7 @@ def plot_energy_spectrum(E, ax=None):
 
 def show_fidelity(X, tN, target, ax=None):
     print(f"Final unitary:")
-    print(X[-1])
+    print(X[-1]/(X[-1,0,0]/pt.abs(X[-1,0,0])))
     fids = fidelity_progress(X,target)
     print(f"Final fidelity = {fids[-1]}")
     

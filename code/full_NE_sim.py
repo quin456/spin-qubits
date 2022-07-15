@@ -2,6 +2,7 @@
 import torch as pt 
 import numpy as np
 import matplotlib
+
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
@@ -68,7 +69,7 @@ def get_nuclear_spins(A):
     return spins
 
 
-def multi_NE_H0(Bz, A, J, nq):
+def multi_NE_H0(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), nq=3):
     """
     Returns free evolution Hamiltonian of nq==2 or nq==3 electron-nucleus pairs. Each electron interacts with its
     nucleus via hyperfine term 4AS.I, each neighboring electron interacts via exchange 4JS.S, and nulear and electrons
@@ -158,17 +159,33 @@ def run_NE_sim(tN,N,nq,Bz,A,J, psi0=None):
     nuclear_electron_sim(Bx,By,tN_locked,nq,A,J,psi0)
 
 
+
+def nuclear_spin_CNOT():
+    pass
+
+
+def test_full_NE_H0():
+
+    H0 = multi_NE_H0(Bz=2*tesla)
+
+
+    rf = get_resonant_frequencies(H0)
+
+    set_trace()
+
+
+
 if __name__ == '__main__':
 
-    run_NE_sim(
-        tN = 10.0*nanosecond,
-        N = 50000,
-        nq = 2, 
-        Bz = 2*tesla,
-        A = get_A(1,1), 
-        J = get_J(1,2)[0],
-        psi0 = gate.spin_1001
-        )
+    # run_NE_sim(
+    #     tN = 10.0*nanosecond,
+    #     N = 50000,
+    #     nq = 2, 
+    #     Bz = 2*tesla,
+    #     A = get_A(1,1), 
+    #     J = get_J(1,2)[0],
+    #     psi0 = gate.spin_1001
+    #     )
 
-
+    test_full_NE_H0()
     plt.show()

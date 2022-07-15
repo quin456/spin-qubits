@@ -2,7 +2,7 @@ import torch as pt
 from scipy.optimize import minimize
 
 from atomic_units import *
-from utils import get_dimensions 
+from utils import get_nS_nq_from_A 
 
 
 ################################################################################################################
@@ -31,7 +31,7 @@ def make_Hz(delta_w,N,m=1):
 def optimise_coupling(delta_w,A,target,tN,N,u0=None,kap=1,L=0, alpha=0):
     tN=tN*nanosecond
     A=A*Mhz 
-    nS,nq=get_dimensions(delta_w);m=1
+    nS,nq=get_nS_nq_from_A(delta_w);m=1
     if nq!=2 or nS not in [1,2]: raise Exception("Not implemented")
     
     Hz = make_Hz(delta_w,N)

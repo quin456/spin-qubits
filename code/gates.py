@@ -8,6 +8,7 @@ from data import cplx_dtype, real_dtype
 ngpus = pt.cuda.device_count()
 default_device = 'cuda:0' if ngpus>0 else 'cpu'
 
+alternate_NEs = False
 
 def kron3(A,B,C):
     '''  Returns kronecker product of 3 matrices A,B,C.  '''
@@ -214,6 +215,15 @@ Z2=ZI+IZ
 X3 = XII+IXI+IIX
 Y3= YII + IYI + IIY
 Z3 = ZII + IZI + IIZ
+X4 = XIII + IXII + IIXI + IIIX
+X4 = XIII + IXII + IIXI + IIIX
+Y4 = YIII + IYII + IIYI + IIIY
+Z4 = ZIII + IZII + IIZI + IIIZ
+X6 = XIIIII + IXIIII + IIXIII + IIIXII + IIIIXI + IIIIIX 
+Y6 = YIIIII + IYIIII + IIYIII + IIIYII + IIIIYI + IIIIIY 
+Z6 = ZIIIII + IZIIII + IIZIII + IIIZII + IIIIZI + IIIIIZ
+
+
 o2 = pt.kron(X,X) + pt.kron(Y,Y) + pt.kron(Z,Z)
 o12 = kron3(X,X,Id)+kron3(Y,Y,Id)+kron3(Z,Z,Id)
 o23 = kron3(Id,X,X)+kron3(Id,Y,Y)+kron3(Id,Z,Z)
@@ -222,6 +232,11 @@ o4_13 = kron4(X,Id,X,Id)+kron4(Y,Id,Y,Id)+kron4(Z,Id,Z,Id)
 o4_24 = kron4(Id,X,Id,X)+kron4(Id,Y,Id,Y)+kron4(Id,Z,Id,Z)
 o4_34 = kron4(Id,Id,X,X)+kron4(Id,Id,Y,Y)+kron4(Id,Id,Z,Z)
 
+o6_14 = kron6(X,Id,Id,X,Id,Id) + kron6(Y,Id,Id,Y,Id,Id) + kron6(Z,Id,Id,Z,Id,Id)
+o6_25 = kron6(Id,X,Id,Id,X,Id) + kron6(Id,Y,Id,Id,Y,Id) + kron6(Id,Z,Id,Id,Z,Id)
+o6_36 = kron6(Id,Id,X,Id,Id,X) + kron6(Id,Id,Y,Id,Id,Y) + kron6(Id,Id,Z,Id,Id,Z)
+o6_45 = kron6(Id,Id,Id,X,X,Id) + kron6(Id,Id,Id,Y,Y,Id) + kron6(Id,Id,Id,Z,Z,Id)
+o6_56 = kron6(Id,Id,Id,Id,X,X) + kron6(Id,Id,Id,Id,Y,Y) + kron6(Id,Id,Id,Id,Z,Z)
 
 def get_coupling_matrices(nq,device=default_device):
     if nq==3:
@@ -247,6 +262,10 @@ def get_Xn(nq, device=default_device):
         Xn = X2
     elif nq==3:
         Xn = X3
+    elif nq==4:
+        Xn = X4 
+    elif nq==6:
+        Xn = X6
     return Xn.to(device)
 
 def get_Yn(nq, device=default_device):
@@ -256,6 +275,10 @@ def get_Yn(nq, device=default_device):
         Yn = Y2
     elif nq==3:
         Yn = Y3
+    elif nq==4:
+        Yn = Y4 
+    elif nq==6:
+        Yn = Y6
     return Yn.to(device)
     
         
@@ -266,6 +289,10 @@ def get_Zn(nq, device=default_device):
         Zn = Z2
     elif nq==3:
         Zn = Z3
+    elif nq==4:
+        Zn = Z4 
+    elif nq==6:
+        Zn = Z6
     return Zn.to(device)
 
 

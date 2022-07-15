@@ -12,7 +12,7 @@ from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
-from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling, get_resonant_frequencies
+from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 
@@ -118,7 +118,19 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
 
     return Bx,By
 
+def print_specs(A, Bz, tN, N, gamma):
+    print("System specifications:")
+    print(f"Hyperfine A = {A/Mhz} MHz")
+    print(f"Static field Bz = {Bz/tesla} T")
+    print(f"Pulse duration tN = {tN/nanosecond} ns")
+    print(f"Timesteps N={N}")
+    H0 = get_NE_H0(A,Bz)
+    max_coupling = get_max_allowed_coupling(H0)
+    print(f"Max allowed coupling = {max_coupling/Mhz} MHz, corresponding to field strength B={max_coupling/(0.5*gamma) / mT} mT")
+
 def show_NE_CX(A,Bz,tN,N, psi0=spin_down_down): 
+    print("Performing NE_CX, which flips electron spin conditionally on nuclear spin being down.")
+    print_specs(A, Bz, tN, N, gamma=gamma_e)
     fig,ax = plt.subplots(1,4)
     Bx,By = NE_CX_pulse(tN,N,A,Bz, ax[0])
     X = get_NE_X(Bx, By, Bz, A, tN, N)
@@ -200,6 +212,8 @@ def get_NE_X(Bx, By, Bz, A, tN, N):
 
 
 def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
+    print("Performing EN_CX, which flips nuclear spin conditionally on electron spin being down.")
+    print_specs(A, Bz, tN, N, gamma_n)
     fig,ax = plt.subplots(1,4)
     Bx,By = EN_CX_pulse(tN,N,A,Bz, ax[0])
     X = get_NE_X(Bx, By, Bz, A, tN, N)
@@ -209,7 +223,7 @@ def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     fids=show_fidelity(X, tN, phased_target, ax=ax[1])
     imax = pt.argmax(fids)
     print(f"Max fidelity: fids[{imax}] = {fids[imax]}")
-
+    set_trace()
     psi = pt.matmul(X,psi0)
     plot_spin_states(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
@@ -381,17 +395,23 @@ if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
 
-    #tN = lock_to_coupling(get_A(1,1),40*nanosecond)
-    #tN=100*nanosecond
-    #show_NE_CX(get_A(1,1), 2*tesla, tN, 300000, psi0=pt.kron(spin_down, spin_up)); plt.show()
+    Bz = 2*tesla
 
-    tN = 80*nanosecond
-    tN_locked = lock_to_coupling(get_A(1,1),tN)
-    show_EN_CX(get_A(1,1), 2*tesla, tN_locked, 5000); plt.show()
+    steps_per_nanosecond = 20 * gamma_e*Bz/Ghz
+
+    def min_steps(tN):
+        return int(steps_per_nanosecond * tN/nanosecond)
+
+    # tN = 1000*nanosecond#lock_to_coupling(get_A(1,1),100*nanosecond)
+    # show_NE_CX(get_A(1,1), Bz, tN, min_steps(tN), psi0=pt.kron(spin_down, spin_up)); plt.show()
+
+    tN = 50.457*nanosecond
+    tN = lock_to_coupling(get_A(1,1),tN)
+    show_EN_CX(get_A(1,1), Bz, tN, min_steps(tN)); plt.show()
     #test(); plt.show()
 
     #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
-    #show_NE_swap(get_A(1,1), 2*tesla, tN_locked, 10000); plt.show()
+    #show_NE_swap(get_A(1,1), Bz, tN_locked, 10000); plt.show()
 
     #run_NE_grape()
 

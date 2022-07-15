@@ -1,16 +1,17 @@
 
-
-
-from GRAPE import *
-import gates as gate
-from atomic_units import *
-
-
 import torch as pt 
 import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
+
+
+from GRAPE import *
+import gates as gate
+from atomic_units import *
+from utils import get_nS_nq_from_A
+
+
 
 from pdb import set_trace
 
@@ -56,7 +57,7 @@ def put_diagonal(E):
     return D
 
 def get_2E_H0(A,J,include_HZ=False):
-    H0 = J*gate.sigDotSig + A * (gate.ZI-gate.IZ)
+    H0 = J*gate.sigDotSig + A[0]*gate.ZI +A[1]*gate.IZ
     if include_HZ:
         H0 += 0.5*gamma_e*(gate.get_Zn(2))
     return H0
@@ -77,6 +78,82 @@ def get_ordered_2E_eigensystem(A,J, include_HZ=False):
     E,S = order_eigensystem(H0,E_phys)
     D = pt.diag(E)
     return S,D
+
+def get_H0(A,J, include_HZ=False, device=default_device):
+    '''
+    Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
+    
+    Inputs:
+        A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
+    '''
+
+
+    nS, nq = get_nS_nq_from_A(A)
+    d = 2**nq
+
+    
+    if nS==1:
+        A = A.reshape(1,*A.shape)
+        J = J.reshape(1,*J.shape)
+        reshaped=True
+
+    # Zeeman splitting term is generally rotated out and does not need to be simulated.
+    if include_HZ:
+        gamma_e = g_e*mu_B
+        HZ = 0.5 * gamma_e * B0 * gate.get_Zn(nq)
+    else:
+        HZ = pt.zeros(d,d)
+
+
+    if nq==3:
+        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+    elif nq==2:
+        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+    
+    H0=H0.to(device)
+    if reshaped:
+        return H0[0]
+    return H0
+
+def print_E_system_info(A, J, tN, N):
+    nS,nq = get_nS_nq_from_A(A)
+    print(f"Simulating {nq} electron system.")
+    print(f"A = {A/Mhz} MHz")
+    print(f"J = {J/Mhz} MHz")
+    print(f"tN = {tN/nanosecond} ns")
+    print(f"N = {N}")
+
+def get_free_electron_evolution(tN, N, A=get_A(1,3), J=get_J(1,3), psi0 = None):
+    print_E_system_info(A, J, tN, N)
+    nS,nq = get_nS_nq_from_A(A)
+
+    print("Getting electron free evolution.")
+    print(f"J = {J/Mhz} MHz")
+    print(f"A = {A/Mhz} MHz")
+    print(f"tN = {tN/nanosecond} ns")
+
+
+    if psi0 is None:
+        if nq==2:
+            psi0 = pt.tensor([0,0,1,0], dtype=cplx_dtype)
+        elif nq==3:
+            psi0 = pt.tensor([0,0,0,0,1,0,0,0], dtype=cplx_dtype)
+
+    H0 = get_H0(A,J)
+    U0 = get_U0(H0, tN, N)
+    psi = U0 @ psi0 
+    return psi
+
+def plot_free_electron_evolution(tN, N, A, J, psi0 = None, ax=None, label_getter=None):
+    '''
+    Simulates and plots the free evolution of a system of 2 or 3 electrons coupled via exchange.
+    '''
+    psi = get_free_electron_evolution(A, J, tN, N, psi0=psi0)
+    plot_spin_states(psi, tN, ax, label_getter=label_getter)
+
+
+
+
 
 def order_eigensystem(H0, E_order):
 
@@ -144,8 +221,13 @@ def plot_eigenstates(psi,S,tN,ax=None):
         ax.plot(T,project_psi(psi, i, S), label = f'E{dim-1-i}')
 
 def get_U0(H0,tN,N):
-    
-    return pt.matrix_exp(-1j* pt.einsum('j,sab->sjab',pt.linspace(0,tN,N, dtype=cplx_dtype),H0))
+    if len(H0.shape) == 2:
+        H0=H0.reshape(1,*H0.shape)
+        reshaped=True
+    U0 = pt.matrix_exp(-1j* pt.einsum('j,sab->sjab',pt.linspace(0,tN,N, dtype=cplx_dtype),H0))
+    if reshaped: return U0[0]
+    return U0 
+
 
 def get_Hw(J,A,tN,N):
     '''
@@ -244,16 +326,6 @@ def get_Bw_field(tN,N,J,A,multisys=True, include_HZ=False):
         return x_field[0], y_field[0]
     return x_field,y_field
 
-def plot_spin_states(psi,tN,ax=None):
-
-    if ax is None: ax = plt.subplot()
-    N,dim=psi.shape
-    nq=get_nq(dim)
-    T=pt.linspace(0,tN/nanosecond,N)
-    for i in range(dim):
-
-        ax.plot(T,pt.abs(psi[:,i]), label = np.binary_repr(i,nq))
-    ax.legend()
 def forward_prop(U,device=default_device):
     '''
     Forward propagates U suboperators. U has shape (N,d,d) or (nS,N,d,d)
@@ -465,8 +537,8 @@ if __name__ == '__main__':
     tN=2.0
     N=50000
     nq=2
-    A=get_A(1,2)[0]
-    J=get_J(1,2)[0]
+    A=get_A(1,2)
+    J=get_J(1,2)
     run_NE_sim(2.0,50000,2, get_A(1,2)[0], get_J(1,2)[0])
     excite_electrons(tN,N,1,nq, include_HZ=True)
 
