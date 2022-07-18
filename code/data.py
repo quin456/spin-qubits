@@ -38,13 +38,16 @@ A_kane3 = pt.tensor([A_mag, -A_mag, A_mag])
 
 
 def get_A(nS,nq, NucSpin=None, device=default_device):
+    if NucSpin is not None:
+        # map 0->1, 1->-1
+        NucSpin = [1-2*ns for ns in NucSpin]
     if nq==1:
         return A_mag
     elif nq==2:
         if NucSpin is None: NucSpin = [1, -1]
         A = pt.tensor(nS*[[NucSpin[0]*A_mag, NucSpin[1]*A_mag]], device=device, dtype = cplx_dtype)
     elif nq==3:
-        if NucSpin is None: NucSpin = [1, 1, -1]
+        if NucSpin is None: NucSpin = [1, -1, 1]
         A = pt.tensor(nS*[[NucSpin[0]*A_mag, NucSpin[1]*A_mag, NucSpin[2]*A_mag]], device=device, dtype=cplx_dtype)
     if nS==1:
         return A[0]

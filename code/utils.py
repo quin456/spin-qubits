@@ -1,4 +1,5 @@
 
+from regex import P
 import torch as pt 
 import numpy as np
 import matplotlib
@@ -56,9 +57,16 @@ def fidelity(A,B):
     IP = innerProd(A,B)
     return np.real(IP*np.conj(IP))
 
+def wf_fidelity(u,v):
+    ''' Calculates vector fidelity of u and v '''
+    return pt.real(pt.dot(u,pt.conj(v)) * pt.dot(pt.conj(u),v))
+
 def get_nq(d):
     ''' Takes the dimension of the Hilbert space as input, and returns the number of qubits. '''
     return int(np.log2(d))
+
+
+
 
 def psi_from_polar(theta,phi):
     if not pt.is_tensor(theta):
@@ -158,6 +166,15 @@ def get_U0(H0, tN, N):
     U0 = pt.matrix_exp(-1j*H0T)
     return U0
 
+def get_X(H, tN, N, H0_IP=None):
+    
+    U = pt.matrix_exp(-1j*H*tN/N)
+    X = forward_prop(U)
+    if H0_IP is not None:
+        U0 = get_U0(H0_IP,tN,N)
+        X = dagger(U0)@X
+    return X
+
 
 def get_IP_X(X,H0,tN,N):
     U0 = get_U0(H0, tN, N)
@@ -208,14 +225,16 @@ def remove_duplicates(A):
         i+=1
     return A
 
-def get_allowed_transitions():
+def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_device):
     if Hw_shape is None:
         nq = get_nq(H0.shape[-1])
         Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq))/np.sqrt(2)
-    eig = pt.linalg.eig(H0)
-    E=eig.eigenvalues
-    S = eig.eigenvectors
-    S=S.to(device)
+
+    if S is None:
+        eig = pt.linalg.eig(H0)
+        E=eig.eigenvalues
+        S = eig.eigenvectors
+        S=S.to(device)
 
     S_T = pt.transpose(S,0,1)
     d = len(E)
@@ -237,26 +256,12 @@ def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
     Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
     Useful for >2qubit systems where analytically determining frequencies becomes difficult. 
     '''
-    if Hw_shape is None:
-        nq = get_nq(H0.shape[-1])
-        Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq))/np.sqrt(2)
+    freqs = []
     eig = pt.linalg.eig(H0)
     E=eig.eigenvalues
-    S = eig.eigenvectors
-    S=S.to(device)
-
-    S_T = pt.transpose(S,0,1)
-    d = len(E)
-
-    # transform shape of control Hamiltonian to basis of energy eigenstates
-    Hw_trans = matmul3(S_T,Hw_shape,S)
-    Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
-    Hw_angle = pt.angle(Hw_trans)
-    freqs = []
-    for i in range(d):
-        for j in range(d):
-            if Hw_nz[i,j] and Hw_angle[i,j] < 0:
-                freqs.append((pt.real(E[i]-E[j])).item())
+    allowed_transitions = get_allowed_transitions(H0, Hw_shape=Hw_shape, device=device)
+    for transition in allowed_transitions:
+        freqs.append((pt.real(E[transition[0]]-E[transition[1]])).item())
 
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
 
@@ -285,3 +290,24 @@ def get_max_allowed_coupling(H0, p=0.9999):
             if pt.abs(rf[i]-rf[j]) < min_delta_rf:
                 min_delta_rf = pt.abs(rf[i]-rf[j])
     return min_delta_rf / np.pi * np.arccos(np.sqrt(p))
+
+def print_rank2_tensor(T):
+    m,n = T.shape
+    for i in range(m):
+        if i==0:
+            print("⌈", end="")
+        elif i==n-1:
+            print("⌊", end="")
+        else:
+            print("|", end="")
+        for j in range(n):
+            print(f"{pt.real(T[i,j]).item():>6.2f}", end="  ")
+
+
+        if i==0:
+            print("⌉")    
+        elif i==n-1:
+            print("⌋")
+        else:
+            print("|")
+

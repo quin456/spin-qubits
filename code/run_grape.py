@@ -21,7 +21,7 @@ from pdb import set_trace
 
 
 
-def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, init_u_fn=None, kappa=1, minprint=False, mergeprop=False):
+def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, init_u_fn=None, kappa=1, minprint=False, mergeprop=False):
 
     if A is None: A = get_A(nS,nq)
     if J is None: J = get_J(nS,nq)
@@ -32,7 +32,7 @@ def run_CNOTs(tN,N, nq=3,nS=15, max_time = 24*3600, J=None, A=None, save_data=Tr
     else:
         u0=None; hist0=None
    
-    grape = GrapeESR(J,A,tN,N,target,rf,u0,hist0, max_time=max_time, save_data=save_data)
+    grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data)
 
 
 
@@ -56,8 +56,7 @@ def inspect_system():
     mergeprop = False
     A = get_A(1,3, NucSpin=[-1,-1,-1])*0
 
-
-    grape = GrapeESR(J,A,tN,N, max_time=max_time, save_data=save_data)
+    grape = GrapeESR(J,A,tN,N, Bz=0.02*tesla, max_time=max_time, save_data=save_data)
     Hw=grape.get_Hw()
 
     eigs = pt.linalg.eig(grape.H0)
@@ -73,23 +72,21 @@ def inspect_system():
     
 
 if __name__ == '__main__':
-    # J = get_J(3,3)[2:3]
-    # J[0,0]/=5
-    # run_CNOTs(
-    #     tN = 200.0*nanosecond, 
-    #     N = 1500, 
-    #     nq = 3, 
-    #     nS = 1, 
-    #     max_time = 60, 
-    #     kappa = 1, 
-    #     rf = None, 
-    #     save_data = True, 
-    #     init_u_fn = None, 
-    #     mergeprop = False,
-    #     J = J,
-    #     A = get_A(1,3, NucSpin=[-1,1,-1])
-    #     )
-    inspect_system()
+    run_CNOTs(
+        tN = 150.0*nanosecond, 
+        N = 2000, 
+        nq = 3, 
+        nS = 1, 
+        max_time = 300, 
+        kappa = 1, 
+        rf = None, 
+        save_data = True, 
+        init_u_fn = None, 
+        mergeprop = False,
+        J=get_J(1,3, J1=J_100_18nm, J2=J_100_18nm)/71 * 5,
+        A=get_A(1,3, NucSpin=[1,1,0])
+        )
+    #inspect_system()
 
 
 

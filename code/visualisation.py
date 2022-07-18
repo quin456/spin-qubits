@@ -5,7 +5,8 @@ matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
-from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian
+from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies
+from hamiltonians import get_2E_H0
 
 import qiskit
 from qiskit.visualization import plot_bloch_vector
@@ -20,6 +21,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 double_long_width = 10
 single_long_height = 2.3
 double_long_height = 2.6
+square_size = 10/2.6
 
 annotate=False
 y_axis_labels = False
@@ -152,6 +154,9 @@ def plot_energy_spectrum(E, ax=None):
     for i in range(dim):
         ax.axhline(pt.real(E[i]/Mhz), label=f'E{dim-1-i}', color=colors[i])
 
+def plot_energy_spectrum_from_H0(H0):
+    rf = get_resonant_frequencies
+
 def show_fidelity(X, tN, target, ax=None):
     print(f"Final unitary:")
     print(X[-1]/(X[-1,0,0]/pt.abs(X[-1,0,0])))
@@ -174,3 +179,9 @@ def bloch_sphere(psi, fp=None):
     plot_bloch_vector(blochs)
     if fp is not None: plt.savefig(fp)
 
+
+
+
+if __name__=='__main__':
+    H0 = get_2E_H0()
+    plot_energy_spectrum_from_H0(H0)

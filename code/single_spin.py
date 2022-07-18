@@ -19,7 +19,7 @@ from data import gamma_e, dir, cplx_dtype
 from utils import get_pulse_hamiltonian, sum_H0_Hw, get_U0, forward_prop, lock_to_coupling
 from data import get_A
 from GRAPE import Grape
-
+from hamiltonians import single_electron_H0
 
 
 from pdb import set_trace
@@ -29,8 +29,6 @@ def label_getter(j):
     if j==0: return '$|<0|\psi>|$'
     return '$|<1|\psi>|$'
 
-def single_electron_H0(Bz, A):
-    return ( 0.5*gamma_e*Bz + A ) * gate.Z
 
 
 def show_single_spin_evolution(Bz = 0*tesla, A=get_A(1,1), tN = 500*nanosecond, N=100000, target = gate.X, psi0=spin_up, fp=None):

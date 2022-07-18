@@ -10,8 +10,7 @@ from GRAPE import *
 import gates as gate
 from atomic_units import *
 from utils import get_nS_nq_from_A
-
-
+from hamiltonians import get_H0, get_U0
 
 from pdb import set_trace
 
@@ -56,13 +55,8 @@ def put_diagonal(E):
         D[j,j] = E[0,j]
     return D
 
-def get_2E_H0(A,J,include_HZ=False):
-    H0 = J*gate.sigDotSig + A[0]*gate.ZI +A[1]*gate.IZ
-    if include_HZ:
-        H0 += 0.5*gamma_e*(gate.get_Zn(2))
-    return H0
 
-def get_ordered_2E_eigensystem(A,J, include_HZ=False):
+def get_ordered_2E_eigensystem(A,J, Bz=0):
     '''
     Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
     Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
@@ -70,50 +64,30 @@ def get_ordered_2E_eigensystem(A,J, include_HZ=False):
     '''
     
     # ordering is always based of physical energy levels (so include_HZ always True)
-    E_phys = pt.real(pt.linalg.eig(get_2E_H0(A,J,include_HZ=True)).eigenvalues)
+    E_phys = pt.real(pt.linalg.eig(get_H0(A,J,Bz=B0)).eigenvalues)
 
     # Eigensystem to be returned usually in rotating frame (so include_HZ usually False)
-    H0 = get_2E_H0(A,J, include_HZ=include_HZ)
+    H0 = get_H0(A,J,Bz=Bz)
 
     E,S = order_eigensystem(H0,E_phys)
     D = pt.diag(E)
     return S,D
 
-def get_H0(A,J, include_HZ=False, device=default_device):
+def get_ordered_eigensystem(H0, H0_phys=None):
     '''
-    Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
-    
-    Inputs:
-        A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
+    Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
+    Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
+    included in eigenvalues, so eigenvalues will likely not appear to be in order.
     '''
-
-
-    nS, nq = get_nS_nq_from_A(A)
-    d = 2**nq
-
+    if H0_phys is None:
+        H0_phys=H0
     
-    if nS==1:
-        A = A.reshape(1,*A.shape)
-        J = J.reshape(1,*J.shape)
-        reshaped=True
+    # ordering is always based of physical energy levels (so include_HZ always True)
+    E_phys = pt.real(pt.linalg.eig(H0_phys).eigenvalues)
 
-    # Zeeman splitting term is generally rotated out and does not need to be simulated.
-    if include_HZ:
-        gamma_e = g_e*mu_B
-        HZ = 0.5 * gamma_e * B0 * gate.get_Zn(nq)
-    else:
-        HZ = pt.zeros(d,d)
-
-
-    if nq==3:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-    elif nq==2:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-    
-    H0=H0.to(device)
-    if reshaped:
-        return H0[0]
-    return H0
+    E,S = order_eigensystem(H0,E_phys)
+    D = pt.diag(E)
+    return S,D
 
 def print_E_system_info(A, J, tN, N):
     nS,nq = get_nS_nq_from_A(A)
@@ -219,28 +193,6 @@ def plot_eigenstates(psi,S,tN,ax=None):
     T = pt.linspace(0,tN/nanosecond,N)
     for i in range(dim):
         ax.plot(T,project_psi(psi, i, S), label = f'E{dim-1-i}')
-
-def get_U0(H0,tN,N):
-    if len(H0.shape) == 2:
-        H0=H0.reshape(1,*H0.shape)
-        reshaped=True
-    U0 = pt.matrix_exp(-1j* pt.einsum('j,sab->sjab',pt.linspace(0,tN,N, dtype=cplx_dtype),H0))
-    if reshaped: return U0[0]
-    return U0 
-
-
-def get_Hw(J,A,tN,N):
-    '''
-    Gets Hw and transforms to interaction picture
-    '''
-    omega = get_transition_frequency(A,J,-2,-1)
-    phase = pt.zeros_like(omega)
-    x_cf,y_cf=get_control_fields(omega,phase,tN,N)
-    nq = len(A[0])
-    ox = gate.get_Xn(nq)
-    oy = gate.get_Yn(nq)
-    Hw = pt.einsum('kj,ab->kjab',x_cf,ox) + pt.einsum('kj,ab->kjab',y_cf,oy)
-    return Hw
 
 
 def visualise_hamiltonian(H,tN):

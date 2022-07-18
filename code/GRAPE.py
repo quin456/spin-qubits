@@ -102,16 +102,6 @@ def grad(f,x0,dx):
     return df
 
 
-def get_nS_nq_from_A(A):
-    ''' Returns (number of systems, number of qubits in each system) '''
-    try:
-        if len(A.shape)==2:
-            return len(A), len(A[0])
-        elif len(A.shape)==1:
-            return 1, len(A)
-    except:
-        # A is not an array
-        return 1,1
 
 '''
 The following functions are used to manipulate and access 'u', which contains the control field amplitudes at 
@@ -311,17 +301,18 @@ class Grape:
         self.N=N
         self.nS=nS
         self.target=target
-        self.rf = self.get_all_resonant_frequencies() if rf is None else rf
-        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
-        self.m = len(self.omega)
-        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
 
-        if u0 is None: u0=self.init_u()
-        self.u0=u0
         self.max_time=max_time
         self.start_time = time.time()
         self.save_data = save_data
         self.H0 = self.get_H0()
+
+        self.rf = self.get_all_resonant_frequencies() if rf is None else rf
+        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
+        self.m = len(self.omega)
+        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
+        if u0 is None: u0=self.init_u()
+        self.u0=u0
 
         # allow for H0 with no systems axis
         self.reshaped=False
@@ -355,7 +346,7 @@ class Grape:
 
     def get_all_resonant_frequencies(self, device=default_device):
         rf = pt.tensor([], dtype = real_dtype, device=device)
-        H0 = self.get_H0()
+        H0 = self.H0
         nq = get_nq(H0.shape[-1])
         Hw_shape = (gate.get_Xn(self.nq) + gate.get_Yn(self.nq)) / np.sqrt(2)
         for q in range(self.nS):
@@ -722,7 +713,7 @@ class Grape:
             ax.set_ylabel("Total applied field")
         ax.legend()
         
-    def plot_cost_hist(self, ax):
+    def plot_cost_hist(self, ax, ax_label=None):
         ax.plot(self.cost_hist, label='cost')
         ax.set_xlabel('Iterations')
         if y_axis_labels: 
@@ -730,6 +721,8 @@ class Grape:
         else:
             ax.legend()
         ax.axhline(0, color='orange', linestyle = '--')
+        if ax_label is not None:
+            ax.set_title(ax_label, loc='left', fontdict={'fontsize': 20})
         return ax
 
 
@@ -785,6 +778,7 @@ class GrapeESR(Grape):
 
     def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
 
+        # save data first
         self.nS,self.nq=get_nS_nq_from_A(A)
         self.J=J 
         self.A=A 
@@ -793,10 +787,12 @@ class GrapeESR(Grape):
         self.N=N
         self.alpha=alpha
         self.target=target if target is not None else CNOT_targets(self.nS, self.nq)
-        self.rf=self.get_all_resonant_frequencies() if rf is None else rf
         self.status = 'UC'
+        # perform super.__init__() 2nd
         super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
         
+        # perform calculations last
+        self.rf=self.get_all_resonant_frequencies() if rf is None else rf
         self.alpha=alpha
 
 
@@ -808,6 +804,7 @@ class GrapeESR(Grape):
             system_type = "Electron spin qubits coupled via intermediate coupler qubit"
 
         print(f"System type: {system_type}")
+        print(f"Bz = {self.Bz/tesla} T")
         print(f"Hyperfine: A = {self.A/Mhz} MHz")
         print(f"Exchange: J = {self.J/Mhz} MHz")
 
@@ -819,7 +816,6 @@ class GrapeESR(Grape):
         Inputs:
             A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
         '''
-
         if self.nS==1:
             A = self.A.reshape(1,*self.A.shape)
             J = self.J.reshape(1,*self.J.shape)
@@ -833,9 +829,9 @@ class GrapeESR(Grape):
 
 
         if nq==3:
-            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
         elif nq==2:
-            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', self.J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
         
         
         return H0.to(device)
