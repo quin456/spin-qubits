@@ -1,12 +1,14 @@
 
 
 import matplotlib
+
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
-from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies
-from hamiltonians import get_2E_H0
+from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem
+from hamiltonians import get_H0, multi_NE_H0
+from data import get_A, get_J, gamma_n, gamma_e
 
 import qiskit
 from qiskit.visualization import plot_bloch_vector
@@ -152,10 +154,15 @@ def plot_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     dim = len(E)
     for i in range(dim):
-        ax.axhline(pt.real(E[i]/Mhz), label=f'E{dim-1-i}', color=colors[i])
+        ax.axhline(pt.real(E[i]/Mhz), label=f'E{dim-1-i}', color=colors[i%len(colors)])
 
 def plot_energy_spectrum_from_H0(H0):
-    rf = get_resonant_frequencies
+    rf = get_resonant_frequencies(H0)
+    S,D = get_ordered_eigensystem(H0)
+    plot_energy_spectrum(pt.diagonal(D))
+
+
+
 
 def show_fidelity(X, tN, target, ax=None):
     print(f"Final unitary:")
@@ -183,5 +190,9 @@ def bloch_sphere(psi, fp=None):
 
 
 if __name__=='__main__':
-    H0 = get_2E_H0()
-    plot_energy_spectrum_from_H0(H0)
+    H0_3E = get_H0(A=get_A(1,3, NucSpin=[1,1,1]), J=get_J(2,3)[1], Bz=0.1*tesla)
+    H0_3NE = multi_NE_H0(A=get_A(1,1), J=get_J(1,3), Bz=0.2*tesla, gamma_n=10*gamma_n, gamma_e=gamma_e/10)
+    plot_energy_spectrum_from_H0(H0_3NE)
+
+
+    plt.show()

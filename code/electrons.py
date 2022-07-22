@@ -73,21 +73,6 @@ def get_ordered_2E_eigensystem(A,J, Bz=0):
     D = pt.diag(E)
     return S,D
 
-def get_ordered_eigensystem(H0, H0_phys=None):
-    '''
-    Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
-    Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
-    included in eigenvalues, so eigenvalues will likely not appear to be in order.
-    '''
-    if H0_phys is None:
-        H0_phys=H0
-    
-    # ordering is always based of physical energy levels (so include_HZ always True)
-    E_phys = pt.real(pt.linalg.eig(H0_phys).eigenvalues)
-
-    E,S = order_eigensystem(H0,E_phys)
-    D = pt.diag(E)
-    return S,D
 
 def print_E_system_info(A, J, tN, N):
     nS,nq = get_nS_nq_from_A(A)
@@ -129,21 +114,6 @@ def plot_free_electron_evolution(tN, N, A, J, psi0 = None, ax=None, label_getter
 
 
 
-def order_eigensystem(H0, E_order):
-
-    idx_order = pt.topk(E_order, len(E_order)).indices
-
-    # get unsorted eigensystem
-    eig = pt.linalg.eig(H0)
-    E_us=eig.eigenvalues
-    S_us = eig.eigenvectors
-
-    E = pt.zeros_like(E_us)
-    S = pt.zeros_like(S_us)
-    for i,j in enumerate(idx_order):
-        E[i] = E_us[j]
-        S[:,i] = S_us[:,j]
-    return E,S
 
 
 def get_couplings(A,J):
@@ -310,8 +280,6 @@ def excite_electrons(tN,N,nS,nq, include_HZ=False):
     J = get_J(nS,nq) 
     Bx,By = get_Bw_field(tN,N,J,A,include_HZ=include_HZ)
 
-    
-    A,J=convert_Mhz(A,J)
     tN*=nanosecond; Bx*=tesla; By*=tesla
 
     C = get_couplings(A,J)

@@ -1,13 +1,13 @@
 
+import matplotlib
+matplotlib.use('Qt5Agg')
 
 import numpy as np
-import matplotlib
 import plotly.graph_objects as go
 import networkx as nx
 
 
 
-matplotlib.use('TKAgg')
 from matplotlib import pyplot as plt 
 import torch as pt
 from scipy.optimize import minimize
@@ -23,7 +23,7 @@ from data import get_A, get_J, gamma_e, gamma_n, cplx_dtype, J_100_18nm
 from pdb import set_trace
 
 
-from electrons import get_H0, get_ordered_eigensystem
+from electrons import get_H0, get_ordered_2E_eigensystem
 from NE_swap import NE_swap
 
 
@@ -66,11 +66,11 @@ def label_transitions(transitions,nq):
 
 
 
-def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None):
+def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=None):
     _nS,nq = get_nS_nq_from_A(A)
     H0 = get_H0(A, J, Bz=Bz)
 
-    S,D = get_ordered_eigensystem(A, J, Bz=Bz)
+    S,D = get_ordered_2E_eigensystem(A, J, Bz=Bz)
     d = len(D) #dimension, number of states / nodes
     print_rank2_tensor(S)
     print_rank2_tensor(D/Mhz)
@@ -126,6 +126,7 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None):
                 color[i] = 'red'
 
 
+
     # set_trace()
     # for i in range(n):
     #     G.nodes[i]['state'] = f'$|E_{i}\rangle$'
@@ -135,6 +136,9 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None):
     #nx.draw_networkx_labels(G,pos=pos)
     
     #nx.draw_networkx_nodes()
+    if label is not None:
+        print(label)
+        ax.annotate(label, [-4,-10])
 
 
 

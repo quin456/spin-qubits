@@ -19,11 +19,6 @@ def single_electron_H0(Bz, A):
 #####################################################################################
 ###########        Multi electron        ############################################
 #####################################################################################
-def get_2E_H0(A=get_A(1,2),J=get_J(1,2),include_HZ=False):
-    H0 = J*gate.sigDotSig + A[0]*gate.ZI +A[1]*gate.IZ
-    if include_HZ:
-        H0 += 0.5*gamma_e*(gate.get_Zn(2))
-    return H0
 
 
 def get_H0(A,J, Bz=0, device=default_device):
@@ -109,7 +104,9 @@ def get_U0(H0,tN,N):
 #####################################################################################
 
 def H_zeeman(Bz):
-    return gamma_e*Bz*gate.Sz - gamma_n*Bz*gate.Iz
+    Iz = gate.get_Iz_sum(1)
+    Sz = gate.get_Sz_sum(1)
+    return gamma_e*Bz*Sz - gamma_n*Bz*Iz
 
 def H_hyperfine(A):
     return A * gate.sigDotSig
@@ -135,7 +132,7 @@ def multi_NE_Hw(Bx, By, nq):
     return Hw
 
 
-def multi_NE_H0(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), nq=3, deactivate_exchange=False):
+def multi_NE_H0(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), nq=3, deactivate_exchange=False, gamma_e=gamma_e, gamma_n=gamma_n):
     """
     Returns free evolution Hamiltonian of nq==2 or nq==3 electron-nucleus pairs. Each electron interacts with its
     nucleus via hyperfine term 4AS.I, each neighboring electron interacts via exchange 4JS.S, and nulear and electrons

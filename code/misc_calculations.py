@@ -6,9 +6,9 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
-from electrons import get_1S_HA, get_1S_HJ
+from hamiltonians import get_X, get_U0, get_1S_HA, get_1S_HJ
 from data import *
-from utils import get_U0, dagger, get_resonant_frequencies, fidelity, get_X, wf_fidelity
+from utils import dagger, get_resonant_frequencies, fidelity, wf_fidelity
 import gates as gate
 from gates import spin_101, spin_10
 

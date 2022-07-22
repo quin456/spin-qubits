@@ -130,63 +130,6 @@ def forward_prop(U,device=default_device):
         return X
     return X[0]
 
-def get_pulse_hamiltonian(Bx, By, gamma, X=gate.X, Y=gate.Y):
-    '''
-    Inputs:
-        Bx: (N,) tensor describing magnetic field in x direction
-        By: (N,) tensor describing magnetic field in y direction
-        gamma: gyromagnetic ratio
-    Returns Hamiltonian corresponding to magnetic field pulse (Bx,By,0)
-    '''
-    reshaped=False
-    if len(Bx.shape) == 1:
-        Bx = Bx.reshape(1,*Bx.shape)
-        By = By.reshape(1,*By.shape)
-        reshaped=True 
-
-    Hw = 0.5 * gamma * ( pt.einsum('kj,ab->kjab', Bx, X) + pt.einsum('kj,ab->kjab', By, Y) )
-
-    if reshaped:
-        return Hw[0]
-    return Hw
-
-def sum_H0_Hw(H0, Hw):
-    '''
-    Inputs
-        H0: (d,d) tensor describing free Hamiltonian (time indep)
-        Hw: (N,d,d) tensor describing control Hamiltonian at each timestep
-    '''
-    N = len(Hw)
-    H = pt.einsum('j,ab->jab',pt.ones(N),H0) + Hw
-    return H
-
-def get_U0(H0, tN, N):
-    T = pt.linspace(0,tN,N)
-    H0T = pt.einsum('j,ab->jab',T,H0)
-    U0 = pt.matrix_exp(-1j*H0T)
-    return U0
-
-def get_X(H, tN, N, H0_IP=None):
-    
-    U = pt.matrix_exp(-1j*H*tN/N)
-    X = forward_prop(U)
-    if H0_IP is not None:
-        U0 = get_U0(H0_IP,tN,N)
-        X = dagger(U0)@X
-    return X
-
-
-def get_IP_X(X,H0,tN,N):
-    U0 = get_U0(H0, tN, N)
-    return pt.matmul(dagger(U0),X)
-
-def get_IP_eigen_X(X, H0, tN, N):
-    U0 = get_U0(H0, tN, N)
-    eig = pt.linalg.eig(H0)
-    S = eig.eigenvectors 
-    D = pt.diag(eig.eigenvalues)
-    return dagger(S) @ dagger(U0) @ X
-
 def fidelity_progress(X, target):
     '''
     For each system, determines the fidelity of unitaries in P with the target over the time of the pulse
@@ -267,6 +210,23 @@ def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
 
     return freqs
 
+
+def get_ordered_eigensystem(H0, H0_phys=None):
+    '''
+    Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
+    Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
+    included in eigenvalues, so eigenvalues will likely not appear to be in order.
+    '''
+    if H0_phys is None:
+        H0_phys=H0
+    
+    # ordering is always based of physical energy levels (so include_HZ always True)
+    E_phys = pt.real(pt.linalg.eig(H0_phys).eigenvalues)
+
+    E,S = order_eigensystem(H0,E_phys)
+    D = pt.diag(E)
+    return S,D
+
 def lock_to_coupling(c, tN):
     t_HF = 2*np.pi/c
     tN_locked = int(tN/t_HF) * t_HF
@@ -278,6 +238,21 @@ def lock_to_coupling(c, tN):
         print(f"Locking tN={tN/nanosecond}ns to coupling period {t_HF/nanosecond}ns. New tN={tN_locked/nanosecond}ns.")
     return tN_locked
 
+def order_eigensystem(H0, E_order):
+
+    idx_order = pt.topk(E_order, len(E_order)).indices
+
+    # get unsorted eigensystem
+    eig = pt.linalg.eig(H0)
+    E_us=eig.eigenvalues
+    S_us = eig.eigenvectors
+
+    E = pt.zeros_like(E_us)
+    S = pt.zeros_like(S_us)
+    for i,j in enumerate(idx_order):
+        E[i] = E_us[j]
+        S[:,i] = S_us[:,j]
+    return E,S
 
 def get_max_allowed_coupling(H0, p=0.9999):
     
@@ -311,3 +286,43 @@ def print_rank2_tensor(T):
         else:
             print("|")
 
+def label_axis(ax, label, x_offset=-0.05, y_offset=-0.05):
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    dx = xlim[1]-xlim[0]
+    dy = ylim[1]-ylim[0]
+
+    x = xlim[0]+x_offset*dx 
+    y = ylim[0]+y_offset*dy 
+
+    # if offset<0:
+    #     ax.set_xlim(offset, xlim[1])
+    #     ax.set_ylim(offset, ylim[1])
+
+    ax.text(x, y, label, fontsize=16, fontweight="bold", va="bottom", ha="left")
+
+
+
+
+def multi_NE_label_getter(j, label_states=None):
+    ''' Returns state label corresponding to integer j\in[0,dim] '''
+    if label_states is not None:
+        if j not in label_states:
+            return ''
+    uparrow = u'\u2191'
+    downarrow = u'\u2193'
+    b = np.binary_repr(j,4)
+    if b[2]=='0':
+        L2 = uparrow 
+    else:
+        L2=downarrow
+    if b[3]=='0':
+        L3 = uparrow
+    else:
+        L3 = downarrow
+    
+    return b[0]+b[1]+L2+L3
+
+
+if __name__ == '__main__':
+    label_axis(plt.subplot(), offset=-0.1, label='A')

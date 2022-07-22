@@ -13,8 +13,9 @@ from atomic_units import *
 from data import get_A, get_J
 from visualisation import plot_spin_states
 from pulse_maker import square_pulse
-from utils import get_pulse_hamiltonian, lock_to_coupling
+from utils import lock_to_coupling
 from NE_swap import NE_swap_pulse, NE_CX_pulse
+from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw
 
 from transition_visualisation import visualise_allowed_transitions
 
@@ -32,31 +33,16 @@ spin_down = pt.tensor([0,1], dtype=cplx_dtype)
 
 
 
-def get_NE_label(j):
-    ''' Returns state label corresponding to integer j\in[0,dim] '''
-    uparrow = u'\u2191'
-    downarrow = u'\u2193'
-    b= np.binary_repr(j,4)
-    if b[2]=='0':
-        L2 = uparrow 
-    else:
-        L2=downarrow
-    if b[3]=='0':
-        L3 = uparrow
-    else:
-        L3 = downarrow
-    
-    return b[0]+b[1]+L2+L3
 
 
-def plot_nuclear_electron_wf(psi,tN, ax=None):
+def plot_nuclear_electron_wf(psi,tN, ax=None, label_getter=multi_NE_label_getter):
     N,dim = psi.shape
     nq = get_nq(dim)
     T = pt.linspace(0,tN/nanosecond,N)
     
     if ax is None: ax=plt.subplot()
     for j in range(dim):
-        ax.plot(T,pt.abs(psi[:,j]), label = get_NE_label(j))
+        ax.plot(T,pt.abs(psi[:,j]), label = label_getter(j))
     ax.legend()
 
 
@@ -72,48 +58,11 @@ def get_nuclear_spins(A):
     return spins
 
 
-def multi_NE_H0(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), nq=3, deactivate_exchange=False):
-    """
-    Returns free evolution Hamiltonian of nq==2 or nq==3 electron-nucleus pairs. Each electron interacts with its
-    nucleus via hyperfine term 4AS.I, each neighboring electron interacts via exchange 4JS.S, and nulear and electrons
-    experience Zeeman splitting due to background static field, Bz.
-    """
-
-    Iz = gate.get_Iz_sum(nq)
-    Sz = gate.get_Sz_sum(nq)
-    if nq==2:
-        o_n1e1 = gate.o4_13 
-        o_n2e2 = gate.o4_24 
-        o_e1e2 = gate.o4_34
-        H0 = gamma_e*Bz*Sz - gamma_n*Bz*Iz + A*o_n1e1 + A*o_n2e2
-        if not deactivate_exchange: 
-            H0 += J*o_e1e2
-    elif nq==3:
-        o_n1e1 = gate.o6_14
-        o_n2e2 = gate.o6_25
-        o_n3e3 = gate.o6_36
-        o_e1e2 = gate.o6_45 
-        o_e2e3 = gate.o6_56 
-        H0 = gamma_e*Bz*Sz - gamma_n*Bz*Iz + A*(o_n1e1+o_n2e2+o_n3e3)
-        if not deactivate_exchange: 
-            H0 += J[0]*o_e1e2 + J[1]*o_e2e3
-    return H0
-
-def get_NE_Hw(Bx, By, nq):
-    """
-    Returns Hamiltonian resulting from transverse magnetic field (Bx, By, 0) applied to system of
-    nq==2 or nq==3 nuclear-electron pairs.
-    """
-    Ix = gate.get_Ix_sum(nq)
-    Iy = gate.get_Iy_sum(nq)
-    Sx = gate.get_Sx_sum(nq)
-    Sy = gate.get_Sy_sum(nq)
-    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) - get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy)
-    return Hw
 
 
 
-def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None, deactivate_exchange=False, ax=None):
+
+def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None, deactivate_exchange=False, ax=None, label_getter = multi_NE_label_getter):
     '''
     Simulation of nuclear and electron spins for single CNOT system.
 
@@ -126,7 +75,6 @@ def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None, deacti
     '''
     N = len(Bx)
     Bz = 2*tesla
-
     if psi0 is None:
         if nq==2:
             psi0 = gate.kron4(spin_up, spin_down, spin_up, spin_down)
@@ -140,7 +88,7 @@ def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None, deacti
 
     H0 = multi_NE_H0(Bz, A, J, nq, deactivate_exchange=deactivate_exchange)
 
-    Hw = get_NE_Hw(Bx, By, nq)
+    Hw = multi_NE_Hw(Bx, By, nq)
     Ix = gate.get_Ix_sum(nq)
     Iy = gate.get_Iy_sum(nq)
     Sx = gate.get_Sx_sum(nq)
@@ -155,7 +103,7 @@ def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None, deacti
     psi = pt.matmul(X,psi0)
 
     if ax is None: ax=plt.subplot()
-    plot_spin_states(psi,tN,ax, label_getter=get_NE_label)
+    plot_spin_states(psi,tN,ax, label_getter=label_getter)
 
     return
 
@@ -166,10 +114,16 @@ def run_NE_sim(tN,N,nq,Bz,A,J, psi0=None):
     nuclear_electron_sim(Bx,By,tN_locked,nq,A,J,psi0)
 
 
-def double_NE_swap_with_exchange(Bz=2*tesla, A=get_A(1,1), J=get_J(1,2), tN=500*nanosecond, N=1000000, ax=None, deactivate_exchange=False):
+def double_NE_swap_with_exchange(Bz=2*tesla, A=get_A(1,1), J=get_J(1,2), tN=500*nanosecond, N=1000000, ax=None, deactivate_exchange=False, label_states=None):
+    print("Simulating attempted nuclear-electron spin swap for 2 electron system")
+    print(f"J = {J/Mhz} MHz")
+    print(f"Bz = {Bz/tesla} T")
+    print(f"A = {A/Mhz} MHz")
     if ax is None: ax = plt.subplot()
     Bx,By = NE_swap_pulse(tN, N, A, Bz)
-    nuclear_electron_sim(Bx, By, tN, 2, A=A, J=J, psi0=spin_0010, deactivate_exchange=deactivate_exchange,ax=ax)
+    def label_getter(j):
+        return multi_NE_label_getter(j, label_states=label_states)
+    nuclear_electron_sim(Bx, By, tN, 2, A=A, J=J, psi0=spin_0010, deactivate_exchange=deactivate_exchange,ax=ax, label_getter=label_getter)
 
 
 def nuclear_spin_CNOT():
@@ -188,6 +142,8 @@ if __name__ == '__main__':
 
 
 
-    double_NE_swap_with_exchange(N=500000)
+    #double_NE_swap_with_exchange(N=500000)
+
+    graph_full_NE_H0_transitions()
 
     plt.show()

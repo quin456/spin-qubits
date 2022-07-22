@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib
 
-matplotlib.use('TKAgg')
+matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt
 from scipy.optimize import minimize
@@ -12,11 +12,11 @@ from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
-from utils import forward_prop, get_pulse_hamiltonian, sum_H0_Hw, fidelity, fidelity_progress, get_U0, dagger, get_IP_X, get_IP_eigen_X, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling
+from utils import forward_prop, fidelity, fidelity_progress, dagger, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling, multi_NE_label_getter
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 from visualisation import double_long_width, double_long_height, single_long_height
-from hamiltonians import get_NE_H0, H_zeeman, H_hyperfine
+from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine
 
 from pdb import set_trace
 
@@ -300,7 +300,7 @@ def show_NE_swap(A,Bz,tN,N, psi0=spin_down_down):
 
 
 
-def get_NE_label(j):
+def multi_NE_label_getter(j):
     ''' Returns state label corresponding to integer j\in[0,dim] '''
     uparrow = u'\u2191'
     downarrow = u'\u2193'
@@ -323,7 +323,7 @@ def NE_energy_levels(A=get_A(1,1)*Mhz, Bz=2*tesla):
     #plot_energy_spectrum(E)
 
     ax = plt.subplot()
-    ax.axhline(1, label=get_NE_label(0))
+    ax.axhline(1, label=multi_NE_label_getter(0))
     ax.axhline(10, label=f'$\psi$')
     ax.legend()
 

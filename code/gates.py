@@ -182,37 +182,49 @@ IIIIIX = kron(II,IIIX)
 
 
 def get_Iz_sum(nq):
-    if nq==2:
+    if nq==1:
+        return 0.5 * ZI
+    elif nq==2:
         return 0.5 * (ZIII + IZII)
     elif nq==3:
         return 0.5 * (ZIIIII + IZIIII + IIZIII)
 
 def get_Ix_sum(nq):
-    if nq==2:
+    if nq==1:
+        return 0.5 * XI 
+    elif nq==2:
         return 0.5 * (XIII + IXII)
     elif nq==3:
         return 0.5 * (XIIIII + IXIIII + IIXIII)
         
 def get_Iy_sum(nq):
-    if nq==2:
+    if nq==1:
+        return 0.5 * YI
+    elif nq==2:
         return 0.5 * (YIII + IYII)
     elif nq==3:
         return 0.5* (YIIIII + IYIIII + IIYIII)
 
 def get_Sz_sum(nq):
-    if nq==2:
+    if nq==1:
+        return 0.5 * IZ
+    elif nq==2:
         return 0.5 * (IIZI+IIIZ )
     elif nq==3:
         return 0.5 * (IIIZII + IIIIZI + IIIIIZ)
 
 def get_Sy_sum(nq):
-    if nq==2:
+    if nq==1:
+        return 0.5*IY
+    elif nq==2:
         return 0.5 * (IIYI+IIIY)
     elif nq==3:
         return 0.5 * (IIIYII + IIIIYI + IIIIIY)
 
 def get_Sx_sum(nq):
-    if nq==2:
+    if nq==1:
+        return 0.5*IX
+    elif nq==2:
         return 0.5 * (IIXI+IIIX)
     elif nq==3:
         return 0.5 * (IIIXII + IIIIXI + IIIIIX)
