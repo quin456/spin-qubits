@@ -18,9 +18,9 @@ from atomic_units import *
 from architecture_design import plot_cell_array, plot_annotated_cell, generate_CNOTs, numbered_qubits_cell, plot_single_cell
 from electrons import get_ordered_2E_eigensystem, plot_free_electron_evolution, get_free_electron_evolution
 from transition_visualisation import visualise_E_transitions
-from NE_swap import show_NE_swap, NE_swap_pulse, get_NE_H0, get_NE_X, get_IP_X
+from single_NE import show_NE_swap, NE_swap_pulse, get_NE_H0, get_NE_X, get_IP_X
 from gates import spin_11
-from full_NE_sim import double_NE_swap_with_exchange
+from multi_NE import double_NE_swap_with_exchange
 from misc_calculations import plot_load_time_vs_J
 
 plots_folder = f"{dir}thesis-plots/"

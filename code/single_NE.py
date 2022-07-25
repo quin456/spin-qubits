@@ -12,7 +12,7 @@ from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
-from utils import forward_prop, fidelity, fidelity_progress, dagger, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling, multi_NE_label_getter
+from utils import forward_prop, fidelity, fidelity_progress, dagger, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling, multi_NE_label_getter, get_rec_min_N
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 from visualisation import double_long_width, double_long_height, single_long_height
@@ -395,23 +395,22 @@ if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
 
-    Bz = 2*tesla
-
+    Bz=0.1*tesla
     steps_per_nanosecond = 20 * gamma_e*Bz/Ghz
 
     def min_steps(tN):
         return int(steps_per_nanosecond * tN/nanosecond)
 
+
     # tN = 1000*nanosecond#lock_to_coupling(get_A(1,1),100*nanosecond)
     # show_NE_CX(get_A(1,1), Bz, tN, min_steps(tN), psi0=pt.kron(spin_down, spin_up)); plt.show()
 
-    #tN = 50.457*nanosecond
+    tN = 1000*nanosecond
     #tN = lock_to_coupling(get_A(1,1),tN)
-    #show_EN_CX(get_A(1,1), Bz, tN, min_steps(tN)); plt.show()
+    show_EN_CX(get_A(1,1), Bz=Bz, tN=tN, N=min_steps(tN)); plt.show()
     #test(); plt.show()
-    tN=500*nanosecond
     #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
-    show_NE_swap(get_A(1,1), Bz, tN, 100000); plt.show()
+    #show_NE_swap(A=get_A(1,1), Bz=0.02*tesla, tN=10*nanosecond, N=10000); plt.show()
 
     #run_NE_grape()
 

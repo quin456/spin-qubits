@@ -14,7 +14,7 @@ from data import get_A, get_J
 from visualisation import plot_spin_states
 from pulse_maker import square_pulse
 from utils import lock_to_coupling
-from NE_swap import NE_swap_pulse, NE_CX_pulse
+from single_NE import NE_swap_pulse, NE_CX_pulse
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw
 
 from transition_visualisation import visualise_allowed_transitions
@@ -138,12 +138,17 @@ def graph_full_NE_H0_transitions():
 
 
 
+
+
 if __name__ == '__main__':
 
 
 
-    #double_NE_swap_with_exchange(N=500000)
+    H0 = multi_NE_H0(J=get_J(1,2), nq=2)
 
-    graph_full_NE_H0_transitions()
+    S,D = get_ordered_eigensystem(H0)
+
+    print_rank2_tensor(S)
+    #print_rank2_tensor(D)
 
     plt.show()

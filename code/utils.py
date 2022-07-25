@@ -31,6 +31,7 @@ def get_nS_nq_from_A(A):
     except:
         # A is not an array
         return 1,1
+        
 
 def normalise(v):
     ''' Normalises 1D tensor '''
@@ -322,6 +323,20 @@ def multi_NE_label_getter(j, label_states=None):
         L3 = downarrow
     
     return b[0]+b[1]+L2+L3
+
+
+def get_rec_min_N(rf, tN, N_period=20, verbosity=0):
+    
+    N_period=20 # recommended min number of timesteps per period
+    T=1/rf
+    max_w=pt.max(rf).item()
+    rec_min_N = int(np.ceil(N_period*max_w*tN/(2*np.pi)))
+    if verbosity>=1: 
+        print(f"resonant freqs = {rf/Mhz}")
+        print(f"T = {T/nanosecond}")
+    print(f"Recommened min N = {rec_min_N}")
+
+    return rec_min_N
 
 
 if __name__ == '__main__':

@@ -24,7 +24,7 @@ from pdb import set_trace
 
 
 from electrons import get_H0, get_ordered_2E_eigensystem
-from NE_swap import NE_swap
+from single_NE import NE_swap
 
 
 

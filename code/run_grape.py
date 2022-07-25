@@ -12,11 +12,11 @@ from GRAPE import GrapeESR, CNOT_targets
 import gates as gate 
 from atomic_units import *
 from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
-from electrons import get_Hw 
 from visualisation import visualise_Hw
-from utils import get_U0, dagger
-from pdb import set_trace
+from utils import dagger
+from hamiltonians import get_U0
 
+from pdb import set_trace
 
 
 
@@ -73,17 +73,17 @@ def inspect_system():
 
 if __name__ == '__main__':
     run_CNOTs(
-        tN = 150.0*nanosecond, 
-        N = 2000, 
+        tN = 100.0*nanosecond, 
+        N = 1000, 
         nq = 3, 
         nS = 1, 
-        max_time = 300, 
+        max_time = 40, 
         kappa = 1, 
         rf = None, 
         save_data = True, 
         init_u_fn = None, 
         mergeprop = False,
-        J=get_J(1,3, J1=J_100_18nm, J2=J_100_18nm)/71 * 5,
+        J=get_J(1,3, J1=J_100_18nm, J2=J_100_18nm),
         A=get_A(1,3, NucSpin=[1,1,0])
         )
     #inspect_system()

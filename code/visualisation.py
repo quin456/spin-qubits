@@ -6,7 +6,7 @@ matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
-from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem
+from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
 from hamiltonians import get_H0, multi_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e
 
@@ -168,7 +168,8 @@ def show_fidelity(X, tN, target, ax=None):
     print(f"Final unitary:")
     print(X[-1]/(X[-1,0,0]/pt.abs(X[-1,0,0])))
     fids = fidelity_progress(X,target)
-    print(f"Final fidelity = {fids[-1]}")
+    print(f"Final fidelity:")
+    print_rank2_tensor()
     
     if ax is None: ax = plt.subplot()
     plot_fidelity(ax,fids,tN)

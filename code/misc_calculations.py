@@ -6,9 +6,9 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
-from hamiltonians import get_X, get_U0, get_1S_HA, get_1S_HJ
+from hamiltonians import get_X, get_U0, get_1S_HA, get_1S_HJ, multi_NE_H0
 from data import *
-from utils import dagger, get_resonant_frequencies, fidelity, wf_fidelity
+from utils import dagger, get_resonant_frequencies, fidelity, wf_fidelity, get_rec_min_N
 import gates as gate
 from gates import spin_101, spin_10
 
@@ -93,12 +93,32 @@ def plot_load_time_vs_J(fid_min=0.999, Jmin = 5*Mhz, Jmax=50*Mhz, A=get_A(1,3), 
         plt.savefig(fp)
     
 
-
-
-
+def approximate_full_NE_optimisation_time():
+    '''
+    3 nuclear, 3 electron spin system optimisation time approximation based on 40 second 99.5% 
+    fidelity 3 electron CNOT optimisation time.
+    '''
+ 
+    t_3E = 40 # time to optimise 3 electron system
     
+    dim_3E = 2**3 
+    dim_3NE = 2**6
 
+    N_3E = 911
 
+    H0_3NE = multi_NE_H0(Bz=0.01*tesla)
+    rf_3NE = get_resonant_frequencies(H0_3NE)
+    N_3NE = get_rec_min_N(rf_3NE, 1000*nanosecond)
+
+    tN_3E = 100
+    tN_3NE = 1000
+
+    t_3NE = (2**dim_3NE / (2**dim_3E)) * (N_3NE/N_3E) * (tN_3NE/tN_3E) * t_3E
+
+    print(f"t_3NE = {t_3NE}")
+
+    set_trace()
+    
 
 
 def plot_load_time_vs_J_2q(fidelity_min = 0.999, N=2000, J=get_J(1,2), A=get_A(1,1), max_time=10*nanosecond, ax=None, fp=None):
@@ -131,11 +151,12 @@ def plot_load_time_vs_J_2q(fidelity_min = 0.999, N=2000, J=get_J(1,2), A=get_A(1
 
 
 if __name__ == '__main__':
-    plot_load_time_vs_J(fid_min=0.99, Jmin=1*Mhz, Jmax=50*Mhz, tN_max=100*nanosecond, A=get_A(1,3), n=100, get_t=get_t_wf)
+    #plot_load_time_vs_J(fid_min=0.99, Jmin=1*Mhz, Jmax=50*Mhz, tN_max=100*nanosecond, A=get_A(1,3), n=100, get_t=get_t_wf)
 
     #plot_load_time_vs_J_2q(fidelity_min=0.99)
 
     #print(f"{get_t_wf(get_J(1,3), get_A(1,3), 10*nanosecond,1000,0.99)/nanosecond} ns")
 
+    approximate_full_NE_optimisation_time()
 
     plt.show()

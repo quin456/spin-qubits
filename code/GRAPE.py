@@ -296,7 +296,7 @@ class Grape:
     '''
     General GRAPE class.
     '''
-    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600):
+    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600, verbosity=1):
         self.tN=tN
         self.N=N
         self.nS=nS
@@ -329,6 +329,7 @@ class Grape:
         self.cost_hist=cost_hist if cost_hist is not None else []  
         self.filename = None
 
+        self.verbosity = verbosity
         
         # Log job start
         if save_data: self.preLog(save_data)  
@@ -358,19 +359,6 @@ class Grape:
         return uToMatrix(self.u, self.m)
 
 
-    def get_rec_min_N(self, printFreqs=False, printPeriods=False):
-        
-        N_period=40 # recommended min number of timesteps per period
-        rf=self.get_all_resonant_frequencies()
-        T=1e3/rf
-        max_w=pt.max(rf).item()
-        rec_min_N = int(np.ceil(N_period*max_w*Mhz*self.tN*nanosecond/(2*np.pi)))
-        
-        if printFreqs: print(f"resonant freqs = {rf}")
-        if printPeriods: print(f"T = {T}")
-        print(f"Recommened min N = {rec_min_N}")
-
-        return rec_min_N
 
     def time_evolution(self, u, simSteps=1):
         '''
@@ -807,6 +795,7 @@ class GrapeESR(Grape):
         print(f"Bz = {self.Bz/tesla} T")
         print(f"Hyperfine: A = {self.A/Mhz} MHz")
         print(f"Exchange: J = {self.J/Mhz} MHz")
+        print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_all_resonant_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
 
 
     def get_H0(self, device=default_device):
