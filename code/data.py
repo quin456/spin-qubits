@@ -63,6 +63,11 @@ def all_J_pairs(J1, J2, device=default_device):
     return J
 
 def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm/2.3, device=default_device):
+
+    # default to small exchange for testing single triple donor
+    # if nS==1 and nq==3:
+    #     return pt.tensor([0.37*Mhz, 0.21*Mhz], dtype=cplx_dtype)
+
     if nq==2:
         J = J1[:nS].to(device)
     elif nq==3:

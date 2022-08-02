@@ -259,6 +259,8 @@ o6_36 = kron6(Id,Id,X,Id,Id,X) + kron6(Id,Id,Y,Id,Id,Y) + kron6(Id,Id,Z,Id,Id,Z)
 o6_45 = kron6(Id,Id,Id,X,X,Id) + kron6(Id,Id,Id,Y,Y,Id) + kron6(Id,Id,Id,Z,Z,Id)
 o6_56 = kron6(Id,Id,Id,Id,X,X) + kron6(Id,Id,Id,Id,Y,Y) + kron6(Id,Id,Id,Id,Z,Z)
 
+CX_3NE = kron(CX3q, III)
+
 def get_coupling_matrices(nq,device=default_device):
     if nq==3:
         return pt.stack((o12,o23)).to(device)

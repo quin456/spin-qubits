@@ -2,6 +2,8 @@
 import torch as pt 
 import numpy as np
 import matplotlib
+
+
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
@@ -9,8 +11,10 @@ from matplotlib import pyplot as plt
 from GRAPE import *
 import gates as gate
 from atomic_units import *
-from utils import get_nS_nq_from_A
-from hamiltonians import get_H0, get_U0
+from utils import get_nS_nq_from_A, get_couplings_over_gamma_e, psi_to_string
+from hamiltonians import get_H0, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_X
+from transition_visualisation import visualise_allowed_transitions
+from pulse_maker import pi_rot_square_pulse
 
 from pdb import set_trace
 
@@ -56,22 +60,7 @@ def put_diagonal(E):
     return D
 
 
-def get_ordered_2E_eigensystem(A,J, Bz=0):
-    '''
-    Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
-    Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
-    included in eigenvalues, so eigenvalues will likely not appear to be in order.
-    '''
-    
-    # ordering is always based of physical energy levels (so include_HZ always True)
-    E_phys = pt.real(pt.linalg.eig(get_H0(A,J,Bz=B0)).eigenvalues)
 
-    # Eigensystem to be returned usually in rotating frame (so include_HZ usually False)
-    H0 = get_H0(A,J,Bz=Bz)
-
-    E,S = order_eigensystem(H0,E_phys)
-    D = pt.diag(E)
-    return S,D
 
 
 def print_E_system_info(A, J, tN, N):
@@ -116,26 +105,7 @@ def plot_free_electron_evolution(tN, N, A, J, psi0 = None, ax=None, label_getter
 
 
 
-def get_couplings(A,J):
-    '''
-    Takes input S which has eigenstates of free Hamiltonian as columns.
 
-    Determines the resulting coupling strengths between these eigenstates which arise 
-    when a transverse control field is applied.
-
-    The coupling strengths refer to the magnitudes of the terms in the eigenbasis ctrl Hamiltonian.
-
-    Couplings are unitless.
-    '''
-
-    E,S = get_ordered_eigensystem(A,J)
-    nS = len(S)
-    nq = get_nq(len(S[0]))
-    couplings = pt.zeros_like(S)
-    Xn = gate.get_Xn(nq)
-    for s in range(nS):
-        couplings[s] = S[s].T @ Xn @ S[s]
-    return couplings
 
 def project_psi(psi, n, S):
     return pt.abs(pt.einsum('ja,a->j', psi, S[0,:,n]))
@@ -228,7 +198,7 @@ def get_Bw_field(tN,N,J,A,multisys=True, include_HZ=False):
         J=J.reshape(1,*J.shape)
         A=A.reshape(1,*A.shape)
 
-    C = get_couplings(A,J)
+    C = get_couplings_over_gamma_e(A,J)
     omega = get_transition_frequency(A,J,-2,-1,include_HZ=include_HZ)
     phase = pt.zeros_like(omega)
 
@@ -259,7 +229,7 @@ def forward_prop(U,device=default_device):
         sys_axis=True
 
     nS,N,dim,dim=U.shape
-    nq = get_nq(dim)
+    nq = get_nq_from_dim(dim)
     X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
     X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
 
@@ -274,60 +244,31 @@ def forward_prop(U,device=default_device):
         return X[0]
 
 
-def excite_electrons(tN,N,nS,nq, include_HZ=False):
 
-    A = get_A(nS,nq) 
-    J = get_J(nS,nq) 
-    Bx,By = get_Bw_field(tN,N,J,A,include_HZ=include_HZ)
+def simulate_electrons(psi0, tN, N, Bz, A, J, Bx, By):
 
-    tN*=nanosecond; Bx*=tesla; By*=tesla
+    _nS,nq = get_nS_nq_from_A(A)
+    H0 = get_H0(A, J, Bz)
 
-    C = get_couplings(A,J)
+    print("Printing RF's:")
+    rf = get_resonant_frequencies(H0)
+    for w in rf:
+        print(f"{w/Mhz} MHz")
 
-    x_field = 0.5*gamma_e*Bx 
-    y_field = 0.5*gamma_e*By
-    X_elec=gate.XI+gate.IX 
-    Y_elec=gate.YI+gate.IY
-    Hw = 0.5*gamma_e * (pt.einsum('j,ab->jab',Bx[0],X_elec) + pt.einsum('j,ab->jab',By[0],Y_elec))
-    print(f"Hw = {Hw}")
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, X=gate.get_Xn(nq), Y=gate.get_Yn(nq))
+    H = sum_H0_Hw(H0, Hw)
 
-    m=len(x_field)
+    X = get_X(H, tN, N)
 
-    u = pt.ones(m*N)
+    psi = X@psi0 
 
-    #A[0,0]*=-1
-    #A[0,2]*=-1
-    H0 = get_H0(A,J,include_HZ=include_HZ)
-    U0=get_U0(H0,tN,N)
-    E,S=get_ordered_eigensystem(A,J,include_HZ=include_HZ)
-    H = Hw + H0
-    global H0g,Hwg 
-    H0g=H0[0]; Hwg=Hw
-    dt=tN/N
-    U = pt.matrix_exp(-1j*H*dt)
-    X=forward_prop(U)
+    label_getter=None
 
-    # U = time_evol(u,H0,x_field,y_field,tN)
-    # X = forward_prop(U)[0]
-
-
-    psi0 = pt.kron(spin_up,spin_down)
-    psi = pt.matmul(X,psi0)
-    #psi = pt.cat((psi, pt.matmul(X_free[0],psi[-1,:])))
-    #psi = pt.einsum('jab,jb->ja',dagger(U0[0]),psi)
-
-    
-    #fig,ax = plt.subplots(1,3)
-    #plot_energy_spectrum(E,ax[0])
-    fig,ax=plt.subplots(1,2)
-    plot_spin_states(psi,tN,ax[0])
-    plot_eigenstates(psi,S,tN,ax[1])
-    #plt.axhline(0.1, label='Negligible amplitude', linestyle='dashed')
-    plt.legend()
-
-#excite_electrons(2.0, 50000,1,2, True)
-
-
+    S,D = get_ordered_eigensystem(H0)
+    if S is not None: 
+        psi = pt.einsum('ab,jb->ja', S.T, psi)
+        label_getter = lambda j: f"E{j}"
+    plot_spin_states(psi, tN, label_getter=label_getter)
 
 
 def get_n_e_label(j):
@@ -347,19 +288,7 @@ def get_n_e_label(j):
     return b[0]+b[1]+L2+L3
 
 
-def plot_nuclear_electron_wf(psi,tN, ax=None):
-    N,dim = psi.shape
-    nq = get_nq(dim)
-    T = pt.linspace(0,tN/nanosecond,N)
-    
-    if ax is None: ax=plt.subplot()
-    for j in range(dim):
-        ax.plot(T,pt.abs(psi[:,j]), label = get_n_e_label(j))
-    ax.legend()
 
-
-def plot_nuclear_electron_spectrum(H0):
-    get_ordered_eigensystem()
 
 def get_nuclear_spins(A):
     nq=len(A)
@@ -371,96 +300,64 @@ def get_nuclear_spins(A):
             spins[i]=spin_down 
     return spins
 
-def nuclear_electron_sim(Bx,By,tN,N,nq,A,J, psi0=None):
-    '''
-    Simulation of nuclear and electron spins for single CNOT system.
-
-    Order Hilbert space as |n1,...,e1,...>
-
-    Inputs:
-        (Bx,By): Tensors describing x and y components of control field at each timestep (in teslas).
-        A: hyperfines
-        J: Exchange coupling (0-dim or 2 element 1-dim)
-    '''
-
-    Bz = 2*tesla
-
-    # unit conversions
-    A,J=convert_Mhz(A,J)
-    tN*=nanosecond
-    Bx*=tesla; By*=tesla
-    A_mag = np.abs(A[0])
 
 
 
-    if nq==2:
-
-        ozn = gate.ZIII + gate.IZII 
-        oze = gate.IIZI + gate.IIIZ
-
-        o_n1e1 = gate.o4_13 
-        o_n2e2 = gate.o4_24 
-        o_e1e2 = gate.o4_34
-
-        X_nuc = gate.XIII+gate.IXII
-        X_elec = gate.IIXI+gate.IIIX
-        Y_nuc = gate.YIII+gate.IYII
-        Y_elec = gate.IIYI+gate.IIIY
-
-        nspin1,nspin2 = get_nuclear_spins(A)
-
-        if psi0==None:
-            psi0 = gate.kron4(nspin1, nspin2, spin_up, spin_down)
-        print(f"psi0={psi0}")
-        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_n*Bz*ozn + A_mag*o_n1e1 + A_mag*o_n2e2 + J*o_e1e2 
-        #H0 = 0.5*gamma_e*Bz*oze + A[0]*gate.IIZI + A[1]*gate.IIIZ + J*o_e1e2 
-    
-    elif nq==3:
-
-        ozn = gate.ZIIIII + gate.IZIIII + gate.IIZIII 
-        oze = gate.IIIZII + gate.IIIIZI + gate.IIIIIZ
-
-        o_n1e1 = gate.o6_14
-        o_n2e2 = gate.o6_25
-        o_n3e3 = gate.o6_36
-        o_e1e2 = gate.o6_45 
-        o_e2e3 = gate.o6_56 
-
-        H0 = 0.5*gamma_e*Bz*oze - 0.5*gamma_n*Bz*ozn + A_mag*(o_n1e1+o_n2e2+o_n3e3) + J[0]*o_e1e2 + J[1]*o_e2e3
 
 
-    else:
-        raise Exception("Invalid nq")
-
-    Hw_nuc = 0.5*gamma_n * (pt.einsum('j,ab->jab',Bx,X_nuc) + pt.einsum('j,ab->jab',By,Y_nuc))
-    Hw_elec = 0.5*gamma_e * (pt.einsum('j,ab->jab',Bx,X_elec) + pt.einsum('j,ab->jab',By,Y_elec))
-    Hw = Hw_elec+Hw_nuc
-    # H0 has shape (d,d), Hw has shape (N,d,d). H0+Hw automatically adds H0 to all N Hw timestep values.
-    H=Hw+H0
-    dt=tN/N
-    U = pt.matrix_exp(-1j*H*dt)
-    X=forward_prop(U)
-    psi = pt.matmul(X,psi0)
-
-    fig,ax=plt.subplots(1,1)
-    plot_spin_states(psi,tN,ax)
-
-    return
 
 
-def run_NE_sim(tN,N,nq,A,J, psi0=None):
-    Bx,By = get_Bw_field(tN,N,J,A,multisys=False,include_HZ=True)
-    nuclear_electron_sim(Bx,By,tN,N,nq,A,J,psi0)
+def analyse_3E_system(Bz=2*tesla, A=get_A(1,3), J=get_J(1,3)):
+
+    H0 = get_H0(A=A, J=J, Bz=Bz)
+    S,D = get_ordered_eigensystem(H0)
+
+    dim = len(S)
+
+    print("Electron eigenstates:")
+    for j in range(dim):
+        print(f"|e{j}> = {psi_to_string(S[:,j], pmin=0.001)}")
+
+
+def drive_electron_transition(S, D, transition, tN=100*nanosecond, N=10000):
+    print(f"Driving electron transition: |E{transition[0]}> <--> |E{transition[1]}>")
+    H0 = S@D@S.T
+
+    nq = get_nq_from_dim(H0.shape[-1])
+
+    w_res = D[transition[0]] - D[transition[1]]
+    couplings = get_couplings(S)
+    coupling = couplings[transition]
+    Bx, By = pi_rot_square_pulse(w_res, coupling, tN, N)
+
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, gate.get_X(nq), gate.get_Y(nq))
+
+    H = sum_H0_Hw(H0, Hw)
+    X = get_X(H, tN, N)
+
+    psi0 = S[:,transition[0]]
+    psi_target = S[:,transition[1]]
+
+    psi = X@psi0
+
+    plot_spin_states(S.T @ psi)
+
+
+
+
 
 
 if __name__ == '__main__':
-    tN=2.0
-    N=50000
-    nq=2
-    A=get_A(1,2)
-    J=get_J(1,2)
-    run_NE_sim(2.0,50000,2, get_A(1,2)[0], get_J(1,2)[0])
-    excite_electrons(tN,N,1,nq, include_HZ=True)
+    
+
+    H0 = get_H0(get_A(1,3), get_J(1,3))
+    S,D = get_ordered_eigensystem(H0)
+
+
+    allowed_transitions = get_allowed_transitions(H0, S)
+
+    drive_electron_transition(S, D, allowed_transitions[0])
+
 
 
     plt.show()

@@ -1,7 +1,12 @@
 
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib
+
+matplotlib.use('Qt5Agg')
+from matplotlib import pyplot as plt 
 from pdb import set_trace
+
+from utils import label_axis
 
 distorted = False
 
@@ -510,20 +515,22 @@ from matplotlib import cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 from matplotlib.figure import figaspect
 
-def generate_CNOTs():
-    fig,ax = plt.subplots(1,5)
+def generate_CNOTs(fp=None):
+    fig,ax = plt.subplots(1,4)
     CNOT(ax[0],Phi_L,L_loaded)
     CNOT(ax[1], Phi_R, R_loaded)
     CNOT(ax[2], Phi_U, U_loaded)
     CNOT(ax[3], Phi_D, D_loaded)
     cmap = mpl.cm.cool
     norm = mpl.colors.Normalize(vmin=-3.5, vmax=0.5)
-    ax[0].set_xlabel('x (nm)')
-    ax[1].set_xlabel('x (nm)')
-    ax[2].set_xlabel('x (nm)')
-    ax[3].set_xlabel('x (nm)')
-    ax[0].set_ylabel('y (nm)')
+    for axis in ax:
+        axis.set_xticks([])
+        axis.set_yticks([])
 
+    label_axis(ax[0],'(a), (e)', y_offset=-0.17)
+    label_axis(ax[1],'(b), (f)', y_offset=-0.17)
+    label_axis(ax[2],'(c)', y_offset=-0.17)
+    label_axis(ax[3],'(d)', y_offset=-0.17)
 
     ncolors = 4
     cw = 256//4 #color width
@@ -531,22 +538,26 @@ def generate_CNOTs():
     for n in range(ncolors):
         colors[n*cw:(n+1)*cw,:] = V_colours[n-3]
 
-    cmap = ListedColormap(colors)
+    # cmap = ListedColormap(colors)
+    # ax[4].set_aspect(1.5)
+    # ax[4].set_yticks([0, -1, -2, -3], ['$V_0$', '$V_1$', '$V_2$', '$V_3$'])
+    # cb1 = mpl.colorbar.ColorbarBase(ax[4], cmap=cmap,
+    #                                 norm=norm,
+    #                                 orientation='vertical')
+    # cb1.set_label('Voltage')
 
-    cb1 = mpl.colorbar.ColorbarBase(ax[4], cmap=cmap,
-                                    norm=norm,
-                                    orientation='vertical')
-    cb1.set_label('Voltage')
 
-    ax[4].set_aspect(1.5)
-    w, h = figaspect(10)
-    fig.set_size_inches(w/140, h/40)
+    w, h = figaspect(0.2)
+    fig.set_size_inches(w, h)
 
-    ax[4].set_yticks([0, -1, -2, -3], ['$V_0$', '$V_1$', '$V_2$', '$V_3$'])
-    plt.yticks()
+    if fp is not None:
+        fig.savefig(fp)
+
+
+
 if __name__ == '__main__':
     #plot_cell_array(4,4, filename="cell_array")
-    #generate_CNOTs()
+    generate_CNOTs()
     #plot_annotated_cell(filename="single_cell")
     #numbered_qubits_cell()
     #plot_single_cell()

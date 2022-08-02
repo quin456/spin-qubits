@@ -6,7 +6,7 @@ matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
-from utils import get_nq, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
+from utils import get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
 from hamiltonians import get_H0, multi_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e
 
@@ -28,6 +28,12 @@ square_size = 10/2.6
 annotate=False
 y_axis_labels = False
 
+uparrow = u'\u2191'
+downarrow = u'\u2193'
+Uparrow = '⇑'
+Downarrow = '⇓'
+
+
 
 def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=None, legend_loc='upper center'):
     '''
@@ -45,7 +51,7 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=Non
         else:
             label_getter = lambda i: np.binary_repr(i,nq)
     N,dim=psi.shape
-    nq=get_nq(dim)
+    nq=get_nq_from_dim(dim)
     T=pt.linspace(0,tN/nanosecond,N)
     for i in range(dim):
         if squared:
@@ -65,7 +71,7 @@ def plot_phases(psi, tN, ax=None):
 
     if ax is None: ax = plt.subplot() 
     N,dim = psi.shape 
-    nq=get_nq(dim)
+    nq=get_nq_from_dim(dim)
     T=pt.linspace(0,tN/nanosecond,N)
     phase = pt.zeros_like(psi)
     for i in range(dim):
@@ -125,7 +131,7 @@ def visualise_Hw(Hw,tN, eigs=None):
             ax[i,j].plot(T,pt.imag(y))
 
             
-def plot_fidelity(ax,fids,tN, legend=True):
+def plot_fidelity(ax,fids,tN, legend=True, printfid=True):
     if len(fids.shape)==1:
         fids = fids.reshape(1,*fids.shape)
     nS=len(fids); N = len(fids[0])
@@ -139,6 +145,7 @@ def plot_fidelity(ax,fids,tN, legend=True):
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("Fidelity")
     if annotate: ax.annotate("Fidelity progress", (0,0.95))
+    if printfid: print(f"Achieved fidelity = {pt.real(fids[0,-1]):.4f}")
     return ax
 
 
@@ -166,10 +173,9 @@ def plot_energy_spectrum_from_H0(H0):
 
 def show_fidelity(X, tN, target, ax=None):
     print(f"Final unitary:")
-    print(X[-1]/(X[-1,0,0]/pt.abs(X[-1,0,0])))
+    print_rank2_tensor(X[-1]/(X[-1,0,0]/pt.abs(X[-1,0,0])))
     fids = fidelity_progress(X,target)
-    print(f"Final fidelity:")
-    print_rank2_tensor()
+    print(f"Final fidelity = {fids[-1]}")
     
     if ax is None: ax = plt.subplot()
     plot_fidelity(ax,fids,tN)

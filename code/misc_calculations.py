@@ -6,7 +6,7 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
-from hamiltonians import get_X, get_U0, get_1S_HA, get_1S_HJ, multi_NE_H0
+from hamiltonians import get_X, get_U0, get_1S_HA, get_1S_HJ, multi_NE_H0, get_H0
 from data import *
 from utils import dagger, get_resonant_frequencies, fidelity, wf_fidelity, get_rec_min_N
 import gates as gate
@@ -98,26 +98,36 @@ def approximate_full_NE_optimisation_time():
     3 nuclear, 3 electron spin system optimisation time approximation based on 40 second 99.5% 
     fidelity 3 electron CNOT optimisation time.
     '''
+    tN_3E = 100 * nanosecond
+    tN_3NE = 1000 * nanosecond
  
     t_3E = 40 # time to optimise 3 electron system
     
     dim_3E = 2**3 
     dim_3NE = 2**6
 
-    N_3E = 911
+    H0_3E = get_H0(get_A(1,2), get_J(1,2))
+    rf_3E = get_resonant_frequencies(H0_3E)
+    N_3E = get_rec_min_N(rf_3E, tN_3E)
 
-    H0_3NE = multi_NE_H0(Bz=0.01*tesla)
+    H0_3NE = multi_NE_H0(Bz=2*tesla)
     rf_3NE = get_resonant_frequencies(H0_3NE)
-    N_3NE = get_rec_min_N(rf_3NE, 1000*nanosecond)
+    N_3NE = get_rec_min_N(rf_3NE, tN_3NE)
+    #N_3NE=N_3E
 
-    tN_3E = 100
-    tN_3NE = 1000
+    n_fields_3E = 15
+    n_fields_3NE = 637
 
-    t_3NE = (2**dim_3NE / (2**dim_3E)) * (N_3NE/N_3E) * (tN_3NE/tN_3E) * t_3E
+    print(f"w_max_3E = {pt.max(pt.real(rf_3E))/Mhz} MHz")
+    print(f"w_max_3NE = {pt.max(pt.real(rf_3NE))/Mhz} MHz")
+    print(f"N_3E = {N_3E}")
+    print(f"N_3NE = {N_3NE}")
 
-    print(f"t_3NE = {t_3NE}")
 
-    set_trace()
+    t_3NE = ((dim_3NE/dim_3E)**2) * (n_fields_3NE/n_fields_3E) * (N_3NE/N_3E) * (tN_3NE/tN_3E) * t_3E
+
+    print(f"t_3NE = {t_3NE} s")
+
     
 
 

@@ -1,5 +1,6 @@
 
 import matplotlib
+
 matplotlib.use('Qt5Agg')
 
 import numpy as np
@@ -23,14 +24,15 @@ from data import get_A, get_J, gamma_e, gamma_n, cplx_dtype, J_100_18nm
 from pdb import set_trace
 
 
-from electrons import get_H0, get_ordered_2E_eigensystem
+from utils import get_ordered_eigensystem
+from hamiltonians import get_H0
 from single_NE import NE_swap
 
 
 
-def visualise_allowed_transitions(H0):
+def visualise_allowed_transitions(H0, ax=None):
     
-
+    if ax is None: ax = plt.subplot()
     dim = H0.shape[-1]
     edges = get_allowed_transitions(H0)
     rf = get_resonant_frequencies(H0)
@@ -41,8 +43,31 @@ def visualise_allowed_transitions(H0):
     G = nx.Graph(name="transitions")
     G = nx.Graph(edges)
     #nx.draw_networkx_nodes(G, node_color='red')
-    nx.draw(G)
-    plt.show()
+    nx.draw(G, ax=ax)
+
+
+def visualise_triple_donor_NE_transitions(H0, nucspin_indices):
+
+
+    edges = get_allowed_transitions(H0)
+
+    color = ['blue'] * 64
+
+    for i in nucspin_indices[5] + nucspin_indices[7]:
+        color[i] = 'red'
+    for i in nucspin_indices[4] + nucspin_indices[6]:
+        color[i] = 'green'
+
+    G = nx.Graph()  # or DiGraph, MultiGraph, MultiDiGraph, etc
+    G = nx.Graph(name="transitions")
+    G = nx.Graph(edges)
+    #nx.draw_networkx_nodes(G, node_color='red')
+    nx.draw(G, node_color=color)
+
+
+
+
+
 
 
 def get_node_label(node,nq):
@@ -70,7 +95,7 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
     _nS,nq = get_nS_nq_from_A(A)
     H0 = get_H0(A, J, Bz=Bz)
 
-    S,D = get_ordered_2E_eigensystem(A, J, Bz=Bz)
+    S,D = get_ordered_eigensystem(get_H0(A=A,J=J,Bz=Bz))
     d = len(D) #dimension, number of states / nodes
     print_rank2_tensor(S)
     print_rank2_tensor(D/Mhz)
@@ -81,12 +106,17 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
     transitions = get_allowed_transitions(H0, S=S, E=pt.diag(D))
     labelled_transitions = label_transitions(transitions, nq)
 
+    H0_e100 = get_H0(A=get_A(1,3,NucSpin=[0,0,0]), J=J, Bz=2*tesla)
+    allowed_transitions = get_allowed_transitions(H0_e100)
+    
+    set_trace()
 
     G = nx.Graph()  # or DiGraph, MultiGraph, MultiDiGraph, etc
     G = nx.Graph(name="transitions")
     node_list = [get_node_label(i, nq) for i in range(d)]
     G.add_nodes_from(node_list)
     G.add_edges_from(labelled_transitions)
+
 
 
     if nq==3:

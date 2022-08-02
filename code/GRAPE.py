@@ -348,7 +348,7 @@ class Grape:
     def get_all_resonant_frequencies(self, device=default_device):
         rf = pt.tensor([], dtype = real_dtype, device=device)
         H0 = self.H0
-        nq = get_nq(H0.shape[-1])
+        nq = get_nq_from_dim(H0.shape[-1])
         Hw_shape = (gate.get_Xn(self.nq) + gate.get_Yn(self.nq)) / np.sqrt(2)
         for q in range(self.nS):
             rf_q=get_resonant_frequencies(H0[q], Hw_shape)
@@ -406,7 +406,7 @@ class Grape:
         nS=len(U)
         N=len(U[0])
         dim = U[0].shape[1]  # forward propagated time evolution operator
-        nq = get_nq(dim)
+        nq = get_nq_from_dim(dim)
         if target is None: target = CNOT_targets(nS,nq)
         X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
         X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
@@ -837,7 +837,7 @@ class GrapeESR(Grape):
         
 
     def time_evolution(self, u, device=default_device):
-        m,N = self.x_cf.shape; nS,d = self.H0.shape[:-1]; nq = get_nq(d)
+        m,N = self.x_cf.shape; nS,d = self.H0.shape[:-1]; nq = get_nq_from_dim(d)
         sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
         dt = self.tN/N
         u_mat = uToMatrix(u,m)
@@ -861,7 +861,7 @@ class GrapeESR(Grape):
         tN=self.tN
         target=self.target
 
-        m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq(d)
+        m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq_from_dim(d)
         sig_xn = gate.get_Xn(nq, device); sig_yn = gate.get_Yn(nq, device)
 
         t0 = time.time()

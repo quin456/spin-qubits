@@ -178,7 +178,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
 
 def get_NE_Hw(Bx,By):
-    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
+    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) #+ get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
 
 def get_NE_X(Bx, By, Bz, A, tN, N):
 
@@ -217,7 +217,6 @@ def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     fids=show_fidelity(X, tN, phased_target, ax=ax[1])
     imax = pt.argmax(fids)
     print(f"Max fidelity: fids[{imax}] = {fids[imax]}")
-    set_trace()
     psi = pt.matmul(X,psi0)
     plot_spin_states(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
@@ -395,7 +394,7 @@ if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
 
-    Bz=0.1*tesla
+    Bz=2*tesla
     steps_per_nanosecond = 20 * gamma_e*Bz/Ghz
 
     def min_steps(tN):
@@ -405,9 +404,9 @@ if __name__ == '__main__':
     # tN = 1000*nanosecond#lock_to_coupling(get_A(1,1),100*nanosecond)
     # show_NE_CX(get_A(1,1), Bz, tN, min_steps(tN), psi0=pt.kron(spin_down, spin_up)); plt.show()
 
-    tN = 1000*nanosecond
+    tN = 200*nanosecond
     #tN = lock_to_coupling(get_A(1,1),tN)
-    show_EN_CX(get_A(1,1), Bz=Bz, tN=tN, N=min_steps(tN)); plt.show()
+    show_EN_CX(get_A(1,1), Bz=Bz, tN=tN, N=100000); plt.show()
     #test(); plt.show()
     #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
     #show_NE_swap(A=get_A(1,1), Bz=0.02*tesla, tN=10*nanosecond, N=10000); plt.show()

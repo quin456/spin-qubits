@@ -132,13 +132,16 @@ def multi_NE_Hw(Bx, By, nq):
     return Hw
 
 
-def multi_NE_H0(Bz=2*tesla, A=get_A(1,1), nq=3, J=get_J(1,3), deactivate_exchange=False, gamma_e=gamma_e, gamma_n=gamma_n):
+def multi_NE_H0(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), deactivate_exchange=False, gamma_e=gamma_e, gamma_n=gamma_n):
     """
     Returns free evolution Hamiltonian of nq==2 or nq==3 electron-nucleus pairs. Each electron interacts with its
     nucleus via hyperfine term 4AS.I, each neighboring electron interacts via exchange 4JS.S, and nulear and electrons
     experience Zeeman splitting due to background static field, Bz.
     """
-
+    try:
+        nq = len(J)+1
+    except:
+        nq=2
     Iz = gate.get_Iz_sum(nq)
     Sz = gate.get_Sz_sum(nq)
     if nq==2:

@@ -75,16 +75,14 @@ if __name__ == '__main__':
     run_CNOTs(
         tN = 100.0*nanosecond, 
         N = 1000, 
-        nq = 3, 
+        nq = 2, 
         nS = 1, 
-        max_time = 40, 
+        max_time = 14, 
         kappa = 1, 
         rf = None, 
         save_data = True, 
         init_u_fn = None, 
-        mergeprop = False,
-        J=get_J(1,3, J1=J_100_18nm, J2=J_100_18nm),
-        A=get_A(1,3, NucSpin=[1,1,0])
+        mergeprop = False
         )
     #inspect_system()
 

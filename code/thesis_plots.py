@@ -22,6 +22,7 @@ from single_NE import show_NE_swap, NE_swap_pulse, get_NE_H0, get_NE_X, get_IP_X
 from gates import spin_11
 from multi_NE import double_NE_swap_with_exchange
 from misc_calculations import plot_load_time_vs_J
+from voltage_plot import plot_CNOTs
 
 plots_folder = f"{dir}thesis-plots/"
 
@@ -169,12 +170,13 @@ def chapter_1():
     two_electron_energy_level_picture(fp=f"{plots_folder}Ch1-2E-energy-levels.pdf")
 
 
-def chapter_2():
-    plot_cell_array(4,4, filename=f"{plots_folder}cell_array")
-    generate_CNOTs()
-    plot_annotated_cell(filename=f"{plots_folder}single_cell")
-    numbered_qubits_cell()
-    plot_single_cell()
+def chapter_2(chapter='Ch2-'):
+    #plot_cell_array(4,4, filename=f"{plots_folder}Ch2-cell_array.pdf")
+    generate_CNOTs(fp = f"{plots_folder}Ch2-CNOT-voltage-cells.pdf")
+    #plot_CNOTs(fp=f"{plots_folder}{chapter}CNOT-voltage-schedule.pdf")
+    #plot_annotated_cell(filename=f"{plots_folder}Ch2-single_cell.pdf")
+    #numbered_qubits_cell()
+    #plot_single_cell()
     plt.show()
 
 
@@ -332,8 +334,9 @@ def no_coupler():
 
 
 if __name__=='__main__':
+    chapter_2()
     #chapter_3()
 
-    no_coupler()
+    #no_coupler()
 
     plt.show()

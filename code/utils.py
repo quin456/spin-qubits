@@ -16,6 +16,7 @@ from atomic_units import *
 
 
 
+
 from pdb import set_trace
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -62,7 +63,7 @@ def wf_fidelity(u,v):
     ''' Calculates vector fidelity of u and v '''
     return pt.real(pt.dot(u,pt.conj(v)) * pt.dot(pt.conj(u),v))
 
-def get_nq(d):
+def get_nq_from_dim(d):
     ''' Takes the dimension of the Hilbert space as input, and returns the number of qubits. '''
     return int(np.log2(d))
 
@@ -120,7 +121,7 @@ def forward_prop(U,device=default_device):
         sys_axis=False
 
     nS,N,dim,dim=U.shape
-    nq = get_nq(dim)
+    nq = get_nq_from_dim(dim)
     X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
     X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
     
@@ -152,7 +153,29 @@ def fidelity_progress(X, target):
         fid = fid[0]
     return fid
 
+def psi_to_string(psi, pmin=0.01, real_evecs=True):
+    '''
+    Returns triple donor nuclear-electron spin state as a1|000000> + ... + a63|111111>,
+    ignoring all a's for which |a|^2 < pmin.
+    '''
+    out = ""
+    dim = len(psi)
+    nq=get_nq_from_dim(dim)
+    add_plus = False
+    for j in range(dim):
+        if pt.abs(psi[j])**2 > pmin:
+            if add_plus:
+                out += "+ "
+            if real_evecs:
+                out += f"{pt.real(psi[j]):0.2f}|{np.binary_repr(j,nq)}> "
+            else:
+                out += f"({pt.real(psi[j]):0.2f}+{pt.imag(psi[j]):0.2f}i)|{np.binary_repr(j,nq)}> "
+            add_plus=True
+    return out 
 
+def print_eigenstates(S):
+    for j in range(len(S)):
+        print(f"|E{j}> = {psi_to_string(S[:,j])}")
 
 def remove_duplicates(A):
     '''
@@ -171,8 +194,8 @@ def remove_duplicates(A):
 
 def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_device):
     if Hw_shape is None:
-        nq = get_nq(H0.shape[-1])
-        Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq))/np.sqrt(2)
+        nq = get_nq_from_dim(H0.shape[-1])
+        Hw_shape = (gate.get_Xn(nq) + 0.01*gate.get_Yn(nq))/np.sqrt(2)
 
     if S is None:
         eig = pt.linalg.eig(H0)
@@ -193,6 +216,8 @@ def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_de
         for j in range(d):
             if Hw_nz[i,j] and Hw_angle[i,j] < 0:
                 allowed_transitions.append((i,j))
+
+
     return allowed_transitions
 
 def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
@@ -210,6 +235,36 @@ def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
 
     return freqs
+
+
+def clean_vector(v, tol=1e-8):
+    for i in range(len(v)):
+        if pt.abs(v[i]) < tol: v[i]=0
+
+    
+def get_couplings_over_gamma_e(S,D):
+    '''
+    Takes input S which has eigenstates of free Hamiltonian as columns.
+
+    Determines the resulting coupling strengths between these eigenstates which arise 
+    when a transverse control field is applied.
+
+    The coupling strengths refer to the magnitudes of the terms in the eigenbasis ctrl Hamiltonian.
+
+    Couplings are unitless.
+    '''
+
+    nq = get_nq_from_dim(len(S[0]))
+    couplings = pt.zeros_like(S)
+    Xn = gate.get_Xn(nq)
+    couplings = S.T @ Xn @ S
+    return couplings
+
+def get_couplings(S, Hw_mag=None):
+    nq = get_nq_from_dim(len(S[0]))
+    couplings = pt.zeros_like(S)
+    if Hw_mag is None: Hw_mag = 0.5 * gamma_e * gate.get_Xn(nq)
+    return gamma_e*S.T @ Hw_mag @ S
 
 
 def get_ordered_eigensystem(H0, H0_phys=None):
@@ -277,7 +332,7 @@ def print_rank2_tensor(T):
         else:
             print("|", end="")
         for j in range(n):
-            print(f"{pt.real(T[i,j]).item():>6.2f}", end="  ")
+            print(f"{T[i,j].item():>6.2f}", end="  ")
 
 
         if i==0:

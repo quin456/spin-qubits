@@ -86,3 +86,16 @@ def optimise_NE_swap_Bz():
 
     ax[1].plot(pt.linspace(0,tN/nanosecond,N),sigmoid_pulse(u, tN, N))
     print(optimisation)
+
+
+def analyse_3NE_eigensystem(S):
+    dim = 64
+
+    print("============================================================================================================================================")
+
+    for j in range(dim):
+        evec = S[:,j]
+        print(f"Eigenstatestate {j}:")
+        for i in range(dim):
+            if pt.real(S[i,j]) > 0.01:
+                print(f"---> {np.binary_repr(i,6)}, Pr={pt.abs(S[i,j])**2}")
