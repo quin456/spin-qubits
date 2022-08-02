@@ -8,13 +8,14 @@ matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
 
-from GRAPE import *
 import gates as gate
 from atomic_units import *
-from utils import get_nS_nq_from_A, get_couplings_over_gamma_e, psi_to_string
+from utils import *
 from hamiltonians import get_H0, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_X
 from transition_visualisation import visualise_allowed_transitions
 from pulse_maker import pi_rot_square_pulse
+from visualisation import plot_spin_states, eigenstate_label_getter, visualise_Hw
+
 
 from pdb import set_trace
 
@@ -167,27 +168,6 @@ def ground_state(nq):
     elif nq==3:
         return pt.tensor([0,0,0,0,0,0,0,1], dtype=cplx_dtype)
 
-def visualise_resonant_Hw(J,A,tN,N):
-    J*=Mhz 
-    A*=Mhz 
-    tN*=nanosecond
-    E,S=get_ordered_eigensystem(A,J)
-    H0=get_H0(A,J)
-
-
-    # eig = pt.linalg.eig(H0)
-    # D=put_diagonal(eig.eigenvalues)
-    # S = eig.eigenvectors
-
-    U0=get_U0(H0,tN,N)
-    Hw = get_Hw(J,A,tN,N)
-    Hw = evolve_Hw(Hw,dagger(U0))
-    Hw = transform_Hw(Hw,S)
-
-    visualise_hamiltonian(Hw[0,0],tN)
-
-#visualise_resonant_Hw(get_J(1,3),get_A(1,3),15,300)
-
 def get_Bw_field(tN,N,J,A,multisys=True, include_HZ=False):
     '''
     Accepts pulse time tN (nanoseconds) and A,J couplngs (Mhz), and returns control pulse (tesla) to achieve
@@ -324,13 +304,15 @@ def drive_electron_transition(S, D, transition, tN=100*nanosecond, N=10000):
     H0 = S@D@S.T
 
     nq = get_nq_from_dim(H0.shape[-1])
+    E = pt.diag(D)
 
-    w_res = D[transition[0]] - D[transition[1]]
+    w_res = E[transition[0]] - E[transition[1]]
     couplings = get_couplings(S)
     coupling = couplings[transition]
+
     Bx, By = pi_rot_square_pulse(w_res, coupling, tN, N)
 
-    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, gate.get_X(nq), gate.get_Y(nq))
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, gate.get_Xn(nq), gate.get_Yn(nq))
 
     H = sum_H0_Hw(H0, Hw)
     X = get_X(H, tN, N)
@@ -340,26 +322,64 @@ def drive_electron_transition(S, D, transition, tN=100*nanosecond, N=10000):
 
     psi = X@psi0
 
-    plot_spin_states(S.T @ psi)
+    psi_eig = pt.einsum('ab,jb->ja', S.T, psi)
+    fig,ax = plt.subplots(1)
+    plot_spin_states(psi_eig, tN, label_getter=eigenstate_label_getter, ax=ax)
+    label_axis(ax, transition)
 
 
 
+def investigate_3E_resfreqs(tN=1000*nanosecond, N=10000):
+    nq=3
+    H0 = get_H0(get_A(1,nq), get_J(1,nq))
+    S,D = get_ordered_eigensystem(H0); E=pt.diag(D)
 
 
+    allowed_transitions = get_allowed_transitions(H0, S=S, E=E)
+
+    for j,transition in enumerate(allowed_transitions):
+        #if j+1 in [5,6,7,8,9,10]:
+        #    drive_electron_transition(S, D, (transition[1], transition[0]), tN=tN)
+        drive_electron_transition(S, D, transition, tN=tN)
+
+    #drive_electron_transition(S, D, allowed_transitions[8], tN=tN, N=N)
+
+def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*nanosecond, N=1000):
+    
+    H0 = get_H0(A=A, J=J, Bz=Bz)
+    S,D = get_ordered_eigensystem(H0); E=pt.diag(D)
+    trans_idx=8
+    transitions = get_allowed_transitions(H0, S=S, E=E)
+    transition = transitions[trans_idx]
+    omega = E[transition[0]]-E[transition[1]]
+
+    Bx, By = pi_rot_square_pulse(omega, gamma_e, tN, N)
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, X=gate.get_Xn(nq), Y=gate.get_Yn(nq))
+
+    dim = H0.shape[-1]
+
+    Hw_eig = pt.einsum('ab,jbd->jad', S.T, pt.einsum('jbc,cd->jbd', Hw, S))
+
+
+    print(f"w_res = {pt.real(omega)/Mhz:.2f} MHz for transition |E{transition[0]}> <--> |E{transition[1]}>")
+
+
+    for a in range(dim):
+        for b in range(dim):
+            if (pt.max(pt.real(Hw_eig[:,a,b])) + pt.max(pt.imag(Hw_eig[:,a,b])))/Mhz < 1e-9:
+                Hw_eig[:,a,b] = pt.zeros_like(Hw_eig[:,a,b])
+
+
+    exp_iDt = get_U0(D, tN, N)
+    Hw_eig_IP = pt.einsum('jab,jbd->jad', dagger(exp_iDt), pt.einsum('jbc,jcd->jbd', Hw_eig, exp_iDt))
+
+    visualise_Hw(Hw_eig_IP,tN)
 
 if __name__ == '__main__':
     
-
-    H0 = get_H0(get_A(1,3), get_J(1,3))
-    S,D = get_ordered_eigensystem(H0)
-
-
-    allowed_transitions = get_allowed_transitions(H0, S)
-
-    drive_electron_transition(S, D, allowed_transitions[0])
-
-
-
+    investigate_3E_resfreqs(tN=1000*nanosecond)
+    nq=3
+    #visualise_3E_Hw(A=get_A(1,nq), J=get_J(1,nq))
     plt.show()
 
 

@@ -12,10 +12,10 @@ from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
 from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
-from utils import forward_prop, fidelity, fidelity_progress, dagger, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling, multi_NE_label_getter, get_rec_min_N
+from utils import forward_prop, fidelity, fidelity_progress, dagger, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling, get_rec_min_N
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
-from visualisation import double_long_width, double_long_height, single_long_height
+from visualisation import double_long_width, double_long_height, single_long_height, multi_NE_label_getter
 from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine
 
 from pdb import set_trace
@@ -178,7 +178,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
 
 def get_NE_Hw(Bx,By):
-    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) #+ get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
+    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
 
 def get_NE_X(Bx, By, Bz, A, tN, N):
 

@@ -195,7 +195,7 @@ def remove_duplicates(A):
 def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_device):
     if Hw_shape is None:
         nq = get_nq_from_dim(H0.shape[-1])
-        Hw_shape = (gate.get_Xn(nq) + 0.01*gate.get_Yn(nq))/np.sqrt(2)
+        Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq))/np.sqrt(2)
 
     if S is None:
         eig = pt.linalg.eig(H0)
@@ -209,14 +209,13 @@ def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_de
     # transform shape of control Hamiltonian to basis of energy eigenstates
     Hw_trans = matmul3(S_T,Hw_shape,S)
     Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
-    Hw_angle = pt.angle(Hw_trans)
+    Hw_angle = pt.angle(Hw_trans**2)
 
     allowed_transitions = []
     for i in range(d):
         for j in range(d):
             if Hw_nz[i,j] and Hw_angle[i,j] < 0:
                 allowed_transitions.append((i,j))
-
 
     return allowed_transitions
 
@@ -360,24 +359,8 @@ def label_axis(ax, label, x_offset=-0.05, y_offset=-0.05):
 
 
 
-def multi_NE_label_getter(j, label_states=None):
-    ''' Returns state label corresponding to integer j\in[0,dim] '''
-    if label_states is not None:
-        if j not in label_states:
-            return ''
-    uparrow = u'\u2191'
-    downarrow = u'\u2193'
-    b = np.binary_repr(j,4)
-    if b[2]=='0':
-        L2 = uparrow 
-    else:
-        L2=downarrow
-    if b[3]=='0':
-        L3 = uparrow
-    else:
-        L3 = downarrow
-    
-    return b[0]+b[1]+L2+L3
+
+
 
 
 def get_rec_min_N(rf, tN, N_period=20, verbosity=0):

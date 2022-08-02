@@ -19,7 +19,7 @@ from pdb import set_trace
 def square_pulse(B, omega, tN, N, phase=0):
 
     T = pt.linspace(0,tN,N)
-
+    
     Bx = B*pt.cos(omega*T-phase)
     By = B*pt.sin(omega*T-phase)
 

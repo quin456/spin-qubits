@@ -33,9 +33,32 @@ downarrow = u'\u2193'
 Uparrow = '⇑'
 Downarrow = '⇓'
 
+def spin_state_label_getter(i, nq):
+    return np.binary_repr(i,nq)
 
+def eigenstate_label_getter(i):
+    return f"E{i}"
 
-def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=None, legend_loc='upper center'):
+def multi_NE_label_getter(j, label_states=None):
+    ''' Returns state label corresponding to integer j\in[0,dim] '''
+    if label_states is not None:
+        if j not in label_states:
+            return ''
+    uparrow = u'\u2191'
+    downarrow = u'\u2193'
+    b = np.binary_repr(j,4)
+    if b[2]=='0':
+        L2 = uparrow 
+    else:
+        L2=downarrow
+    if b[3]=='0':
+        L3 = uparrow
+    else:
+        L3 = downarrow
+    
+    return b[0]+b[1]+L2+L3
+
+def plot_spin_states(psi, tN, ax=None, label_getter =  None, squared=True, fp=None, legend_loc='upper center'):
     '''
     Plots the evolution of each component of psi.
 
@@ -45,11 +68,7 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=Non
         ax: axis on which to plot
     '''
     if ax is None: ax = plt.subplot()
-    if label_getter is None:
-        if squared:
-            label_getter = lambda i: f"Pr({np.binary_repr(i,nq)})"
-        else:
-            label_getter = lambda i: np.binary_repr(i,nq)
+    if label_getter is None: label_getter = lambda i: spin_state_label_getter(i, nq)
     N,dim=psi.shape
     nq=get_nq_from_dim(dim)
     T=pt.linspace(0,tN/nanosecond,N)
@@ -58,7 +77,8 @@ def plot_spin_states(psi, tN, ax=None, label_getter = None, squared=True, fp=Non
             y = pt.abs(psi[:,i])**2
         else:
             y = pt.abs(psi[:,i])
-        ax.plot(T,y, label = label_getter(i))
+        label = f"Pr({label_getter(i)})" if squared else label_getter(i)
+        ax.plot(T,y, label = label)
     ax.legend(loc=legend_loc)
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
