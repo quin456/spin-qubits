@@ -1,8 +1,10 @@
 
 
+import torch as pt
 import matplotlib
 
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
 from atomic_units import *
@@ -10,8 +12,6 @@ from utils import get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, 
 from hamiltonians import get_H0, multi_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e
 
-import qiskit
-from qiskit.visualization import plot_bloch_vector
 
 
 from pdb import set_trace
@@ -33,11 +33,20 @@ downarrow = u'\u2193'
 Uparrow = '⇑'
 Downarrow = '⇓'
 
-def spin_state_label_getter(i, nq):
-    return np.binary_repr(i,nq)
+def spin_state_label_getter(i, nq, states_to_label=None):
+    if states_to_label is not None:
+        if i in states_to_label:
+            return np.binary_repr(i,nq)
+    else:
+        return np.binary_repr(i,nq)
 
-def eigenstate_label_getter(i):
-    return f"E{i}"
+def eigenstate_label_getter(i, states_to_label=None):
+    if states_to_label is not None:
+        if i in states_to_label:
+            return f"E{i}"
+    else:
+        return f"E{i}"
+
 
 def multi_NE_label_getter(j, label_states=None):
     ''' Returns state label corresponding to integer j\in[0,dim] '''
@@ -58,7 +67,7 @@ def multi_NE_label_getter(j, label_states=None):
     
     return b[0]+b[1]+L2+L3
 
-def plot_spin_states(psi, tN, ax=None, label_getter =  None, squared=True, fp=None, legend_loc='upper center'):
+def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, fp=None, legend_loc='upper center'):
     '''
     Plots the evolution of each component of psi.
 
@@ -67,18 +76,26 @@ def plot_spin_states(psi, tN, ax=None, label_getter =  None, squared=True, fp=No
         tN: duration spanned by N timesteps
         ax: axis on which to plot
     '''
+    psi = psi.cpu()
     if ax is None: ax = plt.subplot()
     if label_getter is None: label_getter = lambda i: spin_state_label_getter(i, nq)
     N,dim=psi.shape
     nq=get_nq_from_dim(dim)
-    T=pt.linspace(0,tN/nanosecond,N)
+    if T is None:
+        if tN is None:
+            print("No time axis information provided to plot_psi")
+            T=pt.linspace(0,N-1,N)
+        else:
+            T=pt.linspace(0,tN,N)
     for i in range(dim):
         if squared:
             y = pt.abs(psi[:,i])**2
         else:
             y = pt.abs(psi[:,i])
-        label = f"Pr({label_getter(i)})" if squared else label_getter(i)
-        ax.plot(T,y, label = label)
+        label = label_getter(i)
+        # if squared and label is not None:
+        #     label = f"Pr({label})"
+        ax.plot(T/nanosecond,y, label = label)
     ax.legend(loc=legend_loc)
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
@@ -122,7 +139,7 @@ def plot_fields(Bx,By,tN,ax=None):
 
 def plot_psi_and_fields(psi, Bx, By, tN):
     fig,ax = plt.subplots(1,2)
-    plot_spin_states(psi, tN, ax[0])
+    plot_psi(psi, tN, ax[0])
     plot_fields(Bx, By, tN, ax[1])
     return ax
 
@@ -206,12 +223,6 @@ def show_fidelity(X, tN, target, ax=None):
 
 
 
-
-
-def bloch_sphere(psi, fp=None):
-    blochs = psi_to_cartesian(psi).numpy()
-    plot_bloch_vector(blochs)
-    if fp is not None: plt.savefig(fp)
 
 
 

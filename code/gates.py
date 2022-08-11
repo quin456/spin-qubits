@@ -20,8 +20,8 @@ def kron4(A,B,C,D):
 def kron6(A,B,C,D,E,F):
     return kron(kron3(A,B,C),kron3(D,E,F))
     
-spin_up = pt.tensor([1,0], dtype=cplx_dtype)
-spin_down = pt.tensor([0,1], dtype=cplx_dtype)
+spin_up = pt.tensor([1,0], dtype=cplx_dtype, device=default_device)
+spin_down = pt.tensor([0,1], dtype=cplx_dtype, device=default_device)
 spin_0 = spin_up 
 spin_1 = spin_down 
 spin_00 = kron(spin_0, spin_0)

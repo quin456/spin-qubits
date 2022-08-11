@@ -1,13 +1,15 @@
 
 import matplotlib
+import torch as pt
 
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 
 import numpy as np
 import plotly.graph_objects as go
 import networkx as nx
 
-
+from hamiltonians import multi_NE_H0
 
 from matplotlib import pyplot as plt 
 import torch as pt
@@ -16,7 +18,7 @@ from scipy.optimize import minimize
 from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
-from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
+from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import get_resonant_frequencies, get_allowed_transitions, print_rank2_tensor, get_nS_nq_from_A
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, get_J, gamma_e, gamma_n, cplx_dtype, J_100_18nm
@@ -171,7 +173,24 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
         ax.annotate(label, [-4,-10])
 
 
+def visualise_E_transitions_for_NucSpins(J=get_J(1,3)):
 
+    #fig,ax = plt.subplots(2,2)
+    ax=plt.subplot()
+    visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[0,0,0]), Bz=2*tesla, ax=ax)
+
+
+    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[0,0,1]), Bz=2*tesla, ax=ax[0,1])
+    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[1,0,0]), Bz=2*tesla, ax=ax[1,0])
+    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[1,0,1]), Bz=2*tesla, ax=ax[1,1])
+
+
+
+def graph_full_NE_H0_transitions(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3)):
+
+    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
+    rf = get_resonant_frequencies(H0)
+    visualise_allowed_transitions(H0)
 
 if __name__=='__main__':
     #visualise_allowed_transitions()

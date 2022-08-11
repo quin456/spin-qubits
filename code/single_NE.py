@@ -1,9 +1,11 @@
 
 
 import numpy as np
+import torch as pt
 import matplotlib
 
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt
 from scipy.optimize import minimize
@@ -11,7 +13,7 @@ from scipy.optimize import minimize
 from GRAPE import Grape
 import gates as gate 
 from atomic_units import *
-from visualisation import plot_spin_states, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
+from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import forward_prop, fidelity, fidelity_progress, dagger, lock_to_coupling, get_resonant_frequencies, get_max_allowed_coupling, get_rec_min_N
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
@@ -130,7 +132,7 @@ def show_NE_CX(A,Bz,tN,N, psi0=spin_down_down):
     X = get_NE_X(Bx, By, Bz, A, tN, N)
     fids = show_fidelity(X,tN, gate.CX, ax=ax[1])
     psi = pt.matmul(X,psi0)
-    plot_spin_states(psi,tN,ax[2])
+    plot_psi(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
 
 
@@ -139,7 +141,6 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
     w_res = -(2*A+gamma_n*Bz)
     phase = 0
-
 
     # get coupling of transition to transverse field
     # Gbar = (gamma_e + gamma_P) * Bz / 2 # remove Bz from Gamma later on 
@@ -167,6 +168,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
     if ax is not None: 
         plot_fields(Bx,By,tN,ax)
+
 
     return Bx,By
 
@@ -212,13 +214,15 @@ def show_EN_CX(A,Bz,tN,N, psi0=spin_down_down):
     Bx,By = EN_CX_pulse(tN,N,A,Bz, ax[0])
     X = get_NE_X(Bx, By, Bz, A, tN, N)
 
+
+
     phased_target = pt.matrix_exp(1j*np.pi/2 * (gate.IZ-gate.II)/2)@gate.CXr 
 
     fids=show_fidelity(X, tN, phased_target, ax=ax[1])
     imax = pt.argmax(fids)
     print(f"Max fidelity: fids[{imax}] = {fids[imax]}")
     psi = pt.matmul(X,psi0)
-    plot_spin_states(psi,tN,ax[2])
+    plot_psi(psi,tN,ax[2])
     plot_phases(psi,tN,ax[3])
 
 
@@ -293,7 +297,7 @@ def show_NE_swap(A,Bz,tN,N, psi0=spin_down_down):
 
 
     psi = X @ psi0 
-    plot_spin_states(psi,tN,ax[2])
+    plot_psi(psi,tN,ax[2])
 
     fig.set_size_inches(double_long_width, double_long_height)
 

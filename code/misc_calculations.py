@@ -1,12 +1,14 @@
 
 
 
-import numpy as np 
+import numpy as np
+import torch as pt 
 import matplotlib
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
-from hamiltonians import get_X, get_U0, get_1S_HA, get_1S_HJ, multi_NE_H0, get_H0
+from hamiltonians import get_X_from_H, get_U0, get_1S_HA, get_1S_HJ, multi_NE_H0, get_H0
 from data import *
 from utils import dagger, get_resonant_frequencies, fidelity, wf_fidelity, get_rec_min_N
 import gates as gate
@@ -24,7 +26,7 @@ def get_t_fidelity(J,A, tN, N, fid_min):
     UA = get_U0(HA, tN, N)
     H = dagger(UA)@HJ@UA 
 
-    X = get_X(H,tN,N)
+    X = get_X_from_H(H,tN,N)
     Id = gate.II if nq==2 else gate.III
     fid = pt.tensor([fidelity(X[j], Id) for j in range(N)])
 
@@ -42,7 +44,7 @@ def get_t_wf(J,A, tN, N, fid_min, psi0=spin_101):
     UA = get_U0(HA, tN, N)
     H = dagger(UA)@HJ@UA 
 
-    X = get_X(H,tN,N)
+    X = get_X_from_H(H,tN,N)
     psi = X@psi0
     fid = pt.abs(psi[:,5])**2
     #fid = pt.tensor([wf_fidelity(psi[j], psi0) for j in range(N)])

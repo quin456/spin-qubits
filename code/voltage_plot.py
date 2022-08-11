@@ -1,5 +1,8 @@
 import numpy as np 
-from matplotlib import pyplot as plt
+import matplotlib
+
+matplotlib.use('Qt5Agg')
+from matplotlib import pyplot as plt 
 import pdb
 
 n_wires=5
@@ -190,7 +193,6 @@ def plot_CNOTs(fp=None):
     plt.annotate("(f)", (t_CNOT*(5.4), offset*(n_wires-0.7)))
 
     if fp is not None: plt.savefig(fp)
-    plt.show()
 
 
 def measure(V):
@@ -809,5 +811,6 @@ if __name__ == '__main__':
     #plot_measurements("measure_voltages.pdf")
 
     #plot_total_measurement()
+    plt.show()
 
 

@@ -1,28 +1,34 @@
 
+
+import torch as pt
 import matplotlib
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import figure 
 import numpy as np 
-import torch as pt
 
 from GRAPE import GrapeESR
 import gates as gate
-from utils import psi_from_polar, get_A, get_J, normalise, get_resonant_frequencies, label_axis, multi_NE_label_getter
+from utils import psi_from_polar, get_A, get_J, normalise, get_resonant_frequencies, label_axis
 from hamiltonians import get_pulse_hamiltonian, get_U0
-from visualisation import bloch_sphere, plot_spin_states
+from visualisation import plot_psi
 from visualisation import *
 from single_spin import show_single_spin_evolution
 from data import dir, cplx_dtype, gamma_e, gamma_n, J_100_14nm, J_100_18nm
 from atomic_units import *
 from architecture_design import plot_cell_array, plot_annotated_cell, generate_CNOTs, numbered_qubits_cell, plot_single_cell
-from electrons import get_ordered_2E_eigensystem, plot_free_electron_evolution, get_free_electron_evolution
+from electrons import plot_free_electron_evolution, get_free_electron_evolution
 from transition_visualisation import visualise_E_transitions
 from single_NE import show_NE_swap, NE_swap_pulse, get_NE_H0, get_NE_X, get_IP_X
 from gates import spin_11
 from multi_NE import double_NE_swap_with_exchange
 from misc_calculations import plot_load_time_vs_J
 from voltage_plot import plot_CNOTs
+from electrons import investigate_3E_resfreqs
+
+
+from qiskit.visualization import plot_bloch_vector
 
 plots_folder = f"{dir}thesis-plots/"
 
@@ -45,6 +51,13 @@ max_time = 10
 ################################################################################################################
 ################        CHAPTER 1 INTRODUCTION        ##########################################################
 ################################################################################################################
+
+
+def bloch_sphere(psi, fp=None):
+    blochs = psi_to_cartesian(psi).numpy()
+    plot_bloch_vector(blochs)
+    if fp is not None: plt.savefig(fp)
+
 
 def energy_level_picture(H0, state_labels=None, energy_labels=None, colors=colors, ax=None, fp=None, ax_label=None):
 
@@ -131,7 +144,7 @@ def free_2E_evolution(fp=None):
     psi0 = normalise(pt.tensor([0.5, 0, 0.5, 0], dtype=cplx_dtype))
     psi = U0@psi0
 
-    plot_spin_states(psi, tN, squared=True, fp=fp)
+    plot_psi(psi, tN, squared=True, fp=fp)
 
 def exchange_label_getter(i):
     if i in [1,2,4]:
@@ -181,7 +194,7 @@ def chapter_2(chapter='Ch2-'):
 
 
 
-def chapter_3():
+def chapter_3(chapter="Ch3-"):
 
     def grape_1s2q(fp=None, fp1=None):
         grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*nanosecond,N=500, max_time=5); grape.run()
@@ -207,8 +220,9 @@ def chapter_3():
 
     #show_2E_Hw(get_J(1,2),get_A(1,2),30*nanosecond,500, "Ch3-2E-Hw.pdf")
 
-    compare_free_3E_evols(fp = f"{plots_folder}Ch3-3E-free-evol-comparison.pdf")
+    #compare_free_3E_evols(fp = f"{plots_folder}Ch3-3E-free-evol-comparison.pdf")
 
+    investigate_3E_resfreqs(fp = f"{plots_folder}{chapter}all-allowed-3E-transitions.pdf")
 
 def no_coupler():
     def plot_exchange_switch(A=get_A(1,3), J=get_J(1,3), fp=None):
@@ -236,7 +250,7 @@ def no_coupler():
         print(f"Analytic: Pr(~100) < 0.99 after t-t0 = {analytic_time_limit(J=pt.max(pt.real(J)))/nanosecond:.3f} ns")
         psi = pt.cat((psi1, psi2))
         fig,ax = plt.subplots(1,1)
-        plot_spin_states(psi, tN, legend_loc = 'center left', ax=ax, label_getter=exchange_label_getter)
+        plot_psi(psi, tN, legend_loc = 'center left', ax=ax, label_getter=exchange_label_getter)
         fig.set_size_inches(double_long_width, double_long_height)
         ax.set_xlabel("time (ns)")
         ax.axvline(10, color='black', linestyle='--', linewidth=1)
@@ -303,7 +317,7 @@ def no_coupler():
         H0 = get_NE_H0(A, Bz)
         X = get_NE_X(Bx, By, Bz, A, tN, N)
         X = get_IP_X(X,H0,tN,N)
-        plot_spin_states(X@psi0, tN, ax)
+        plot_psi(X@psi0, tN, ax)
     
     def NE_swap_exchange_comparison(fp=None):
         fig,ax = plt.subplots(2,1)
@@ -329,13 +343,13 @@ def no_coupler():
     #compare_2E_transitions_detuning(fp=f"{plots_folder}NC-transitions-2E-comparison-detuning.pdf")
     #triple_E_grape_failure(fp=f"{plots_folder}NC-transitions-3E-cost_convergence_comparison.pdf")
     #show_NE_swap(get_A(1,1),2*tesla,500*nanosecond,100000)
-    NE_swap_exchange_comparison(fp=f"{plots_folder}NC-swap-with-exchange-comparison")
+    #NE_swap_exchange_comparison(fp=f"{plots_folder}NC-swap-with-exchange-comparison")
     #plot_load_time_vs_J(fid_min=0.99, Jmin=0.5*Mhz, Jmax=20*Mhz, tN_max=100*nanosecond, A=get_A(1,3), n=100, fp=f"{plots_folder}NC-J-vs-max-load-time-99.pdf")
 
 
 if __name__=='__main__':
-    chapter_2()
-    #chapter_3()
+    #chapter_2()
+    chapter_3()
 
     #no_coupler()
 

@@ -4,10 +4,10 @@ import torch as pt
 import numpy as np
 import matplotlib
 
-from transition_visualisation import visualise_triple_donor_NE_transitions
 
 
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
 from GRAPE import *
@@ -15,13 +15,12 @@ import gates as gate
 from gates import spin_0010
 from atomic_units import *
 from data import get_A, get_J
-from visualisation import plot_spin_states, plot_fields, plot_fidelity
+from visualisation import plot_psi, plot_fields, plot_fidelity, multi_NE_label_getter
 from pulse_maker import square_pulse
 from utils import lock_to_coupling, get_couplings_over_gamma_e, psi_to_string
 from single_NE import NE_swap_pulse, NE_CX_pulse
-from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X, get_U0
-
-from transition_visualisation import visualise_allowed_transitions
+from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X_from_H, get_U0
+ 
 from pulse_maker import pi_rot_square_pulse
 
 from pdb import set_trace
@@ -75,61 +74,6 @@ def print_NE(psi, pmin=0.1):
     print(psi_to_string(psi, pmin=pmin))
 
 
-
-
-
-def nuclear_electron_sim(Bx,By,tN,nq,A=get_A(1,1)*Mhz, J=None, psi0=None, deactivate_exchange=False, ax=None, label_getter = multi_NE_label_getter):
-    '''
-    Simulation of nuclear and electron spins for single CNOT system.
-
-    Order Hilbert space as |n1,...,e1,...>
-
-    Inputs:
-        (Bx,By): Tensors describing x and y components of control field at each timestep (in teslas).
-        A: hyperfines
-        J: Exchange coupling (0-dim or 2 element 1-dim)
-    '''
-    N = len(Bx)
-    Bz = 2*tesla
-    if psi0 is None:
-        if nq==2:
-            psi0 = gate.kron4(spin_up, spin_down, spin_up, spin_down)
-        elif nq==3:
-            psi0 = gate.kron(spin_up,spin_up,spin_down,spin_up,spin_up,spin_down)
-    if J is None:
-        if nq==2:
-            J = get_J(1,2)[0]
-        elif nq==3:
-            J = get_J(1,3)[0]
-
-    H0 = multi_NE_H0(Bz, A, J, nq, deactivate_exchange=deactivate_exchange)
-
-    Hw = multi_NE_Hw(Bx, By, nq)
-    Ix = gate.get_Ix_sum(nq)
-    Iy = gate.get_Iy_sum(nq)
-    Sx = gate.get_Sx_sum(nq)
-    Sy = gate.get_Sy_sum(nq)
-    Hw = get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy) - get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy)
-
-    # H0 has shape (d,d), Hw has shape (N,d,d). H0+Hw automatically adds H0 to all N Hw timestep values.
-    H=sum_H0_Hw(H0, Hw)
-    dt=tN/N
-    U = pt.matrix_exp(-1j*H*dt)
-    X=forward_prop(U)
-    psi = pt.matmul(X,psi0)
-
-    if ax is None: ax=plt.subplot()
-    plot_spin_states(psi,tN,ax, label_getter=label_getter)
-
-    return
-
-
-def run_NE_sim(tN,N,nq,Bz,A,J, psi0=None):
-    tN_locked = lock_to_coupling(get_A(1,1),tN)
-    Bx, By = NE_CX_pulse(tN_locked, N, A, Bz)
-    nuclear_electron_sim(Bx,By,tN_locked,nq,A,J,psi0)
-
-
 def double_NE_swap_with_exchange(Bz=2*tesla, A=get_A(1,1), J=get_J(1,2), tN=500*nanosecond, N=1000000, ax=None, deactivate_exchange=False, label_states=None):
     print("Simulating attempted nuclear-electron spin swap for 2 electron system")
     print(f"J = {J/Mhz} MHz")
@@ -139,7 +83,7 @@ def double_NE_swap_with_exchange(Bz=2*tesla, A=get_A(1,1), J=get_J(1,2), tN=500*
     Bx,By = NE_swap_pulse(tN, N, A, Bz)
     def label_getter(j):
         return multi_NE_label_getter(j, label_states=label_states)
-    nuclear_electron_sim(Bx, By, tN, 2, A=A, J=J, psi0=spin_0010, deactivate_exchange=deactivate_exchange,ax=ax, label_getter=label_getter)
+    multi_NE_evol(Bx, By, tN, 2, A=A, J=J, psi0=spin_0010, deactivate_exchange=deactivate_exchange,ax=ax, label_getter=label_getter)
 
 
 def get_nuclear_spin_ordered_eigensystem(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3)):
@@ -205,28 +149,23 @@ def group_eigenstate_indices_by_nuclear_spins(S):
 
 
 
-def analyse_3NE_eigensystem(A=get_A(1,1), J=get_J(1,3), Bz=2*tesla):
+def analyse_3NE_eigensystem(S,D):
     dim = 64
 
-    H0 = multi_NE_H0(J=J, A=A)
-    S,D = get_ordered_eigensystem(H0) 
 
     print("============================================================================================================================================")
     print("Triple donor NE eigenstates")
     for i in range(dim):
         print(f"|E{i}> = {psi_to_string(S[:,i])}")
 
-    return S,D
+
+
+
 
 def nuclear_spin_CNOT():
     pass
 
 
-def graph_full_NE_H0_transitions(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3)):
-
-    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
-    rf = get_resonant_frequencies(H0)
-    visualise_allowed_transitions(H0)
 
 
 def map_3NE_transitions():
@@ -275,93 +214,85 @@ def get_triple_NE_couplings(S):
     return get_couplings(S,Hw_mag)
 
 
+def all_triple_NE_basis_transitions(tN=4000*nanosecond, N=10000, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3)):
 
-def triple_NE_estate_transition(i0=53, i1_target=49, tN=4000*nanosecond, N=10000, A=get_A(1,1), J=get_J(1,3)):
-    H0 = multi_NE_H0(J=J, A=A)
+    fig,ax = plt.subplots(2,2)
+    basis = [0,12,25,28]
+
+    allowed_transitions = get_allowed_transitions(H0)
+
+    for j, transition in enumerate(allowed_transitions):
+        if transition[0] in basis and transition[1] in [i0, i1_target]:
+            omega = pt.real(E[transition[0]]-E[transition[1]])
+            print(f"Transition |E{transition[0]}> <--> |E{transition[1]}> is allowed, w_res = {omega/Mhz} MHz")
+    for i in basis:
+        triple_NE_estate_transition(i, tN, N, Bz, A, J, ax[i//2,i%2])
+
+def get_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*nanosecond, N=10000, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), ax=None):
+    H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
     S,D = get_ordered_eigensystem(H0) 
     couplings = get_triple_NE_couplings(S)
     E = pt.diag(D)
 
     allowed_transitions = get_allowed_transitions(H0)
-    #i0, i1_target = allowed_transitions[9]
-
-
-    # determine target unitary for transition
-    target = pt.eye(64, dtype=cplx_dtype)
-    target[i0,i0]=0; target[i0,i1_target]=1
-    target[i1_target,i1_target]=0; target[i1_target,i0]=1
-
-
-    print(f"Attempting to drive transitions {i0}<-->{i1_target} == {psi_to_string(S[:,i0])} <--> {psi_to_string(S[:,i1_target])}")
-
-
-
-    if (i0,i1_target) in allowed_transitions:
-        omega = E[i0] - E[i1_target]
-        print(f"Found resonant frequency E{i0}-E{i1_target} = {omega/Mhz} MHz")
-    elif (i1_target,i0) in allowed_transitions:
-        omega = E[i1_target] - E[i0]
-        print(f"Found resonant frequency E{i1_target}-E{i0} = {omega/Mhz} MHz")
+    if (i_psi0,i_psi1) in allowed_transitions:
+        omega = E[i_psi0] - E[i_psi1]
+    elif (i_psi1,i_psi0) in allowed_transitions:
+        omega = E[i_psi1] - E[i_psi0]
     else:
-        print("Transition not allowed.")
-    
+        raise Exception(f"Transition |{i_psi0}> <--> |{i_psi1}> not allowed.")
 
-    rf_hack = [E[T[0]]-E[T[1]] for T in allowed_transitions]
-
-
-
-
-    omega=omega
-
-    coupling = couplings[i0,i1_target]
-    print(f"coupling = {coupling}")
-
+    print("Performing dodgy frequency fix: w_res -> -w_res...")
+    omega=-omega
+    coupling = couplings[i_psi0,i_psi1]
+    print(f"Target nuclear spin flip: w_res = {pt.real(omega)/Mhz} MHz, coupling = {pt.real(coupling)*tesla/Mhz} MHz/tesla")
     Bx,By = pi_rot_square_pulse(omega, coupling, tN, N)
-    Hw = multi_NE_Hw(Bx, By, 3)
-    #Hw = pt.zeros_like(Hw)
-    
-    H = sum_H0_Hw(H0, Hw)
-    X = get_X(H, tN, N)
+    return Bx,By
+
+def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*nanosecond, N=10000, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), ax=None):
+
+    H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
+    S,D = get_ordered_eigensystem(H0) 
+    E = pt.diag(D)
+
 
     nucspin_indices = group_eigenstate_indices_by_nuclear_spins(S)
     idxs_100 = nucspin_indices[4]
     idxs_101 = nucspin_indices[5]
-
-    i_psi = 51
-    print(f"psi0 = evec {i_psi}")
-
-    psi0 = S[:,i_psi]
+    allowed_transitions = get_allowed_transitions(H0)
 
 
+    Bx, By = get_NE_estate_transition(i_psi0=i_psi0, i_psi1=i_psi1, tN=tN, N=10000, Bz=Bz, A=A, J=J, ax=ax)
 
+    Hw = multi_NE_Hw(Bx, By, 3)
+    
+
+
+
+    
+    H = sum_H0_Hw(H0, Hw)
+    X = get_X_from_H(H, tN, N)
+
+
+    print(f"psi0 = |{i_psi0}>")
+    
+
+    basis = [0,12,25,28]
+    def label_getter(i):
+        if i in basis: return f"|E{i}>"
+    
+
+    psi0 = S[:,i_psi0]
     print(f"psi0 = {psi_to_string(psi0)}")
-
     psi = X@psi0 
     print(f"psi_f = {psi_to_string(psi[-1])}")
-    print(f"psi_f_target = {psi_to_string(S[:,i1_target])}")
+    print(f"psi_f_target = {psi_to_string(S[:,i_psi1])}")
+    plot_psi(pt.einsum('ab,jb->ja', S.T, psi), tN, ax, label_getter=label_getter)
 
-    fig,ax = plt.subplots(2)
 
-    plot_fields(Bx, By, tN, ax[0])
-    psi_projected = get_psi_projections(psi, pt.stack((S[:,i0], S[:,i1_target])))
-    def label_getter(i):
-        if i==i0: return f"psi0 = |{i}>"
-        elif i==i1_target: return f"psi_target = |{i}>"
-        #else: return f"|{i}>"
-    plot_spin_states(pt.einsum('ab,jb->ja', S.T, psi), tN, ax[1], label_getter=label_getter)
 
-    fids = fidelity_progress(X,target)
-    target_narrowed = gate.X 
-    X_narrowed = pt.zeros(len(X),2,2, dtype=cplx_dtype)
-    for j in range(len(X)):
-        X_narrowed[j,0,0] = X[j,i0,i0]
-        X_narrowed[j,0,1] = X[j,i0,i1_target]
-        X_narrowed[j,1,0] = X[j,i1_target,i0]
-        X_narrowed[j,1,1] = X[j,i1_target,i1_target]
-    #fids_narrowed = fidelity_progress(X_narrowed,target_narrowed)
-    #plot_fidelity(ax[2], fids_narrowed, tN)
 
-    Uf = X[-1]
+
 
 
 def triple_NE_free_evolution(tN=50*nanosecond, N=500, A=get_A(1,1), J=get_J(1,3)):
@@ -376,10 +307,129 @@ def triple_NE_free_evolution(tN=50*nanosecond, N=500, A=get_A(1,1), J=get_J(1,3)
     Hw = pt.zeros(N,64,64)
 
     H = sum_H0_Hw(H0, Hw)
-    X = get_X(H, tN, N)
+    X = get_X_from_H(H, tN, N)
     psi=X@psi0
-    plot_spin_states(psi, tN)
+    plot_psi(psi, tN)
 
+def multi_NE_evol(Bx, By, Bz=2*tesla, A=get_A(1,1), J=get_A(1,3), tN=1000*nanosecond, psi0=pt.kron(gate.spin_100,gate.spin_111)):
+    N = len(Bx)
+    Hw = multi_NE_Hw(Bx, By, 3)
+    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
+
+    H = sum_H0_Hw(H0, Hw)
+    X = get_X_from_H(H, tN, N)
+
+    psi = X@psi0 
+    return psi
+
+def get_multi_NE_X(tN, N, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), Bx=None, By=None):
+
+    # Bx and By set to None is free evolution
+    if Bx is None:
+        Bx = pt.zeros(N)
+    if By is None:
+        By = pt.zeros(N)
+
+    dim = H0.shape[-1]
+    nspins = get_nq_from_dim(dim)
+
+    Hw = multi_NE_Hw(Bx, By, 3)
+    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
+
+    H = sum_H0_Hw(H0, Hw)
+    X = get_X_from_H(H, tN, N)
+
+    return X
+
+def get_multi_NE_X_low_mem(Bx, By, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), tN=1000*nanosecond, basis=[7, 15, 39, 47], X0=None):
+    N = len(Bx)
+    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
+
+    nq=3
+    dim=2**(2*nq)
+    Sx = gate.get_Sx_sum(nq)
+    Ix = gate.get_Ix_sum(nq)
+    Sy = gate.get_Sy_sum(nq)
+    Iy = gate.get_Iy_sum(nq)
+    if X0==None:
+        Xj = pt.eye(dim, dtype=cplx_dtype, device=default_device)
+        return_XN = False
+    else:
+        Xj = X0
+        return_XN = True
+    X = pt.zeros(N,dim,dim, dtype=cplx_dtype, device=default_device)
+    X[0] = pt.eye(dim, dtype=cplx_dtype, device=default_device)
+    for j in range(1,N):
+        Hj = H0 + gamma_e * (Bx[j]*Sx + By[j]*Sy) - gamma_n * (Bx[j]*Ix + By[j]*Iy)
+        Uj = pt.matrix_exp(-1j*Hj*tN/N)
+        X[j] = Uj@X[j-1]
+    if return_XN:
+        return X, Xj
+    return X
+
+
+def get_multi_NE_reduced_X_low_mem(Bx, By, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), tN=1000*nanosecond, basis=[7, 15, 39, 47], X0=None):
+    N = len(Bx)
+    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
+
+    nq=3
+    dim=2**(2*nq)
+    Sx = gate.get_Sx_sum(nq)
+    Ix = gate.get_Ix_sum(nq)
+    Sy = gate.get_Sy_sum(nq)
+    Iy = gate.get_Iy_sum(nq)
+    if X0==None:
+        Xj = pt.eye(dim, dtype=cplx_dtype, device=default_device)
+        return_XN = False
+    else:
+        Xj = X0
+        return_XN = True
+    dim_reduced = len(basis)
+    X_reduced = pt.zeros(N,dim_reduced,dim_reduced, dtype=cplx_dtype, device=default_device)
+    for j in range(1,N):
+        Hj = H0 + gamma_e * (Bx[j]*Sx + By[j]*Sy) - gamma_n * (Bx[j]*Ix + By[j]*Iy)
+        Uj = pt.matrix_exp(-1j*Hj*tN/N)
+        Xj = Uj@Xj 
+        for a in range(dim_reduced):
+            for b in range(dim_reduced):
+                X_reduced[j,a,b] = Xj[basis[a],basis[b]]
+    if return_XN:
+        return X_reduced, Xj
+    return X_reduced
+
+def get_X_reduced_from_X(X, basis=[7, 15, 39, 47]):
+    N = len(X)
+    dim_reduced = len(basis)
+    X_reduced = pt.zeros(N, dim_reduced, dim_reduced)
+    for j in range(N):
+        for a in range(dim_reduced):
+            for b in range(dim_reduced):
+                X_reduced[j,a,b] = X[basis[a],basis[b]]
+    return X_reduced
+
+def multi_NE_evol_low_mem(Bx, By, Bz=2*tesla, A=get_A(1,1), J=get_J(1,3), tN=1000*nanosecond, psi0=pt.kron(gate.spin_100,gate.spin_111)):
+    '''
+    Evolves wave function of nuclear + electron spin system. Same input and output as to multi_NE_evol, but 
+    uses less memory at the cost of being slower.
+    '''
+
+
+    N = len(Bx)
+    H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
+    dim = H0.shape[-1]
+
+    Sx = gate.get_Sx_sum(3)
+    Ix = gate.get_Ix_sum(3)
+    Sy = gate.get_Sy_sum(3)
+    Iy = gate.get_Iy_sum(3)
+    Xj = pt.eye(dim, dtype=cplx_dtype, device=default_device)
+    psi = pt.zeros(N,64, dtype=cplx_dtype, device=default_device)
+    for j in range(N):
+        Hj = H0 + gamma_e * (Bx[j]*Sx + By[j]*Sy) - gamma_n * (Bx[j]*Ix + By[j]*Iy)
+        Uj = pt.matrix_exp(-1j*Hj*tN/N)
+        Xj = Uj@Xj 
+        psi[j] = Xj@psi0
+    return psi
 
 
 class MultiNuclearElectronGrape(Grape):
@@ -395,7 +445,7 @@ class MultiNuclearElectronGrape(Grape):
         return multi_NE_H0(Bz=self.Bz, )
 
     def get_Hw(self):
-        return get_pulse_hamiltonian()
+        return multi_NE_Hw()
 
 
 
@@ -407,14 +457,16 @@ if __name__ == '__main__':
     # print_rank2_tensor(S)
     # #print_rank2_tensor(D)
 
-    # rf = get_resonant_frequencies(H0)
+
+    rf = get_resonant_frequencies(multi_NE_H0())
+    set_trace()
 
 
     #analyse_3NE_eigensystem()
     #map_3NE_transitions()
     
     
-    triple_NE_estate_transition()
+    #triple_NE_estate_transition()
     #triple_NE_free_evolution()
     
     

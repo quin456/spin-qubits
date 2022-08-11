@@ -7,14 +7,15 @@ import matplotlib
 
 
 
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
 import gates as gate
 from pulse_maker import pi_rot_square_pulse
 from atomic_units import *
 from gates import spin_up, spin_down
-from visualisation import plot_fields, plot_spin_states, show_fidelity, plot_phases
+from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
 from data import gamma_e, dir, cplx_dtype
 from utils import forward_prop, lock_to_coupling
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_U0
@@ -52,7 +53,7 @@ def show_single_spin_evolution(Bz = 0*tesla, A=get_A(1,1), tN = 500*nanosecond, 
     show_fidelity(X,tN,gate.X, ax[1])
     psi = X@psi0 
 
-    plot_spin_states(psi, tN, ax[2], label_getter=label_getter)
+    plot_psi(psi, tN, ax[2], label_getter=label_getter)
     #plot_phases(psi, tN, ax[1,1])
     plt.tight_layout()
 
@@ -90,7 +91,7 @@ class SingleElectronGRAPE(Grape):
         psi = X[0]@psi0 
 
 
-        plot_spin_states(psi, self.tN, ax[2], label_getter=label_getter)
+        plot_psi(psi, self.tN, ax[2], label_getter=label_getter)
         Bx, By = self.sum_XY_fields(self.u_mat())
         self.plot_XY_fields(ax[0], Bx, By)
         #plot_phases(psi, self.tN, ax[0])

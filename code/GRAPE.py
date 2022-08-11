@@ -13,7 +13,8 @@ import torch as pt
 import numpy as np
 import math
 import matplotlib
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
 import itertools    
 from scipy import linalg as la
@@ -29,7 +30,7 @@ from atomic_units import *
 import gates as gate
 from utils import *
 from data import *
-from visualisation import plot_fidelity, y_axis_labels, colors, plot_spin_states, plot_phases
+from visualisation import plot_fidelity, y_axis_labels, colors, plot_psi, plot_phases
 from visualisation import double_long_width, double_long_height, single_long_height
 
 time_exp = 0
@@ -307,7 +308,7 @@ class Grape:
         self.save_data = save_data
         self.H0 = self.get_H0()
 
-        self.rf = self.get_all_resonant_frequencies() if rf is None else rf
+        self.rf = self.get_control_frequencies() if rf is None else rf
         self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
         self.m = len(self.omega)
         self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
@@ -345,15 +346,9 @@ class Grape:
         for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
         print("}")
 
-    def get_all_resonant_frequencies(self, device=default_device):
-        rf = pt.tensor([], dtype = real_dtype, device=device)
-        H0 = self.H0
-        nq = get_nq_from_dim(H0.shape[-1])
-        Hw_shape = (gate.get_Xn(self.nq) + gate.get_Yn(self.nq)) / np.sqrt(2)
-        for q in range(self.nS):
-            rf_q=get_resonant_frequencies(H0[q], Hw_shape)
-            rf=pt.cat((rf,rf_q))
-        return rf
+    def get_control_frequencies(self, device=default_device):
+        return get_multi_system_resonant_frequencies(self.H0, device=device)
+
 
     def u_mat(self):
         return uToMatrix(self.u, self.m)
@@ -611,7 +606,7 @@ class Grape:
         self.plot_XY_fields(ax[0,0])
         plot_fidelity(ax[1,0], fidelity_progress(self.X, self.target), self.tN)
         psi=self.X@psi0
-        plot_spin_states(psi[0], self.tN, ax[0,1])
+        plot_psi(psi[0], self.tN, ax[0,1])
         plot_phases(psi[0], self.tN, ax[1,1])
         return fig,ax
 
@@ -767,9 +762,9 @@ class GrapeESR(Grape):
     def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
 
         # save data first
-        self.nS,self.nq=get_nS_nq_from_A(A)
         self.J=J 
         self.A=A 
+        self.nS,self.nq=self.get_nS_nq()
         self.Bz=Bz
         self.tN=tN
         self.N=N
@@ -780,9 +775,11 @@ class GrapeESR(Grape):
         super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
         
         # perform calculations last
-        self.rf=self.get_all_resonant_frequencies() if rf is None else rf
+        self.rf=self.get_control_frequencies() if rf is None else rf
         self.alpha=alpha
 
+    def get_nS_nq(self):
+        return get_nS_nq_from_A(self.A)
 
     def print_setup_info(self):
         super().print_setup_info()
@@ -795,20 +792,22 @@ class GrapeESR(Grape):
         print(f"Bz = {self.Bz/tesla} T")
         print(f"Hyperfine: A = {self.A/Mhz} MHz")
         print(f"Exchange: J = {self.J/Mhz} MHz")
-        print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_all_resonant_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
+        print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_control_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
 
 
     def get_H0(self, device=default_device):
         '''
-        Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
+        Free hamiltonian of each system.
         
-        Inputs:
-            A: (nS,nq), J: (nS,) for 2 qubit or (nS,2) for 3 qubits
+        self.A: (nS,nq), self.J: (nS,) for 2 qubit or (nS,2) for 3 qubits
         '''
+
         if self.nS==1:
             A = self.A.reshape(1,*self.A.shape)
             J = self.J.reshape(1,*self.J.shape)
-
+        else:
+            A = self.A 
+            J = self.J
 
         nS, nq = get_nS_nq_from_A(A)
         d = 2**nq
@@ -816,13 +815,10 @@ class GrapeESR(Grape):
         # Zeeman splitting term is generally rotated out, which is encoded by setting Bz=0
         HZ = 0.5 * gamma_e * self.Bz * gate.get_Zn(nq)
 
-
         if nq==3:
             H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
         elif nq==2:
-            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-        
-        
+            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)    
         return H0.to(device)
 
     def get_Hw(self):
@@ -837,18 +833,20 @@ class GrapeESR(Grape):
         
 
     def time_evolution(self, u, device=default_device):
-        m,N = self.x_cf.shape; nS,d = self.H0.shape[:-1]; nq = get_nq_from_dim(d)
+        nS=self.nS; nq=self.nq; dim = 2**nq
+        m,N = self.x_cf.shape
         sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
         dt = self.tN/N
         u_mat = uToMatrix(u,m)
         x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf).to(device)
         y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf).to(device)
         H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),self.H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
-        H=pt.reshape(H, (nS*N,d,d))
+        H=pt.reshape(H, (nS*N,dim,dim))
         U = pt.matrix_exp(-1j*H*dt)
         del H
-        U = pt.reshape(U, (nS,N,d,d))
+        U = pt.reshape(U, (nS,N,dim,dim))
         return U
+
 
     def fidelity(self,u, device=default_device):
         '''
@@ -860,9 +858,9 @@ class GrapeESR(Grape):
         y_cf=self.y_cf
         tN=self.tN
         target=self.target
-
-        m,N = x_cf.shape; nS,d = H0.shape[:-1]; nq = get_nq_from_dim(d)
-        sig_xn = gate.get_Xn(nq, device); sig_yn = gate.get_Yn(nq, device)
+        m,N = x_cf.shape
+        dim = 2*self.nq
+        sig_xn = gate.get_Xn(self.nq, device); sig_yn = gate.get_Yn(self.nq, device)
 
         t0 = time.time()
         if pt.cuda.device_count()==2:
@@ -892,8 +890,8 @@ class GrapeESR(Grape):
 
         ox_X = pt.einsum('ab,sjbc->sjac' , sig_xn, self.X)
         oy_X = pt.einsum('ab,sjbc->sjac' , sig_yn, self.X)
-        PoxX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(self.P), 1j*ox_X)) / d
-        PoyX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(self.P), 1j*oy_X)) / d
+        PoxX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(self.P), 1j*ox_X)) / dim
+        PoyX_IP =  batch_trace(pt.einsum('sjab,sjbc->sjac', dagger(self.P), 1j*oy_X)) / dim
         del ox_X, oy_X
 
         Re_IP_x = -2*pt.real(pt.einsum('sj,sj->sj', PoxX_IP, XP_IP))
@@ -1256,8 +1254,67 @@ def get_2q_freqs(J,A, all_freqs=True, device=default_device):
     return w
 
 
+class GrapeESR_AJ_Modulation(GrapeESR):
+
+    def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
+
+        
+        super().__init__(J, A, tN, N, Bz=Bz, target=target, rf=rf, u0=u0, cost_hist=cost_hist, max_time=max_time, save_data=save_data)
 
 
+    def get_nS_nq(self):
+        if len(self.J.shape) == 1:
+            return 1, 2
+        return self.J.shape[0], 2
+
+    def get_H0(self, device=default_device):
+        '''
+        Free hamiltonian of each system.
+        
+        self.A: (nS,nq, N) and self.J: (nS, N), describe hyperfine and exchange couplings, which are allowed to vary over the N timesteps.
+        '''
+        if self.nS==1:
+            A = self.A.reshape(1,*self.A.shape)
+            J = self.J.reshape(1,*self.J.shape)
+        else:
+            A = self.A 
+            J = self.J
+
+        nS, nq = self.get_nS_nq()
+        d = 2**nq
+
+        # Zeeman splitting term is generally rotated out, which is encoded by setting Bz=0
+        HZ = 0.5 * gamma_e * self.Bz * gate.get_Zn(nq)
+
+        # this line only supports nq=2
+        H0 = pt.einsum('sjq,qab->sjab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sj,ab->sjab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('sj,ab->sjab',pt.ones(nS,self.N),HZ)
+        
+        return H0.to(device)
+
+    def time_evolution(self, u, device=default_device):
+        '''
+        Determines time evolution sub-operators from system Hamiltonian H0 and control Hamiltonians.
+        Since A and J vary, H0 already has a time axis in this class, unlike in GrapeESR.
+        '''
+        m,N = self.x_cf.shape
+        sig_xn = gate.get_Xn(self.nq,device); sig_yn = gate.get_Yn(self.nq,device)
+        dim=2**self.nq
+        dt = self.tN/N
+        u_mat = uToMatrix(u,m)
+        x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf).to(device)
+        y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf).to(device)
+        H = self.H0 + pt.einsum('s,jab->sjab',pt.ones(self.nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
+        H=pt.reshape(H, (self.nS*N,dim,dim))
+        U = pt.matrix_exp(-1j*H*dt)
+        del H
+        U = pt.reshape(U, (self.nS,N,dim,dim))
+        return U
+
+    def get_control_frequencies(self, device=default_device):
+        print(f"H0 has shape {self.H0.shape}")
+        return get_multi_system_resonant_frequencies(self.H0[:,self.N//2])
+
+        
 ################################################################################################################
 ################        Run GRAPE        #######################################################################
 ################################################################################################################
@@ -1287,7 +1344,7 @@ def refine_u(filename, N_new):
     J,A,tN,N,target,_fid = load_system_data(filename)
     u,cost_hist = load_u(filename)
     grape = GrapeESR(J, A, tN, N_new, target, cost_hist=cost_hist)
-    m = 2*len(grape.get_all_resonant_frequencies())
+    m = 2*len(grape.get_control_frequencies())
     grape.u = interpolate_u(u,m,N_new)
     grape.run()
     grape.result()

@@ -5,7 +5,8 @@ from pdb import set_trace
 import numpy as np
 import torch as pt
 import matplotlib
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
 

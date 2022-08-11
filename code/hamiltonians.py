@@ -1,12 +1,11 @@
-import torch as pt
-
-from data import gamma_e, gamma_n, default_device, cplx_dtype, get_A, get_J
-import gates as gate
-from atomic_units import *
-from utils import dagger, forward_prop, get_nS_nq_from_A
-
 from pdb import set_trace
 
+import torch as pt
+
+import gates as gate
+from atomic_units import *
+from data import cplx_dtype, default_device, gamma_e, gamma_n, get_A, get_J
+from utils import dagger, forward_prop, get_nS_nq_from_A
 
 #####################################################################################
 ###########        Single electron        ###########################################
@@ -43,9 +42,9 @@ def get_H0(A,J, Bz=0, device=default_device):
 
 
     if nq==3:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS, device=device),HZ)
     elif nq==2:
-        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
+        H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS, device=device),HZ)
     
     H0=H0.to(device)
     if reshaped:
@@ -196,7 +195,7 @@ def sum_H0_Hw(H0, Hw):
         Hw: (N,d,d) tensor describing control Hamiltonian at each timestep
     '''
     N = len(Hw)
-    H = pt.einsum('j,ab->jab',pt.ones(N),H0) + Hw
+    H = pt.einsum('j,ab->jab',pt.ones_like(Hw[:,0,0]),H0) + Hw
     return H
 
 def get_U0(H0, tN, N):
@@ -205,7 +204,7 @@ def get_U0(H0, tN, N):
     U0 = pt.matrix_exp(-1j*H0T)
     return U0
 
-def get_X(H, tN, N, H0_IP=None):
+def get_X_from_H(H, tN, N, H0_IP=None):
     
     U = pt.matrix_exp(-1j*H*tN/N)
     X = forward_prop(U)
@@ -213,6 +212,9 @@ def get_X(H, tN, N, H0_IP=None):
         U0 = get_U0(H0_IP,tN,N)
         X = dagger(U0)@X
     return X
+
+
+    
 
 
 def get_IP_X(X,H0,tN,N):

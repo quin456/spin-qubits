@@ -1,9 +1,10 @@
 
-from regex import P
 import torch as pt 
 import numpy as np
 import matplotlib
-matplotlib.use('Qt5Agg')
+
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import math
 import itertools
@@ -173,6 +174,12 @@ def psi_to_string(psi, pmin=0.01, real_evecs=True):
             add_plus=True
     return out 
 
+def map_psi(A,psi):
+    '''
+    Acts rank 2 tensor on N x dim psi tensor
+    '''
+    return pt.einsum('ab,jb->ja',A,psi)
+
 def print_eigenstates(S):
     for j in range(len(S)):
         print(f"|E{j}> = {psi_to_string(S[:,j])}")
@@ -208,8 +215,9 @@ def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_de
 
     # transform shape of control Hamiltonian to basis of energy eigenstates
     Hw_trans = matmul3(S_T,Hw_shape,S)
-    Hw_nz = (pt.abs(Hw_trans)>1e-9).to(int)
+    Hw_nz = (pt.abs(Hw_trans)>1e-8).to(int)
     Hw_angle = pt.angle(Hw_trans**2)
+
 
     allowed_transitions = []
     for i in range(d):
@@ -235,6 +243,14 @@ def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
 
     return freqs
 
+def get_multi_system_resonant_frequencies(H0s, device=default_device):
+    rf = pt.tensor([], dtype = real_dtype, device=device)
+    nS = len(H0s); nq = get_nq_from_dim(H0s.shape[-1])
+    Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq)) / np.sqrt(2)
+    for q in range(nS):
+        rf_q=get_resonant_frequencies(H0s[q], Hw_shape)
+        rf=pt.cat((rf,rf_q))
+    return rf
 
 def clean_vector(v, tol=1e-8):
     for i in range(len(v)):
@@ -266,7 +282,7 @@ def get_couplings(S, Hw_mag=None):
     return gamma_e*S.T @ Hw_mag @ S
 
 
-def get_ordered_eigensystem(H0, H0_phys=None):
+def get_ordered_eigensystem(H0, H0_phys=None, ascending=True):
     '''
     Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
     Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
@@ -278,7 +294,7 @@ def get_ordered_eigensystem(H0, H0_phys=None):
     # ordering is always based of physical energy levels (so include_HZ always True)
     E_phys = pt.real(pt.linalg.eig(H0_phys).eigenvalues)
 
-    E,S = order_eigensystem(H0,E_phys)
+    E,S = order_eigensystem(H0,E_phys, ascending=ascending)
     D = pt.diag(E)
     return S,D
 
@@ -293,9 +309,9 @@ def lock_to_coupling(c, tN):
         print(f"Locking tN={tN/nanosecond}ns to coupling period {t_HF/nanosecond}ns. New tN={tN_locked/nanosecond}ns.")
     return tN_locked
 
-def order_eigensystem(H0, E_order):
+def order_eigensystem(H0, E_order, ascending=True):
 
-    idx_order = pt.topk(E_order, len(E_order)).indices
+    idx_order = pt.topk(E_order, len(E_order), largest = not ascending).indices
 
     # get unsorted eigensystem
     eig = pt.linalg.eig(H0)
@@ -331,7 +347,7 @@ def print_rank2_tensor(T):
         else:
             print("|", end="")
         for j in range(n):
-            print(f"{T[i,j].item():>6.2f}", end="  ")
+            print(f"{T[i,j].item():>8.2f}", end="  ")
 
 
         if i==0:

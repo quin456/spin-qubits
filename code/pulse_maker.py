@@ -1,8 +1,11 @@
 
 
+from email.policy import default
 import numpy as np
+import torch as pt
 import matplotlib
-matplotlib.use('Qt5Agg')
+if not pt.cuda.is_available():
+    matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt
 
@@ -10,6 +13,7 @@ import torch as pt
 import gates as gate 
 from gates import cplx_dtype
 from atomic_units import *
+from data import default_device
 
 from pdb import set_trace
 
@@ -18,7 +22,7 @@ from pdb import set_trace
 
 def square_pulse(B, omega, tN, N, phase=0):
 
-    T = pt.linspace(0,tN,N)
+    T = pt.linspace(0,tN,N, device=default_device)
     
     Bx = B*pt.cos(omega*T-phase)
     By = B*pt.sin(omega*T-phase)
