@@ -2,12 +2,13 @@
 
 import torch as pt
 import matplotlib
+import numpy as np
 
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt 
-from atomic_units import *
+import atomic_units as unit
 from utils import get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
 from hamiltonians import get_H0, multi_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e
@@ -95,7 +96,7 @@ def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, 
         label = label_getter(i)
         # if squared and label is not None:
         #     label = f"Pr({label})"
-        ax.plot(T/nanosecond,y, label = label)
+        ax.plot(T/unit.ns,y, label = label)
     ax.legend(loc=legend_loc)
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
@@ -114,7 +115,7 @@ def plot_phases(psi, tN=None, T=None, ax=None):
     phase = pt.zeros_like(psi)
     for i in range(dim):
         phase[:,i] = pt.angle(psi)[:,i]#-pt.angle(psi)[:,0]
-        ax.plot(T/nanosecond,phase[:,i], label = f'$\phi_{i}$')
+        ax.plot(T/unit.ns,phase[:,i], label = f'$\phi_{i}$')
     ax.legend()
     ax.set_xlabel("time (ns)")
     print(f"Final phase = {phase[-1,:]}")
@@ -129,10 +130,10 @@ def plot_fields(Bx,By,tN,ax=None):
         tN: Duration of pulse
     '''
     N = len(Bx)
-    T_axis = pt.linspace(0,tN/nanosecond, N)
+    T_axis = pt.linspace(0,tN/unit.ns, N)
     if ax==None: ax = plt.subplot()
-    ax.plot(T_axis,Bx*1e3/tesla, label = 'X field (mT)')
-    ax.plot(T_axis,By*1e3/tesla, label = 'Y field (mT)')
+    ax.plot(T_axis,Bx*1e3/unit.T, label = 'X field (mT)')
+    ax.plot(T_axis,By*1e3/unit.T, label = 'Y field (mT)')
     ax.set_xlabel('time (ns)')
     if y_axis_labels: ax.set_ylabel('$B_\omega(t)$ (mT)')
     ax.legend()
@@ -155,7 +156,7 @@ def visualise_Hw(Hw,tN, eigs=None):
         tN: duration spanned by Hw.
     '''
     N,dim,dim = Hw.shape
-    T = pt.linspace(0,tN/nanosecond,N)
+    T = pt.linspace(0,tN/unit.ns,N)
     if eigs is not None:
         D = pt.diag(eigs.eigenvalues)
         U0_e = pt.matrix_exp(-1j*pt.einsum('ab,j->jab',D,T))
@@ -164,7 +165,7 @@ def visualise_Hw(Hw,tN, eigs=None):
     fig,ax = plt.subplots(dim,dim)
     for i in range(dim):
         for j in range(dim):
-            y = Hw[:,i,j]/Mhz
+            y = Hw[:,i,j]/unit.MHz
             ax[i,j].plot(T,pt.real(y))
             ax[i,j].plot(T,pt.imag(y))
 
@@ -176,10 +177,10 @@ def plot_fidelity(ax,fids, T=None, tN=None, legend=True, printfid=True):
     if T is None:
         T = pt.linspace(0,tN, N)
     if nS==1:
-        ax.plot(T,fids[0], label=f"Fidelity")
+        ax.plot(T/unit.ns,fids[0], label=f"Fidelity")
     else:
         for q in range(nS):
-            ax.plot(T/nanosecond,fids[q], label=f"System {q+1} fidelity")
+            ax.plot(T/unit.ns,fids[q], label=f"System {q+1} fidelity")
     if legend: ax.legend()
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("Fidelity")
@@ -193,14 +194,14 @@ def plot_multi_sys_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     for sys in E:
         for i in range(len(sys)):
-            ax.axhline(pt.real(sys[i]/Mhz), label=f'E{dim-1-i}', color=colors[i])
+            ax.axhline(pt.real(sys[i]/unit.MHz), label=f'E{dim-1-i}', color=colors[i])
     ax.legend()
 
 def plot_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     dim = len(E)
     for i in range(dim):
-        ax.axhline(pt.real(E[i]/Mhz), label=f'E{dim-1-i}', color=colors[i%len(colors)])
+        ax.axhline(pt.real(E[i]/unit.MHz), label=f'E{dim-1-i}', color=colors[i%len(colors)])
 
 def plot_energy_spectrum_from_H0(H0):
     rf = get_resonant_frequencies(H0)
@@ -217,7 +218,7 @@ def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
     print(f"Final fidelity = {fids[-1]}")
     
     if ax is None: ax = plt.subplot()
-    plot_fidelity(ax,fids,tN=tN, T=T)
+    plot_fidelity(ax,fids, tN=tN, T=T)
     return fids
 
 
@@ -230,8 +231,8 @@ def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
 
 
 if __name__=='__main__':
-    H0_3E = get_H0(A=get_A(1,3, NucSpin=[1,1,1]), J=get_J(2,3)[1], Bz=0.1*tesla)
-    H0_3NE = multi_NE_H0(A=get_A(1,1), J=get_J(1,3), Bz=0.2*tesla, gamma_n=10*gamma_n, gamma_e=gamma_e/10)
+    H0_3E = get_H0(A=get_A(1,3, NucSpin=[1,1,1]), J=get_J(2,3)[1], Bz=0.1*unit.T)
+    H0_3NE = multi_NE_H0(A=get_A(1,1), J=get_J(1,3), Bz=0.2*unit.T, gamma_n=10*gamma_n, gamma_e=gamma_e/10)
     plot_energy_spectrum_from_H0(H0_3NE)
 
 

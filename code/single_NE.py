@@ -12,7 +12,7 @@ from scipy.optimize import minimize
 
 from GRAPE import Grape
 import gates as gate 
-from atomic_units import *
+import atomic_units as unit
 from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import *
 import utils
@@ -26,7 +26,7 @@ from pdb import set_trace
 Sz = 0.5*gate.IZ; Sy = 0.5*gate.IY; Sx = 0.5*gate.IX 
 Iz = 0.5*gate.ZI; Iy = 0.5*gate.YI; Ix = 0.5*gate.XI
 
-B_mag = 1e-3 * tesla
+B_mag = 1e-3 * unit.T
 
 from gates import spin_up, spin_down
 spin_down_down = pt.kron(spin_down, spin_down)
@@ -88,7 +88,7 @@ def NE_couplings(H0):
     couplings = S.T @ Hw_mag @ S
 
     print("Couplings (MHz/T):")
-    utils.print_rank2_tensor(pt.real(couplings)*tesla/Mhz)
+    utils.print_rank2_tensor(pt.real(couplings)*unit.T/unit.MHz)
     return couplings
 
 def get_coupling(A,Bz):
@@ -110,39 +110,41 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
     S,D = NE_eigensystem(H0)
 
     couplings = NE_couplings(H0)
-    c = pt.abs(couplings[2,3])
+    c = couplings[2,3]
     w_eigenres = D[2,2]-D[3,3]
+    if tN is None:
+        tN = lock_to_frequency(A,get_pi_pulse_tN_from_field_strength(B_mag, c))
     Bx,By = pi_rot_square_pulse(w_eigenres, c, tN, N, phase)
 
     #Bx,By = pi_rot_pulse(w_res, gamma_e/2, tN, N, phase)
     if ax is not None:
         plot_fields(Bx,By,tN,ax)
 
-    return Bx,By
+    return Bx,By,tN
 
 def print_specs(A, Bz, tN, N, gamma):
     print("System specifications:")
-    print(f"Hyperfine A = {A/Mhz} MHz")
-    print(f"Static field Bz = {Bz/tesla} T")
+    print(f"Hyperfine A = {A/unit.MHz} MHz")
+    print(f"Static field Bz = {Bz/unit.T} T")
     if tN is None:
-        print(f"Control field strength = {B_mag/nanosecond} ns")
+        print(f"Control field strength = {B_mag/unit.ns} ns")
     else:
-        print(f"Pulse duration tN = {tN/nanosecond} ns")
+        print(f"Pulse duration tN = {tN/unit.ns} ns")
     print(f"Timesteps N={N}")
     H0 = get_NE_H0(A,Bz)
     max_coupling = get_max_allowed_coupling(H0)
-    print(f"Max allowed coupling = {max_coupling/Mhz} MHz, corresponding to field strength B={max_coupling/(0.5*gamma) / mT} mT")
+    print(f"Max allowed coupling = {max_coupling/unit.MHz} MHz, corresponding to field strength B={max_coupling/(0.5*gamma) / mT} mT")
 
-def show_NE_CX(A,Bz,tN,N, psi0=spin_down_down): 
+def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2)): 
     print("Performing NE_CX, which flips electron spin conditionally on nuclear spin being down.")
     print_specs(A, Bz, tN, N, gamma=gamma_e)
-    fig,ax = plt.subplots(1,4)
-    Bx,By = NE_CX_pulse(tN,N,A,Bz, ax[0])
+    fig,ax = plt.subplots(2,1)
+    Bx,By,tN = NE_CX_pulse(tN,N,A,Bz)
     X = get_NE_X(tN, N, Bz, A, Bx, By)
-    fids = show_fidelity(X,tN, gate.CX, ax=ax[1])
+    show_fidelity(X, tN=tN, target=gate.CX_native, ax=ax[0])
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,tN,ax[2])
-    plot_phases(psi,tN,ax[3])
+    plot_psi(psi,tN=tN, ax=ax[1])
+    #plot_phases(psi,tN=tN,ax=ax[3])
 
 
 
@@ -205,6 +207,9 @@ def get_NE_X(tN, N, Bz, A, Bx=None, By=None):
     Hw = get_NE_Hw(Bx,By)
     H0 = get_NE_H0(A, Bz)
     H = sum_H0_Hw(H0,Hw)
+
+
+
     U = pt.matrix_exp(-1j*H*tN/N)
 
     X = forward_prop(U)
@@ -226,22 +231,23 @@ def get_NE_X(tN, N, Bz, A, Bx=None, By=None):
 
     return X
 
-def get_phase_correction(Bz, A, Xf, N_search, tN_search):
+def get_phase_correction(Bz, A, Xf, N_search, tN_search, target=gate.CXr):
     
     X_search = Xf@get_NE_X(tN_search, N_search, Bz, A)
-    fids = fidelity_progress(X_search, gate.CXr)
+    fids = fidelity_progress(X_search, target)
 
     N_wait = pt.argmax(fids)
     tN_wait = N_wait*tN_search/N_search
 
-    print(f"Adding {tN_wait/nanosecond} ns free evolution to correct phase, achieving fidelity {fids[N_wait]}")
+    print(f"Adding {tN_wait/unit.ns} ns free evolution to correct phase, achieving fidelity {fids[N_wait]}, up from {fids[0]}")
 
     X_wait = X_search[:N_wait]
     T_wait = pt.linspace(0, tN_wait, N_wait)
+    set_trace()
     return X_wait, T_wait 
 
 
-def show_EN_CX(A,Bz,N, tN=None, psi0=spin_down_down):
+def show_EN_CX(A,Bz,N, tN=None, psi0=spin_down_down, target = gate.CXr):
     print("Performing EN_CX, which flips nuclear spin conditionally on electron spin being down.")
     print_specs(A, Bz, tN, N, gamma_n)
     fig,ax = plt.subplots(1,3)
@@ -249,12 +255,15 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=spin_down_down):
     X_CX = get_NE_X(tN, N, Bz, A, Bx, By)
     T_CX = pt.linspace(0,tN,N)
 
-    X_wait,T_wait = get_phase_correction(Bz, A, X_CX[-1], N, 500*nanosecond)
+    set_trace()
+    
+
+    X_wait,T_wait = get_phase_correction(Bz, A, X_CX[-1], N, 500*unit.ns, target=target)
     T = pt.cat((T_CX, T_CX[-1]+T_wait))
     X = pt.cat((X_CX, X_wait))
 
 
-    fids=show_fidelity(X,T=T, ax=ax[2])
+    fids=show_fidelity(X,T=T, target=target, ax=ax[2])
 
 
     psi = pt.matmul(X,psi0)
@@ -355,10 +364,10 @@ def multi_NE_label_getter(j):
     
     return b[0]+b[1]+L2+L3
     
-def NE_energy_levels(A=get_A(1,1)*Mhz, Bz=2*tesla):
+def NE_energy_levels(A=get_A(1,1)*unit.MHz, Bz=2*unit.T):
     H0 = get_NE_H0(A,Bz)
     S,D = NE_eigensystem(H0)
-    E = pt.diagonal(D)/Mhz
+    E = pt.diagonal(D)/unit.MHz
     #plot_energy_spectrum(E)
 
     ax = plt.subplot()
@@ -376,7 +385,7 @@ def get_subops(H,dt):
 
 class NuclearElectronGrape(Grape):
 
-    def __init__(self, tN, N, Bz=2*tesla, A=get_A(1,1), nq=2, target=gate.swap, rf=None, u0=None,  save_data=False, max_time=99999):
+    def __init__(self, tN, N, Bz=2*unit.T, A=get_A(1,1), nq=2, target=gate.swap, rf=None, u0=None,  save_data=False, max_time=99999):
 
         # save system data before super().__init__
         self.A = A
@@ -404,7 +413,7 @@ class NuclearElectronGrape(Grape):
 
 
 def run_NE_grape():
-    grape = NuclearElectronGrape(Bz=0.02*tesla, tN=100*nanosecond, N=2500, target = gate.CXr, max_time = 60)
+    grape = NuclearElectronGrape(Bz=0.02*unit.T, tN=100*unit.ns, N=2500, target = gate.CXr, max_time = 60)
     
     grape.run()
     grape.plot_result()
@@ -412,9 +421,9 @@ def run_NE_grape():
 
 
 def test():
-    Bz = 2*tesla 
+    Bz = 2*unit.T 
     A = get_A(1,1)
-    tN = lock_to_frequency(A, 50*nanosecond)
+    tN = lock_to_frequency(A, 50*unit.ns)
     N=10000
 
     H0 = get_NE_H0(A,Bz)
@@ -434,26 +443,24 @@ if __name__ == '__main__':
 
     psi0=pt.kron(spin_up,spin_down)
 
-    Bz=2*tesla
-    steps_per_nanosecond = 20 * gamma_e*Bz/Ghz
+    Bz=2*unit.T
+    steps_per_unit_nanosecond = 20 * gamma_e*Bz/unit.GHz
 
     def min_steps(tN):
-        return int(steps_per_nanosecond * tN/nanosecond)
+        return int(steps_per_unit_nanosecond * tN/unit.ns)
 
 
-    # tN = 1000*nanosecond#lock_to_coupling(get_A(1,1),100*nanosecond)
-    # show_NE_CX(get_A(1,1), Bz, tN, min_steps(tN), psi0=pt.kron(spin_down, spin_up)); plt.show()
+    tN = lock_to_frequency(get_A(1,1),100*unit.ns)
+    show_NE_CX(get_A(1,1), Bz,  3*min_steps(tN)); plt.show()
 
-    # tN = 1001*nanosecond
-    # tN = lock_to_frequency(get_A(1,1),tN)
-    show_EN_CX(get_A(1,1), Bz=Bz, N=40000); plt.show()
+    #show_EN_CX(get_A(1,1), Bz=Bz, N=40000); plt.show()
     #test(); plt.show()
-    #tN_locked = lock_to_coupling(get_A(1,1),500*nanosecond)
-    #show_NE_swap(A=get_A(1,1), Bz=0.02*tesla, tN=10*nanosecond, N=10000); plt.show()
+    #tN_locked = lock_to_coupling(get_A(1,1),500*unit.ns)
+    #show_NE_swap(A=get_A(1,1), Bz=0.02*unit.T, tN=10*unit.ns, N=10000); plt.show()
 
-    # tN = 1*nanosecond
+    # tN = 1*unit.ns
     # psi0 = 0.5 * (gate.spin_00 + gate.spin_01 + gate.spin_10 + gate.spin_11)
-    # X_free = get_NE_X(tN, 1000, 2*tesla, get_A(1,1))
+    # X_free = get_NE_X(tN, 1000, 2*unit.T, get_A(1,1))
     # psi = X_free @ psi0 
     # fig,ax = plt.subplots(2,1)
     # plot_psi(psi, tN, ax=ax[0])

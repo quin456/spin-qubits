@@ -57,7 +57,7 @@ def get_t_wf(J,A, tN, N, fid_min, psi0=spin_101):
         return -1
     return j*tN/N
 
-def plot_load_time_vs_J(fid_min=0.999, Jmin = 5*Mhz, Jmax=50*Mhz, A=get_A(1,3), tN_max=10*nanosecond, n=100, N=10000, max_time=10*nanosecond, ax=None, fp=None, get_t=get_t_fidelity):
+def plot_load_time_vs_J(fid_min=0.999, Jmin = 5*unit.MHz, Jmax=50*unit.MHz, A=get_A(1,3), tN_max=10*unit.ns, n=100, N=10000, max_time=10*unit.ns, ax=None, fp=None, get_t=get_t_fidelity):
 
     optimal_J=None
     nq=len(A)
@@ -74,22 +74,22 @@ def plot_load_time_vs_J(fid_min=0.999, Jmin = 5*Mhz, Jmax=50*Mhz, A=get_A(1,3), 
         T[i] = time
 
     if optimal_J is not None:
-        print(f"No loss of fidelity for J<{optimal_J/Mhz} MHz")
+        print(f"No loss of fidelity for J<{optimal_J/unit.MHz} MHz")
     if ax is None: ax = plt.subplot()
 
     set_trace()
 
-    ax.plot(J[i_min:]/Mhz, T[i_min:]/nanosecond)
+    ax.plot(J[i_min:]/unit.MHz, T[i_min:]/unit.ns)
     ax.set_ylabel("Max loading window (ns)")
     ax.set_xlabel("Exchange strength (MHz)")
 
 
     i=0; 
     while T[i]>max_time: i+=1
-    # ax.axhline(max_time/nanosecond, linestyle = '--', color = 'red')
-    # ax.annotate(f'{max_time/nanosecond} ns', (30,max_time/nanosecond+0.3))
-    # ax.axvline(J[i,0]/Mhz, linestyle = '--', color='red')
-    # ax.annotate(f'{J[i,0]/Mhz:.0f} MHz', (J[i]/Mhz+0.2, 15))
+    # ax.axhline(max_time/unit.ns, linestyle = '--', color = 'red')
+    # ax.annotate(f'{max_time/unit.ns} ns', (30,max_time/unit.ns+0.3))
+    # ax.axvline(J[i,0]/unit.MHz, linestyle = '--', color='red')
+    # ax.annotate(f'{J[i,0]/unit.MHz:.0f} unit.MHz', (J[i]/unit.MHz+0.2, 15))
 
     if fp is not None:
         plt.savefig(fp)
@@ -100,8 +100,8 @@ def approximate_full_NE_optimisation_time():
     3 nuclear, 3 electron spin system optimisation time approximation based on 40 second 99.5% 
     fidelity 3 electron CNOT optimisation time.
     '''
-    tN_3E = 100 * nanosecond
-    tN_3NE = 1000 * nanosecond
+    tN_3E = 100 * unit.ns
+    tN_3NE = 1000 * unit.ns
  
     t_3E = 40 # time to optimise 3 electron system
     
@@ -112,7 +112,7 @@ def approximate_full_NE_optimisation_time():
     rf_3E = get_resonant_frequencies(H0_3E)
     N_3E = get_rec_min_N(rf_3E, tN_3E)
 
-    H0_3NE = multi_NE_H0(Bz=2*tesla)
+    H0_3NE = multi_NE_H0(Bz=2*unit.T)
     rf_3NE = get_resonant_frequencies(H0_3NE)
     N_3NE = get_rec_min_N(rf_3NE, tN_3NE)
     #N_3NE=N_3E
@@ -120,8 +120,8 @@ def approximate_full_NE_optimisation_time():
     n_fields_3E = 15
     n_fields_3NE = 637
 
-    print(f"w_max_3E = {pt.max(pt.real(rf_3E))/Mhz} MHz")
-    print(f"w_max_3NE = {pt.max(pt.real(rf_3NE))/Mhz} MHz")
+    print(f"w_max_3E = {pt.max(pt.real(rf_3E))/unit.MHz} MHz")
+    print(f"w_max_3NE = {pt.max(pt.real(rf_3NE))/unit.MHz} MHz")
     print(f"N_3E = {N_3E}")
     print(f"N_3NE = {N_3NE}")
 
@@ -133,29 +133,29 @@ def approximate_full_NE_optimisation_time():
     
 
 
-def plot_load_time_vs_J_2q(fidelity_min = 0.999, N=2000, J=get_J(1,2), A=get_A(1,1), max_time=10*nanosecond, ax=None, fp=None):
+def plot_load_time_vs_J_2q(fidelity_min = 0.999, N=2000, J=get_J(1,2), A=get_A(1,1), max_time=10*unit.ns, ax=None, fp=None):
     # MISTAKEY
 
     def get_t(J):
         return np.arccos(np.sqrt(fidelity_min)) / ( (np.sqrt(4*A**2 + 4*J**2) - 2*A) )
 
-    J = np.linspace(2*Mhz, 50*Mhz, N)
+    J = np.linspace(2*unit.MHz, 50*unit.MHz, N)
     T = get_t(J)
 
 
 
     if ax is None: ax = plt.subplot()
-    ax.plot(J/Mhz, T/nanosecond)
+    ax.plot(J/unit.MHz, T/unit.ns)
     ax.set_ylabel("Max loading window (ns)")
     ax.set_xlabel("Exchange strength (MHz)")
 
 
     i=0; 
     while T[i]>max_time: i+=1
-    ax.axhline(max_time/nanosecond, linestyle = '--', color = 'red')
-    ax.annotate(f'{max_time/nanosecond} ns', (30,max_time/nanosecond+0.3))
-    ax.axvline(J[i]/Mhz, linestyle = '--', color='red')
-    ax.annotate(f'{J[i]/Mhz:.0f} MHz', (J[i]/Mhz+0.2, 15))
+    ax.axhline(max_time/unit.ns, linestyle = '--', color = 'red')
+    ax.annotate(f'{max_time/unit.ns} ns', (30,max_time/unit.ns+0.3))
+    ax.axvline(J[i]/unit.MHz, linestyle = '--', color='red')
+    ax.annotate(f'{J[i]/unit.MHz:.0f} MHz', (J[i]/unit.MHz+0.2, 15))
 
     if fp is not None:
         plt.savefig(fp)
@@ -163,11 +163,11 @@ def plot_load_time_vs_J_2q(fidelity_min = 0.999, N=2000, J=get_J(1,2), A=get_A(1
 
 
 if __name__ == '__main__':
-    #plot_load_time_vs_J(fid_min=0.99, Jmin=1*Mhz, Jmax=50*Mhz, tN_max=100*nanosecond, A=get_A(1,3), n=100, get_t=get_t_wf)
+    #plot_load_time_vs_J(fid_min=0.99, Jmin=1*unit.MHz, Jmax=50*unit.MHz, tN_max=100*unit.ns, A=get_A(1,3), n=100, get_t=get_t_wf)
 
     #plot_load_time_vs_J_2q(fidelity_min=0.99)
 
-    #print(f"{get_t_wf(get_J(1,3), get_A(1,3), 10*nanosecond,1000,0.99)/nanosecond} ns")
+    #print(f"{get_t_wf(get_J(1,3), get_A(1,3), 10*unit.ns,1000,0.99)/unit.ns} ns")
 
     approximate_full_NE_optimisation_time()
 

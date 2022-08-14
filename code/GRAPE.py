@@ -285,8 +285,8 @@ def get_control_fields(omega,phase,tN,N,device=default_device):
     Returns x_cf, y_cf, which relate to transverse control field, and have units of joules so that 'u' can be unitless.
     '''
     x_cf,y_cf = get_unit_CFs(omega,phase,tN,N,device=device)
-    x_cf*=0.5*g_e*mu_B*(1*tesla)
-    y_cf*=0.5*g_e*mu_B*(1*tesla)
+    x_cf*=0.5*g_e*mu_B*(1*unit.T)
+    y_cf*=0.5*g_e*mu_B*(1*unit.T)
     return x_cf, y_cf
 
 
@@ -520,7 +520,7 @@ class Grape:
         Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         '''
-        u0 = hbar/(g_e*mu_B*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/tesla
+        u0 = hbar/(g_e*mu_B*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/unit.T
         return uToVector(u0)*0.1
 
     def run(self):
@@ -597,8 +597,8 @@ class Grape:
 
     def get_fields(self):
         X_field, Y_field = self.sum_XY_fields()
-        Bx = X_field * tesla 
-        By = Y_field * tesla 
+        Bx = X_field * unit.T 
+        By = Y_field * unit.T 
         return Bx, By
 
 
@@ -631,10 +631,10 @@ class Grape:
             fig.savefig(fp)
 
     def plot_control_fields(self, ax):
-        T = np.linspace(0, self.tN/nanosecond, self.N)
+        T = np.linspace(0, self.tN/unit.ns, self.N)
         x_cf, y_cf = get_unit_CFs(self.omega, self.phase, self.tN, self.N)
-        x_cf = x_cf.cpu().numpy()/tesla
-        y_cf = y_cf.cpu().numpy()/tesla
+        x_cf = x_cf.cpu().numpy()/unit.T
+        y_cf = y_cf.cpu().numpy()/unit.T
 
 
         for k in range(self.m):
@@ -675,7 +675,7 @@ class Grape:
 
     def plot_u(self, ax):
         u_mat = self.u_mat().cpu().numpy()
-        t_axis = np.linspace(0, self.tN/nanosecond, self.N)
+        t_axis = np.linspace(0, self.tN/unit.ns, self.N)
         w_np = self.omega.cpu().detach().numpy()
         for k in range(self.m):
             if k<self.m/2:
@@ -696,7 +696,7 @@ class Grape:
         if X_field is None:
             X_field, Y_field = self.sum_XY_fields()
         X_field = X_field.cpu().numpy(); Y_field=Y_field.cpu().numpy()
-        t_axis = np.linspace(0, self.tN/nanosecond, self.N)
+        t_axis = np.linspace(0, self.tN/unit.ns, self.N)
         ax.plot(t_axis,X_field*1e3,label='$B_x$ (mT)')
         ax.plot(t_axis,Y_field*1e3,label='$B_y$ (mT)')
         ax.set_xlabel("time (ns)")
@@ -746,7 +746,7 @@ class Grape:
         now = datetime.now().strftime("%H:%M:%S %d-%m-%y")
         with open(log_fn, 'a') as f:
             f.write("{},{:.4f},{:.4f},{},{:.3e},{},{},{:.1f},{},{},{}\n".format(
-                field_filename, avgfid, minfid, now, self.alpha, self.nS, self.nq, self.tN/nanosecond, self.N, self.status, self.time_taken))
+                field_filename, avgfid, minfid, now, self.alpha, self.nS, self.nq, self.tN/unit.ns, self.N, self.status, self.time_taken))
 
 
     def preLog(self,save_data):
@@ -797,9 +797,9 @@ class GrapeESR(Grape):
             system_type = "Electron spin qubits coupled via intermediate coupler qubit"
 
         print(f"System type: {system_type}")
-        print(f"Bz = {self.Bz/tesla} T")
-        print(f"Hyperfine: A = {self.A/Mhz} MHz")
-        print(f"Exchange: J = {self.J/Mhz} MHz")
+        print(f"Bz = {self.Bz/unit.T} T")
+        print(f"Hyperfine: A = {self.A/unit.unit.MHz} MHz")
+        print(f"Exchange: J = {self.J/unit.unit.MHz} MHz")
         print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_control_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
 
 
@@ -983,7 +983,7 @@ class GrapeESR(Grape):
             T = job terminated by gadi, which means files are not saved (except savepoints)
 
         '''
-        J=pt.real(self.J)/Mhz; A=pt.real(self.A)/Mhz; tN = self.tN/nanosecond
+        J=pt.real(self.J)/unit.MHz; A=pt.real(self.A)/unit.MHz; tN = self.tN/unit.ns
         if type(J)==pt.Tensor: J=J.tolist()
         with open(f"{dir}fields/{self.filename}.txt", 'w') as f:
             f.write("J = "+str(J)+"\n")
@@ -1003,7 +1003,7 @@ class GrapeESR(Grape):
         return ID
 
     def get_field_filename(self):
-        filename = "{}_{}S_{}q_{}ns_{}step".format(self.ID,self.nS,self.nq,int(round(self.tN/nanosecond,0)),self.N)
+        filename = "{}_{}S_{}q_{}ns_{}step".format(self.ID,self.nS,self.nq,int(round(self.tN/unit.ns,0)),self.N)
         return filename
 
 
@@ -1111,9 +1111,9 @@ def make_Hw(omegas, nq, tN,N,phase = pt.zeros(1),coupled_XY=True):
     X_field_ham = pt.einsum('ij,kl->ijkl', pt.cos(wt_tensor-phase), Xn)
     Y_field_ham = pt.einsum('ij,kl->ijkl', pt.sin(wt_tensor-phase), Yn)
     if coupled_XY:
-        Hw = 0.5*g_e*mu_B * 1*tesla * ( X_field_ham + Y_field_ham )
+        Hw = 0.5*g_e*mu_B * 1*unit.T * ( X_field_ham + Y_field_ham )
     else:
-        Hw = 0.5*g_e*mu_B * 1*tesla * pt.cat((X_field_ham, Y_field_ham),0)
+        Hw = 0.5*g_e*mu_B * 1*unit.T * pt.cat((X_field_ham, Y_field_ham),0)
     return Hw
 
 def ignore_tensor(trans,d):

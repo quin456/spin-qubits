@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 
 import gates as gate
-from atomic_units import *
+import atomic_units  as unit
 from utils import *
 from hamiltonians import get_H0, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
 from pulse_maker import pi_rot_square_pulse
@@ -45,7 +45,7 @@ def plot_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     for sys in E:
         for i in range(len(sys)):
-            ax.axhline(pt.real(sys[i]/Mhz), label=f'E{dim-1-i}', color=colors[i])
+            ax.axhline(pt.real(sys[i]/unit.MHz), label=f'E{dim-1-i}', color=colors[i])
     ax.legend()
     
 def get_lowest_energy_indices(D):
@@ -67,9 +67,9 @@ def put_diagonal(E):
 def print_E_system_info(A, J, tN, N):
     nS,nq = get_nS_nq_from_A(A)
     print(f"Simulating {nq} electron system.")
-    print(f"A = {A/Mhz} MHz")
-    print(f"J = {J/Mhz} MHz")
-    print(f"tN = {tN/nanosecond} ns")
+    print(f"A = {A/unit.MHz} MHz")
+    print(f"J = {J/unit.MHz} MHz")
+    print(f"tN = {tN/unit.ns} ns")
     print(f"N = {N}")
 
 def get_free_electron_evolution(tN, N, A=get_A(1,3), J=get_J(1,3), psi0 = None):
@@ -77,9 +77,9 @@ def get_free_electron_evolution(tN, N, A=get_A(1,3), J=get_J(1,3), psi0 = None):
     nS,nq = get_nS_nq_from_A(A)
 
     print("Getting electron free evolution.")
-    print(f"J = {J/Mhz} MHz")
-    print(f"A = {A/Mhz} MHz")
-    print(f"tN = {tN/nanosecond} ns")
+    print(f"J = {J/unit.MHz} MHz")
+    print(f"A = {A/unit.MHz} MHz")
+    print(f"tN = {tN/unit.ns} ns")
 
 
     if psi0 is None:
@@ -114,7 +114,7 @@ def project_psi(psi, n, S):
 def plot_2q_eigenstates(psi,S,tN, ax=None):
     if ax is None: ax = plt.subplot()
     N = len(psi)
-    T = pt.linspace(0,tN/nanosecond,N)
+    T = pt.linspace(0,tN/unit.ns,N)
     ax.plot(T,project_psi(psi, 0, S), label = 'T+')
     ax.plot(T,project_psi(psi, 1, S), label = 'T0')
     ax.plot(T,project_psi(psi, 2, S), label = 'S')
@@ -131,7 +131,7 @@ def plot_eigenstates(psi,S,tN,ax=None):
 
 
     N = len(psi)
-    T = pt.linspace(0,tN/nanosecond,N)
+    T = pt.linspace(0,tN/unit.ns,N)
     for i in range(dim):
         ax.plot(T,project_psi(psi, i, S), label = f'E{dim-1-i}')
 
@@ -142,7 +142,7 @@ def visualise_hamiltonian(H,tN):
     Plots real and imaginary parts of each cell.
     '''
     N,d,d = H.shape 
-    T=pt.linspace(0,tN/nanosecond,N)
+    T=pt.linspace(0,tN/unit.ns,N)
     fig,ax = plt.subplots(d,d)
     maxval=0
     for a in range(d):
@@ -170,10 +170,10 @@ def ground_state(nq):
 
 def get_Bw_field(tN,N,J,A,multisys=True, include_HZ=False):
     '''
-    Accepts pulse time tN (nanoseconds) and A,J couplngs (Mhz), and returns control pulse (tesla) to achieve
+    Accepts pulse time tN (nanoseconds) and A,J couplngs (Mhz), and returns control pulse (unit.T) to achieve
     desired eigenstate transition.
     '''
-    A*=Mhz; J*=Mhz; tN*=nanosecond
+    A*=unit.MHz; J*=unit.MHz; tN*=unit.ns
     if not multisys:
         J=J.reshape(1,*J.shape)
         A=A.reshape(1,*A.shape)
@@ -186,10 +186,10 @@ def get_Bw_field(tN,N,J,A,multisys=True, include_HZ=False):
     wt = pt.einsum('k,j->kj', omega,T)
 
     # get unitless field direction vectors
-    x_cf, y_cf = get_unit_CFs(omega,phase,tN,N)
+    x_cf, y_cf = unit.get_unit_CFs(omega,phase,tN,N)
 
     # get magnetic field strength (teslas)
-    Bw = np.pi / (C[0][-2,-1]*g_e*mu_B*tesla*tN)
+    Bw = np.pi / (C[0][-2,-1]*g_e*mu_B*unit.T*tN)
 
     x_field = Bw*x_cf
     y_field = Bw*y_cf
@@ -304,7 +304,7 @@ def get_nuclear_spins(A):
 
 
 
-def analyse_3E_system(Bz=2*tesla, A=get_A(1,3), J=get_J(1,3)):
+def analyse_3E_system(Bz=2*unit.T, A=get_A(1,3), J=get_J(1,3)):
 
     H0 = get_H0(A=A, J=J, Bz=Bz)
     S,D = get_ordered_eigensystem(H0)
@@ -316,7 +316,7 @@ def analyse_3E_system(Bz=2*tesla, A=get_A(1,3), J=get_J(1,3)):
         print(f"|e{j}> = {psi_to_string(S[:,j], pmin=0.001)}")
 
 
-def drive_electron_transition(S, D, transition, tN=100*nanosecond, N=10000, ax=None, label_getter = eigenstate_label_getter):
+def drive_electron_transition(S, D, transition, tN=100*unit.ns, N=10000, ax=None, label_getter = eigenstate_label_getter):
     H0 = S@D@S.T
 
     nq = get_nq_from_dim(H0.shape[-1])
@@ -325,7 +325,7 @@ def drive_electron_transition(S, D, transition, tN=100*nanosecond, N=10000, ax=N
     w_res = E[transition[0]] - E[transition[1]]
     couplings = get_couplings(S)
     coupling = couplings[transition]
-    print(f"Driving electron transition: |E{transition[0]}> <--> |E{transition[1]}> with frequency {pt.real(w_res)/Mhz} MHz, coupling {pt.real(coupling)*tesla/Mhz} MHz/tesla.")
+    print(f"Driving electron transition: |E{transition[0]}> <--> |E{transition[1]}> with frequency {pt.real(w_res)/unit.MHz} MHz, coupling {pt.real(coupling)*unit.T/unit.MHz} MHz/unit.T.")
 
     Bx, By = pi_rot_square_pulse(w_res, coupling, tN, N)
 
@@ -345,7 +345,7 @@ def drive_electron_transition(S, D, transition, tN=100*nanosecond, N=10000, ax=N
 
 
 
-def investigate_3E_resfreqs(tN=1000*nanosecond, N=10000, fp=None):
+def investigate_3E_resfreqs(tN=1000*unit.ns, N=10000, fp=None):
     nq=3
     H0 = get_H0(get_A(1,nq), get_J(1,nq))
     S,D = get_ordered_eigensystem(H0); E=pt.diag(D)
@@ -365,8 +365,9 @@ def investigate_3E_resfreqs(tN=1000*nanosecond, N=10000, fp=None):
     if fp is not None:
         fig.savefig(fp)
 
-def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*nanosecond, N=1000):
+def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*unit.ns, N=1000):
     
+    nq=3
     H0 = get_H0(A=A, J=J, Bz=Bz)
     S,D = get_ordered_eigensystem(H0); E=pt.diag(D)
     trans_idx=8
@@ -382,12 +383,12 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*nanosecond, N=1000):
     Hw_eig = pt.einsum('ab,jbd->jad', S.T, pt.einsum('jbc,cd->jbd', Hw, S))
 
 
-    print(f"w_res = {pt.real(omega)/Mhz:.2f} MHz for transition |E{transition[0]}> <--> |E{transition[1]}>")
+    print(f"w_res = {pt.real(omega)/unit.MHz:.2f} MHz for transition |E{transition[0]}> <--> |E{transition[1]}>")
 
 
     for a in range(dim):
         for b in range(dim):
-            if (pt.max(pt.real(Hw_eig[:,a,b])) + pt.max(pt.imag(Hw_eig[:,a,b])))/Mhz < 1e-9:
+            if (pt.max(pt.real(Hw_eig[:,a,b])) + pt.max(pt.imag(Hw_eig[:,a,b])))/unit.MHz < 1e-9:
                 Hw_eig[:,a,b] = pt.zeros_like(Hw_eig[:,a,b])
 
 
@@ -398,7 +399,7 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*nanosecond, N=1000):
 
 
 
-def dressed_spins(Bz=0, A=get_A(1,2), J=get_J(1,2)/71, tN=150*nanosecond, N=10000):
+def dressed_spins(Bz=0, A=get_A(1,2), J=get_J(1,2)/71, tN=150*unit.ns, N=10000):
 
     field_mult = 5
 
@@ -425,7 +426,7 @@ if __name__ == '__main__':
     
     dressed_spins()
 
-    # investigate_3E_resfreqs(tN=1000*nanosecond)
+    # investigate_3E_resfreqs(tN=1000*unit.ns)
     # nq=3
     #visualise_3E_Hw(A=get_A(1,nq), J=get_J(1,nq))
     plt.show()

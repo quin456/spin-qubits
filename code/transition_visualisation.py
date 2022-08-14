@@ -17,7 +17,7 @@ from scipy.optimize import minimize
 
 from GRAPE import Grape
 import gates as gate 
-from atomic_units import *
+import atomic_units as unit
 from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import get_resonant_frequencies, get_allowed_transitions, print_rank2_tensor, get_nS_nq_from_A
 from pulse_maker import pi_rot_square_pulse
@@ -100,7 +100,7 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
     S,D = get_ordered_eigensystem(get_H0(A=A,J=J,Bz=Bz))
     d = len(D) #dimension, number of states / nodes
     print_rank2_tensor(S)
-    print_rank2_tensor(D/Mhz)
+    print_rank2_tensor(D/unit.MHz)
 
 
     nlabels = [get_node_label(i,nq) for i in range(d)]
@@ -108,7 +108,7 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
     transitions = get_allowed_transitions(H0, S=S, E=pt.diag(D))
     labelled_transitions = label_transitions(transitions, nq)
 
-    H0_e100 = get_H0(A=get_A(1,3,NucSpin=[0,0,0]), J=J, Bz=2*tesla)
+    H0_e100 = get_H0(A=get_A(1,3,NucSpin=[0,0,0]), J=J, Bz=2*unit.T)
     allowed_transitions = get_allowed_transitions(H0_e100)
     
     set_trace()
@@ -177,16 +177,16 @@ def visualise_E_transitions_for_NucSpins(J=get_J(1,3)):
 
     #fig,ax = plt.subplots(2,2)
     ax=plt.subplot()
-    visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[0,0,0]), Bz=2*tesla, ax=ax)
+    visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[0,0,0]), Bz=2*unit.T, ax=ax)
 
 
-    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[0,0,1]), Bz=2*tesla, ax=ax[0,1])
-    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[1,0,0]), Bz=2*tesla, ax=ax[1,0])
-    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[1,0,1]), Bz=2*tesla, ax=ax[1,1])
+    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[0,0,1]), Bz=2*unit.T, ax=ax[0,1])
+    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[1,0,0]), Bz=2*unit.T, ax=ax[1,0])
+    #visualise_E_transitions(J=get_J(1,3),A=get_A(1,3,NucSpin=[1,0,1]), Bz=2*unit.T, ax=ax[1,1])
 
 
 
-def graph_full_NE_H0_transitions(Bz=2*tesla, A=get_A(1,1), J=get_J(1,3)):
+def graph_full_NE_H0_transitions(Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3)):
 
     H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
     rf = get_resonant_frequencies(H0)

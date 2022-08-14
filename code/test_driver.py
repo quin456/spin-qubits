@@ -17,7 +17,7 @@ import ast
 from data import g_e,mu_B,gamma_e, get_A, get_J, J_100_14nm, J_100_18nm, cplx_dtype, dir
 import gates as gate
 from gates import get_Xn, get_Yn, CX, Id
-from atomic_units import *
+import atomic_units as unit
 
 
 
@@ -34,7 +34,7 @@ def get_fields(filename):
 
 def plot_fields(X_field,Y_field,tN,ax=None):
     N = len(X_field)
-    T_axis = pt.linspace(0,tN/nanosecond, N)
+    T_axis = pt.linspace(0,tN/unit.ns, N)
     if ax==None: ax = plt.subplot()
     ax.plot(T_axis,X_field*1e3, label = 'X field (mT)')
     ax.plot(T_axis,Y_field*1e3, label = 'Y field (mT)')
@@ -65,7 +65,7 @@ def simulate_field(tN,X_field,Y_field,J,A):
         H0 = grape.get_H0(A,J)[q]
         U = pt.eye(2**nq, dtype = grape.cplx_dtype)
         for j in range(N):
-            H = H0 + 0.5*g_e*mu_B*tesla*(X_field[j]*get_Xn(nq) + Y_field[j]*get_Yn(nq))
+            H = H0 + 0.5*g_e*mu_B*unit.T*(X_field[j]*get_Xn(nq) + Y_field[j]*get_Yn(nq))
             U = pt.matmul(pt.matrix_exp(-1j*dt*H),U)
             X[q][j]=U  
     return X
@@ -126,8 +126,8 @@ def frequency_collisions(fn):
     X_field,Y_field = get_fields(fn)
 
     nS=225; nq=3
-    all_J = grape.get_J(nS,nq)*Mhz 
-    all_A = grape.get_A(nS,nq)*Mhz
+    all_J = grape.get_J(nS,nq)*unit.MHz 
+    all_A = grape.get_A(nS,nq)*unit.MHz
     all_target = single_CNOT_target(0,nS)
     X = simulate_field(tN, X_field, Y_field, all_J, all_A)
     print(max(fidelity(X,all_target)[1:]))
@@ -152,9 +152,9 @@ def three_q_from_2q():
     # grape.plot_fidelity_progress(ax[1],fid_progress,tN,False)
     # plot_fields(X_field1,Y_field1,tN,ax[0]); plt.show()
 
-    J_3q = grape.get_J(2,3)[1:]*Mhz
+    J_3q = grape.get_J(2,3)[1:]*unit.MHz
     target_3q = grape.CNOT_targets(1,3)
-    A_3q = grape.get_A(1,3)*Mhz
+    A_3q = grape.get_A(1,3)*unit.MHz
     A_3q[0][1:]*=-1
     print(f"A={A_3q}, \nA1={A1}, \nA2={A2}")
     print(f"J={J_3q}, \nJ1={J1}, \nJ2={J2}")
@@ -176,7 +176,7 @@ def compare_fields(times,Ns,Js,As,IDs):
     nq = len(As[0][0])
     fig,ax = plt.subplots(n,2)
     for i in range(n):
-        filename = grape.get_field_filename(As[i],times[i]*nanosecond,Ns[i], IDs[i])
+        filename = grape.get_field_filename(As[i],times[i]*unit.ns,Ns[i], IDs[i])
         _J,_A,tN,target,fid = load_system_data(filename)
         target=grape.CNOT_targets(len(_J),nq)
         X_field,Y_field = get_fields(filename)
@@ -215,7 +215,7 @@ def all_2q():
     filename = 'g121_15S_2q_180ns_1000step'
     J,A,tN,N,target,fid = load_system_data(filename)
     start=0;nS=15
-    J=J_100_18nm[start:start+nS]*Mhz; A=grape.get_A(nS,2)*Mhz; target=grape.CNOT_targets(nS,2)
+    J=J_100_18nm[start:start+nS]*unit.MHz; A=grape.get_A(nS,2)*unit.MHz; target=grape.CNOT_targets(nS,2)
     X_field,Y_field = get_fields(filename)
     plot_fields(X_field,Y_field,tN,ax[0])
     X=simulate_field(tN,X_field,Y_field,J,A)

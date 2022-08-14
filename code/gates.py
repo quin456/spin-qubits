@@ -101,6 +101,19 @@ CXr = pt.tensor([
     [0,1,0,0]
 ], dtype = cplx_dtype, device=default_device)
 
+CX_native = pt.tensor([
+    [1,0,0,0],
+    [0,1,0,0],
+    [0,0,0,-1j],
+    [0,0,-1j,0]], dtype=cplx_dtype, device=default_device)
+CXr_native = pt.tensor([
+    [1,0,0,0],
+    [0,0,0,1j],
+    [0,0,1,0],
+    [0,1j,0,0]
+], dtype = cplx_dtype, device=default_device)
+
+
 CX3q = pt.tensor([
     [1,0,0,0,0,0,0,0],
     [0,1,0,0,0,0,0,0],
@@ -321,3 +334,8 @@ def get_Zn(nq, device=default_device):
 
 def get_2E_H0(A,J):
     return A*ZI-A*IZ + J*sigDotSig
+
+
+if __name__ == '__main__':
+    from pdb import set_trace
+    set_trace()

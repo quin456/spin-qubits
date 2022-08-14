@@ -285,7 +285,7 @@ def get_couplings(S, Hw_mag=None):
 
 def get_pi_pulse_tN_from_field_strength(B_mag, coupling, coupling_lock = None):
     tN = np.pi/(coupling*B_mag)
-    print(f"Pi-pulse duration for field strength {B_mag*1e3/tesla} mT with coupling {coupling*tesla/Mhz} MHz/tesla is {tN/nanosecond} ns.")
+    print(f"Pi-pulse duration for field strength {B_mag/unit.mT} mT with coupling {pt.real(coupling)*unit.T/unit.MHz} MHz/unit.T is {pt.real(tN)/unit.ns} ns.")
     if coupling_lock is not None:
         return lock_to_frequency(coupling_lock, tN)
     return tN
@@ -311,10 +311,9 @@ def lock_to_frequency(c, tN):
     tN_locked = int(tN/t_HF) * t_HF
     if tN_locked == 0:
         tN_locked=t_HF
-        print(f"tN={tN/nanosecond}ns too small to lock to coupling period {t_HF/nanosecond}ns.")
-        return tN
-    else:
-        print(f"Locking tN={tN/nanosecond} ns to coupling period {t_HF/nanosecond} ns. New tN={tN_locked/nanosecond} ns.")
+        #print(f"tN={pt.real(tN)/unit.ns:.2f}ns too small to lock to coupling period {t_HF/unit.ns:.2f}ns.")
+        #return tN_locked
+    print(f"Locking tN={tN/unit.ns:.2f} ns to coupling period {t_HF/unit.ns} ns. New tN={tN_locked/unit.ns:.2f} ns.")
     return tN_locked
 
 def order_eigensystem(H0, E_order, ascending=True):
@@ -394,8 +393,8 @@ def get_rec_min_N(rf, tN, N_period=20, verbosity=0):
     max_w=pt.max(rf).item()
     rec_min_N = int(np.ceil(N_period*max_w*tN/(2*np.pi)))
     if verbosity>=1: 
-        print(f"resonant freqs = {rf/Mhz}")
-        print(f"T = {T/nanosecond}")
+        print(f"resonant freqs = {rf/unit.MHz}")
+        print(f"T = {T/unit.ns}")
     print(f"Recommened min N = {rec_min_N}")
 
     return rec_min_N

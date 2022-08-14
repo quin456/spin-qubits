@@ -12,7 +12,7 @@ import pickle
 import GRAPE
 from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation
 import gates as gate 
-from atomic_units import *
+import atomic_units as unit
 from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
 from visualisation import visualise_Hw
 from utils import dagger
@@ -28,7 +28,7 @@ from pdb import set_trace
 def inspect_system():
     J = get_J(3,3)[2:3]
     J[0,0]/=5
-    tN = 200.0*nanosecond
+    tN = 200.0*unit.ns
     N = 1500
     nq = 3
     nS = 1
@@ -40,7 +40,7 @@ def inspect_system():
     mergeprop = False
     A = get_A(1,3, NucSpin=[-1,-1,-1])*0
 
-    grape = GrapeESR(J,A,tN,N, Bz=0.02*tesla, max_time=max_time, save_data=save_data)
+    grape = GrapeESR(J,A,tN,N, Bz=0.02*unit.T, max_time=max_time, save_data=save_data)
     Hw=grape.get_Hw()
 
     eigs = pt.linalg.eig(grape.H0)
@@ -77,7 +77,7 @@ def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_d
 
 if __name__ == '__main__':
     run_CNOTs(
-        tN = 200.0*nanosecond, 
+        tN = 200.0*unit.ns, 
         N = 400, 
         nq = 2, 
         nS = 1, 

@@ -2,18 +2,16 @@
 
 import torch as pt 
 import matplotlib
-
-
-
-
-
+import numpy as np
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
+
+
 import gates as gate
 from pulse_maker import pi_rot_square_pulse
-from atomic_units import *
+import atomic_units as unit
 from gates import spin_up, spin_down
 from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
 from data import gamma_e, dir, cplx_dtype
@@ -33,7 +31,7 @@ def label_getter(j):
 
 
 
-def show_single_spin_evolution(Bz = 0*tesla, A=get_A(1,1), tN = 500*nanosecond, N=100000, target = gate.X, psi0=spin_up, fp=None):
+def show_single_spin_evolution(Bz = 0*unit.T, A=get_A(1,1), tN = 500*unit.ns, N=100000, target = gate.X, psi0=spin_up, fp=None):
 
     tN = lock_to_frequency(A, tN)
 
@@ -108,9 +106,9 @@ def run_single_electron_grape():
     N = 1000
     Bz=0
     A = get_A(1,1)
-    tN = 100*nanosecond 
+    tN = 100*unit.ns 
     tN = lock_to_frequency(A,tN)
-    u0 = 1.5*np.pi/( (gamma_e*tesla)*tN) * pt.ones(2,N, dtype=cplx_dtype)
+    u0 = 1.5*np.pi/( (gamma_e*unit.T)*tN) * pt.ones(2,N, dtype=cplx_dtype)
 
     grape = SingleElectronGRAPE(tN,N,target, Bz=Bz,u0=u0)
     #grape.run()
@@ -122,5 +120,5 @@ def run_single_electron_grape():
 
 if __name__ == '__main__':
 
-    #show_single_spin_evolution(N=500, tN=100*nanosecond); plt.show()
+    #show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
     run_single_electron_grape()

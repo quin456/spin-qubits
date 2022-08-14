@@ -72,7 +72,7 @@ def get_E_transition(evec1_idx, evec0_idx, tN, N, A, NucSpin, J, Bz, S_NE):
     transition = get_transition(evec0_idx, evec1_idx, allowed_transitions)
     omega = E[transition[0]] - E[transition[1]]
     coupling = couplings[evec1_idx,evec0_idx]
-    print(f"|{downarrow}{downarrow}{downarrow}> <--> |E{evec1_idx}>: omega = {pt.real(omega)/Mhz} MHz, coupling = {pt.real(coupling)*tesla/Mhz} MHz/tesla")
+    print(f"|{downarrow}{downarrow}{downarrow}> <--> |E{evec1_idx}>: omega = {pt.real(omega)/unit.MHz} MHz, coupling = {pt.real(coupling)*unit.T/unit.MHz} MHz/unit.T")
 
     
     NucSpin_str = ''
@@ -159,7 +159,7 @@ def triple_donor_CX_fields(tN_e, tN_n, N_e, N_n, A,J, Bz, eigen_basis):
     eigen_basis += [eig00, eig01, eig10, eig11]
     for j, transition in enumerate(allowed_transitions):
         if transition[0] in eigen_basis and transition[1] in eigen_basis:
-            print(f"Transition |E{transition[0]}> <--> |E{transition[1]}> is allowed, w_res = {pt.real(E[transition[0]]-E[transition[1]])/Mhz} MHz")
+            print(f"Transition |E{transition[0]}> <--> |E{transition[1]}> is allowed, w_res = {pt.real(E[transition[0]]-E[transition[1]])/unit.MHz} MHz")
 
     comp_basis = [7,15,39,47]
     transition_states = list(set(get_comp_basis_eigen_composition(comp_basis, S) + eigen_basis))
@@ -173,7 +173,7 @@ def triple_donor_CX_fields(tN_e, tN_n, N_e, N_n, A,J, Bz, eigen_basis):
     By_e = By_01 + By_10 + By_11 
     return Bx_e, By_e, Bx_n, By_n
 
-def triple_donor_CX_psi_evol(tN_e = 500*nanosecond, tN_n=5000*nanosecond, N_e = 200, N_n=10, A=get_A(1,1),J=get_J(1,3), Bz=2*tesla, psi0=comp11, ax=None):
+def triple_donor_CX_psi_evol(tN_e = 500*unit.ns, tN_n=5000*unit.ns, N_e = 200, N_n=10, A=get_A(1,1),J=get_J(1,3), Bz=2*unit.T, psi0=comp11, ax=None):
 
     eigen_basis = []
     Bx_e, By_e, Bx_n, By_n = triple_donor_CX_fields(tN_e, tN_n, N_e, N_n, A, J, Bz, eigen_basis)
@@ -260,7 +260,7 @@ def triple_donor_CX(tN_e, tN_n, N_e, N_n, A,J, Bz, fp=None, reduced=False):
 
     plot_psi(X@psi0, T=T)
 
-
+    Uf = X[-1]
     U_phi = gate.CX @ pt.inverse(Uf)
     # can we use GRAPE to find pulses which act U_phi on triple donor system?
     # Will then achieve CX = U_phi @ Uf!
@@ -269,7 +269,7 @@ def triple_donor_CX(tN_e, tN_n, N_e, N_n, A,J, Bz, fp=None, reduced=False):
 
 class GrapePhaseCorrection(Grape):
 
-    def __init__(self, J, A_mag=get_A(1,1), tN=100*nanosecond, N=1000, Bz=0, target_phase=[0, np.pi/5, np.pi/3, -np.pi/2.1], rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
+    def __init__(self, J, A_mag=get_A(1,1), tN=100*unit.ns, N=1000, Bz=0, target_phase=[0, np.pi/5, np.pi/3, -np.pi/2.1], rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
         self.J = self.get_phase_correction_J(J) 
         self.A = self.phase_correction_A(A_mag)
         self.nS,self.nq=self.get_nS_nq()
@@ -352,13 +352,13 @@ class GrapePhaseCorrection(Grape):
 if __name__=='__main__':
 
     #triple_donor_CX_psi_evol()
-    #triple_donor_CX_X(tN_e = 500*nanosecond, tN_n=5000*nanosecond, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*tesla)
+    #triple_donor_CX_X(tN_e = 500*unit.ns, tN_n=5000*unit.ns, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*unit.T)
     #visualise_E_transitions_for_NucSpins()
-    #triple_donor_CX_on_comp_basis_states(tN_e = 500*nanosecond, tN_n=5000*nanosecond, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*tesla)
-    #triple_donor_CX(tN_e = 500*nanosecond, tN_n=5000*nanosecond, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*tesla, reduced=True)
+    #triple_donor_CX_on_comp_basis_states(tN_e = 500*unit.ns, tN_n=5000*unit.ns, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*unit.T)
+    #triple_donor_CX(tN_e = 500*unit.ns, tN_n=5000*unit.ns, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*unit.T, reduced=True)
     #apply_phase()
 
-    phase_corrector = GrapePhaseCorrection(get_J(1,3), get_A(1,1),tN=1000*nanosecond, N=1000, max_time=8)
+    phase_corrector = GrapePhaseCorrection(get_J(1,3), get_A(1,1),tN=1000*unit.ns, N=1000, max_time=8)
     phase_corrector.run()
     phase_corrector.plot_result()
 

@@ -18,21 +18,21 @@ a0 = 1
 
 # remaining constants
 h_planck = 2*np.pi*hbar
-metre = 1/a0_n
+m = 1/a0_n
 kg = 1/mE_n 
-coulomb = 1/qE_n 
-second = hbar_n*kg*metre**2
-nanosecond = 1e-9*second
+C = 1/qE_n 
+s = hbar_n*kg*m**2
+ns = 1e-9*s
 
 
 rad = 1
-ampere = coulomb/second
-tesla = kg/(ampere*second**2)
-mT = 1e-3*tesla
-newton = kg*metre*second**(-2)
-joule = newton*metre
-hz = 2*np.pi/second # because frequencies are expected in rad/second
-Mhz = 1e6*hz
-Ghz = 1e9*hz
-rps = 1/second
+A = C/s
+T = kg/(A*s**2)
+mT = 1e-3*T
+newton = kg*m*s**(-2)
+joule = newton*m
+hz = 2*np.pi/s # because frequencies are expected in rad/second
+MHz = 1e6*hz
+GHz = 1e9*hz
+rps = 1/s
 Mrps = 1e6*rps
