@@ -221,7 +221,6 @@ def triple_donor_CX_on_comp_basis_states(tN_e, tN_n, N_e, N_n, A,J, Bz, fp=None)
     fig,ax = plt.subplots(1)
     plot_psi(map_psi(S.T,X@comp10), T=T, ax=ax)
 
-    set_trace()
 
 
 def apply_phase():
@@ -249,7 +248,6 @@ def apply_phase():
 
     CX_c1 = remove_arb_phase(U_corr1 @ Uf)
 
-    set_trace()
 
 def triple_donor_CX(tN_e, tN_n, N_e, N_n, A,J, Bz, fp=None, reduced=False):
 
@@ -267,10 +265,88 @@ def triple_donor_CX(tN_e, tN_n, N_e, N_n, A,J, Bz, fp=None, reduced=False):
     # can we use GRAPE to find pulses which act U_phi on triple donor system?
     # Will then achieve CX = U_phi @ Uf!
 
-    set_trace()
 
-   
 
+class GrapePhaseCorrection(Grape):
+
+    def __init__(self, J, A_mag=get_A(1,1), tN=100*nanosecond, N=1000, Bz=0, target_phase=[0, np.pi/5, np.pi/3, -np.pi/2.1], rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
+        self.J = self.get_phase_correction_J(J) 
+        self.A = self.phase_correction_A(A_mag)
+        self.nS,self.nq=self.get_nS_nq()
+        self.Bz=Bz
+        self.tN=tN
+        self.N=N
+        self.alpha=alpha
+        self.target = self.get_phase_targets(target_phase,2**self.nq+1)
+        super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
+        self.Hw = self.get_Hw()
+
+    @staticmethod
+    def phase_correction_A(A_mag):
+        NucSpins = [[0,0,0], [0,0,1], [1,0,0], [1,0,1]]
+        A = pt.stack((get_A(1,3, NucSpin=NucSpins[0]), get_A(1,3, NucSpin=NucSpins[1]), get_A(1,3, NucSpin=NucSpins[2]), get_A(1,3, NucSpin=NucSpins[3])))
+        return A
+
+    @staticmethod
+    def get_phase_correction_J(J):
+        return pt.stack((J,J,J,J))
+
+    def get_nS_nq(self):
+        return get_nS_nq_from_A(self.A)
+
+    def get_H0(self, device=default_device):
+        '''
+        Free hamiltonian of each system.
+        
+        self.A: (nS,nq), self.J: (nS,) for 2 qubit or (nS,2) for 3 qubits
+        '''
+        H0 = get_H0(self.A, self.J, self.Bz, device=default_device)
+        dim = H0.shape[-1]+1
+        H0_anchored = pt.zeros(self.nS,dim,dim, dtype=cplx_dtype, device=default_device)
+        if self.nS==1:
+            H0 = H0.reshape(1,*H0.shape)
+        for s in range(self.nS):
+            H0_anchored[s] = self.add_phase_anchor(H0[s])
+        return H0_anchored
+
+
+    def get_Hw(self):
+        '''
+        Gets Hw. Not used for actual optimisation, but sometimes handy for testing and stuff.
+        '''
+        ox = self.add_phase_anchor(gate.get_Xn(self.nq))
+        oy = self.add_phase_anchor(gate.get_Yn(self.nq))
+        Hw = pt.einsum('kj,ab->kjab',self.x_cf,ox) + pt.einsum('kj,ab->kjab',self.y_cf,oy)
+        return Hw
+
+
+    def get_control_frequencies(self, device=default_device):
+        return get_multi_system_resonant_frequencies(self.H0[:,1:,1:], device=device)
+
+
+    @staticmethod 
+    def add_phase_anchor(A):
+        dim = A.shape[-1]
+        A_new = pt.zeros(dim+1, dim+1, dtype=cplx_dtype, device=default_device)
+        A_new[1:dim+1,1:dim+1] = A
+        return A_new
+
+    @staticmethod
+    def get_phase_targets(phases, dim):
+        nS = len(phases)
+        target = pt.zeros(nS, dim, dim, dtype=cplx_dtype, device=default_device)
+        for s in range(nS):
+            target[s] = GrapePhaseCorrection.get_single_phase_target(phases[s], dim)
+        return target
+
+    @staticmethod
+    def get_single_phase_target(phi, dim):
+
+        target = pt.eye(dim, dtype=cplx_dtype, device=default_device)
+        target *= np.exp(1j*phi)
+        target[0,0] *= np.exp(-1j*phi)
+
+        return target 
 
 
 if __name__=='__main__':
@@ -280,7 +356,12 @@ if __name__=='__main__':
     #visualise_E_transitions_for_NucSpins()
     #triple_donor_CX_on_comp_basis_states(tN_e = 500*nanosecond, tN_n=5000*nanosecond, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*tesla)
     #triple_donor_CX(tN_e = 500*nanosecond, tN_n=5000*nanosecond, N_e = 200000, N_n=10000, A=get_A(1,1),J=get_J(1,3), Bz=2*tesla, reduced=True)
-    apply_phase()
+    #apply_phase()
+
+    phase_corrector = GrapePhaseCorrection(get_J(1,3), get_A(1,1),tN=1000*nanosecond, N=1000, max_time=8)
+    phase_corrector.run()
+    phase_corrector.plot_result()
+
     plt.show()
 
 

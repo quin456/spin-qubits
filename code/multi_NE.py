@@ -17,7 +17,7 @@ from atomic_units import *
 from data import get_A, get_J
 from visualisation import plot_psi, plot_fields, plot_fidelity, multi_NE_label_getter
 from pulse_maker import square_pulse
-from utils import lock_to_coupling, get_couplings_over_gamma_e, psi_to_string
+from utils import lock_to_frequency, get_couplings_over_gamma_e, psi_to_string
 from single_NE import NE_swap_pulse, NE_CX_pulse
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X_from_H, get_U0
  
@@ -210,7 +210,7 @@ def get_psi_projections(psi, states):
 
 
 def get_triple_NE_couplings(S):
-    Hw_mag = gamma_e*gate.get_Sx_sum(3) - gamma_n*gate.get_Ix_sum(3)
+    Hw_mag = 2*gamma_e*gate.get_Sx_sum(3) - 2*gamma_n*gate.get_Ix_sum(3)
     return get_couplings(S,Hw_mag)
 
 

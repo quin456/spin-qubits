@@ -240,7 +240,7 @@ def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
         freqs.append((pt.real(E[transition[0]]-E[transition[1]])).item())
 
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
-
+    
     return freqs
 
 def get_multi_system_resonant_frequencies(H0s, device=default_device):
@@ -278,9 +278,17 @@ def get_couplings_over_gamma_e(S,D):
 def get_couplings(S, Hw_mag=None):
     nq = get_nq_from_dim(len(S[0]))
     couplings = pt.zeros_like(S)
-    if Hw_mag is None: Hw_mag = 0.5 * gamma_e * gate.get_Xn(nq)
+    if Hw_mag is None: 
+        print("No Hw_mag specified, providing couplings for electron spin system.")
+        Hw_mag = gamma_e * gate.get_Xn(nq)
     return gamma_e*S.T @ Hw_mag @ S
 
+def get_pi_pulse_tN_from_field_strength(B_mag, coupling, coupling_lock = None):
+    tN = np.pi/(coupling*B_mag)
+    print(f"Pi-pulse duration for field strength {B_mag*1e3/tesla} mT with coupling {coupling*tesla/Mhz} MHz/tesla is {tN/nanosecond} ns.")
+    if coupling_lock is not None:
+        return lock_to_frequency(coupling_lock, tN)
+    return tN
 
 def get_ordered_eigensystem(H0, H0_phys=None, ascending=True):
     '''
@@ -298,7 +306,7 @@ def get_ordered_eigensystem(H0, H0_phys=None, ascending=True):
     D = pt.diag(E)
     return S,D
 
-def lock_to_coupling(c, tN):
+def lock_to_frequency(c, tN):
     t_HF = 2*np.pi/c
     tN_locked = int(tN/t_HF) * t_HF
     if tN_locked == 0:
@@ -306,7 +314,7 @@ def lock_to_coupling(c, tN):
         print(f"tN={tN/nanosecond}ns too small to lock to coupling period {t_HF/nanosecond}ns.")
         return tN
     else:
-        print(f"Locking tN={tN/nanosecond}ns to coupling period {t_HF/nanosecond}ns. New tN={tN_locked/nanosecond}ns.")
+        print(f"Locking tN={tN/nanosecond} ns to coupling period {t_HF/nanosecond} ns. New tN={tN_locked/nanosecond} ns.")
     return tN_locked
 
 def order_eigensystem(H0, E_order, ascending=True):

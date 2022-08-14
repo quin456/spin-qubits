@@ -32,7 +32,7 @@ def get_H0(A,J, Bz=0, device=default_device):
     nS, nq = get_nS_nq_from_A(A)
     d = 2**nq
 
-    
+    reshaped=False
     if nS==1:
         A = A.reshape(1,*A.shape)
         J = J.reshape(1,*J.shape)

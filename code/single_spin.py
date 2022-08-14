@@ -17,7 +17,7 @@ from atomic_units import *
 from gates import spin_up, spin_down
 from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
 from data import gamma_e, dir, cplx_dtype
-from utils import forward_prop, lock_to_coupling
+from utils import forward_prop, lock_to_frequency
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_U0
 from data import get_A
 from GRAPE import Grape
@@ -35,7 +35,7 @@ def label_getter(j):
 
 def show_single_spin_evolution(Bz = 0*tesla, A=get_A(1,1), tN = 500*nanosecond, N=100000, target = gate.X, psi0=spin_up, fp=None):
 
-    tN = lock_to_coupling(A, tN)
+    tN = lock_to_frequency(A, tN)
 
     w_res = gamma_e*Bz + 2*A
     #fig,ax = plt.subplots(2,2)
@@ -109,7 +109,7 @@ def run_single_electron_grape():
     Bz=0
     A = get_A(1,1)
     tN = 100*nanosecond 
-    tN = lock_to_coupling(A,tN)
+    tN = lock_to_frequency(A,tN)
     u0 = 1.5*np.pi/( (gamma_e*tesla)*tN) * pt.ones(2,N, dtype=cplx_dtype)
 
     grape = SingleElectronGRAPE(tN,N,target, Bz=Bz,u0=u0)

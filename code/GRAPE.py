@@ -2,6 +2,7 @@
 
 # coding tools
 from abc import abstractmethod
+from email.policy import default
 from pdb import set_trace
 import time
 import warnings
@@ -30,6 +31,7 @@ from atomic_units import *
 import gates as gate
 from utils import *
 from data import *
+from hamiltonians import get_H0
 from visualisation import plot_fidelity, y_axis_labels, colors, plot_psi, plot_phases
 from visualisation import double_long_width, double_long_height, single_long_height
 
@@ -302,7 +304,6 @@ class Grape:
         self.N=N
         self.nS=nS
         self.target=target
-
         self.max_time=max_time
         self.start_time = time.time()
         self.save_data = save_data
@@ -360,15 +361,15 @@ class Grape:
         Calculates the time-evolution operators corresponding to each of the N timesteps,
         and returns as an array, U.
         '''
-        d=2**self.nq
+        dim = self.H0.shape[-1]
         nS=len(self.H0)
         simSteps=1
         N = int(len(u)/self.m)
         dt = self.tN/self.N
 
         # add axes
-        Hw = pt.einsum('s,kjab->skjab', pt.ones(nS), self.Hw)
-        H0 = pt.einsum('j,sab->sjab', pt.ones(N), self.H0)
+        Hw = pt.einsum('s,kjab->skjab', pt.ones(nS, dtype=cplx_dtype, device=default_device), self.Hw)
+        H0 = pt.einsum('j,sab->sjab', pt.ones(N, dtype=cplx_dtype, device=default_device), self.H0)
 
         H_control = pt.einsum('kj,skjab->sjab', uToMatrix(u,self.m), Hw)
 
@@ -379,8 +380,8 @@ class Grape:
             H = H_control + H0
             
         if simSteps==1:
-            U_flat = pt.matrix_exp(-1j*pt.reshape(H, (nS*N,d,d))*(dt/hbar))
-            U = pt.reshape(U_flat, (nS,N,d,d))
+            U_flat = pt.matrix_exp(-1j*pt.reshape(H, (nS*N,dim,dim))*(dt/hbar))
+            U = pt.reshape(U_flat, (nS,N,dim,dim))
             return U
         else:
             # scrap this?
@@ -403,16 +404,16 @@ class Grape:
         dim = U[0].shape[1]  # forward propagated time evolution operator
         nq = get_nq_from_dim(dim)
         if target is None: target = CNOT_targets(nS,nq)
-        X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
-        X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
-        P = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
-        P[:,N-1,:,:] = target    # backwards propagated target 
+        self.X = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
+        self.X[:,0,:,:] = U[:,0]       # forward propagated time evolution operator
+        self.P = pt.zeros((nS,N,dim,dim), dtype=cplx_dtype, device=device)
+        self.P[:,N-1,:,:] = target    # backwards propagated target 
 
         for j in range(1,N):
-            X[:,j,:,:] = pt.matmul(U[:,j,:,:],X[:,j-1,:,:])
-            P[:,-1-j,:,:] = pt.matmul(dagger(U[:,-j,:,:]),P[:,-j,:,:])
+            self.X[:,j,:,:] = pt.matmul(U[:,j,:,:],self.X[:,j-1,:,:])
+            self.P[:,-1-j,:,:] = pt.matmul(dagger(U[:,-j,:,:]),self.P[:,-j,:,:])
         
-        return X,P
+        return self.X, self.P
         
     def check_time(self, xk):
         time_passed = time.time() - self.start_time
@@ -467,8 +468,8 @@ class Grape:
         m = self.m
 
         # add axes
-        Hw = pt.einsum('s,kjab->skjab', pt.ones(nS), Hw)
-        H0 = pt.einsum('j,sab->sjab', pt.ones(N), H0)
+        Hw = pt.einsum('s,kjab->skjab', pt.ones(nS, dtype=cplx_dtype, device=default_device), Hw)
+        H0 = pt.einsum('j,sab->sjab', pt.ones(N, dtype=cplx_dtype, device=default_device), H0)
 
 
         U = self.time_evolution(u)
@@ -594,6 +595,13 @@ class Grape:
         return X_field, Y_field
 
 
+    def get_fields(self):
+        X_field, Y_field = self.sum_XY_fields()
+        Bx = X_field * tesla 
+        By = Y_field * tesla 
+        return Bx, By
+
+
     ################################################################################################################
     ################        VISUALISATION        ###################################################################
     ################################################################################################################
@@ -666,7 +674,7 @@ class Grape:
         if show_plot: plt.show()
 
     def plot_u(self, ax):
-        u_mat = self.u_mat()
+        u_mat = self.u_mat().cpu().numpy()
         t_axis = np.linspace(0, self.tN/nanosecond, self.N)
         w_np = self.omega.cpu().detach().numpy()
         for k in range(self.m):
@@ -802,24 +810,10 @@ class GrapeESR(Grape):
         self.A: (nS,nq), self.J: (nS,) for 2 qubit or (nS,2) for 3 qubits
         '''
 
+        H0 = get_H0(self.A, self.J, self.Bz, device=default_device)
         if self.nS==1:
-            A = self.A.reshape(1,*self.A.shape)
-            J = self.J.reshape(1,*self.J.shape)
-        else:
-            A = self.A 
-            J = self.J
-
-        nS, nq = get_nS_nq_from_A(A)
-        d = 2**nq
-
-        # Zeeman splitting term is generally rotated out, which is encoded by setting Bz=0
-        HZ = 0.5 * gamma_e * self.Bz * gate.get_Zn(nq)
-
-        if nq==3:
-            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sc,cab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)
-        elif nq==2:
-            H0 = pt.einsum('sq,qab->sab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('s,ab->sab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('s,ab->sab',pt.ones(nS),HZ)    
-        return H0.to(device)
+            return H0.reshape(1,*H0.shape)
+        return H0
 
     def get_Hw(self):
         '''

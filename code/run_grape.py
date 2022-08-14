@@ -57,8 +57,8 @@ def inspect_system():
 
 def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, init_u_fn=None, kappa=1, minprint=False, mergeprop=False):
 
-    if A is None: A = get_A(nS,nq, N=N, donor_composition=[1,2])
-    if J is None: J = get_J(nS,nq, N=N)
+    if A is None: A = get_A(nS,nq, N=1, donor_composition=[1,1])
+    if J is None: J = get_J(nS,nq, N=1)
 
     target = CNOT_targets(nS,nq)
     if init_u_fn is not None:
@@ -66,7 +66,7 @@ def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_d
     else:
         u0=None; hist0=None
    
-    grape = GrapeESR_AJ_Modulation(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data)
+    grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data)
 
 
 
@@ -77,10 +77,10 @@ def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_d
 
 if __name__ == '__main__':
     run_CNOTs(
-        tN = 100.0*nanosecond, 
-        N = 3000, 
+        tN = 200.0*nanosecond, 
+        N = 400, 
         nq = 2, 
-        nS = 3, 
+        nS = 1, 
         max_time = 14, 
         kappa = 1, 
         rf = None, 

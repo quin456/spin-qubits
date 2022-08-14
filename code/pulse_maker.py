@@ -31,7 +31,7 @@ def square_pulse(B, omega, tN, N, phase=0):
 
 
 def pi_rot_square_pulse(w_res, coupling, tN, N, phase=0):
-    Bw = np.pi / (2*coupling * tN)
+    Bw = np.pi / (coupling * tN)
     Bx,By = square_pulse(Bw, w_res, tN, N, phase)
     return Bx,By
 

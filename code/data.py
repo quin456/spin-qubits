@@ -3,6 +3,7 @@
 import pickle 
 import torch as pt 
 from atomic_units import *
+import atomic_units as unit
 
 cplx_dtype = pt.complex128
 real_dtype = pt.float64
@@ -12,16 +13,16 @@ default_device = 'cuda:0' if pt.cuda.is_available() else 'cpu'
 dir = './'
 exch_filename = f"exchange_data_updated.p"
 exch_data = pickle.load(open(exch_filename,"rb"))
-J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype) * Mhz
-J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype) * Mhz
+J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype) * unit.MHz
+J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype) * unit.MHz
 
 
 #gyromagnetic ratios (Mrad/T)
-gamma_n = 17.235 * Mhz/tesla
-gamma_e = 28025 * Mhz/tesla
+gamma_n = 17.235 * unit.MHz/unit.T
+gamma_e = 28025 * unit.MHz/unit.T
 
 
-B0 = 2*tesla      # static background field
+B0 = 2*unit.T      # static background field
 g_e = 2.0023               # electron g-factor
 
 
@@ -30,11 +31,11 @@ omega0 = g_e*mu_B*B0/hbar   # Larmor frequency
 
 
 # exchange values 
-A_mag = 58.5/2 * Mhz
+A_mag = 58.5/2 * unit.MHz
 delta_A_kane = 2*A_mag
 A_kane = pt.tensor([A_mag, -A_mag])
 A_kane3 = pt.tensor([A_mag, -A_mag, A_mag])
-A_2P_mag = 262*Mhz
+A_2P_mag = 262*unit.MHz
 
 
 def get_A_from_num_P_donors(num_P_donors):
@@ -46,7 +47,8 @@ def get_A_from_num_P_donors(num_P_donors):
 def get_A(nS,nq, NucSpin=None, N=1, device=default_device, donor_composition = [1,1]):
     if NucSpin is not None:
         # map 0->1, 1->-1
-        NucSpin = [1-2*ns for ns in NucSpin]
+        if nS==1:
+            NucSpin = [1-2*ns for ns in NucSpin]
     if nq==1:
         return A_mag
     elif nq==2:
@@ -83,7 +85,7 @@ def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm/2.3, N=1, device=default_device):
 
     # default to small exchange for testing single triple donor
     # if nS==1 and nq==3:
-    #     return pt.tensor([0.37*Mhz, 0.21*Mhz], dtype=cplx_dtype)
+    #     return pt.tensor([0.37*unit.MHz, 0.21*unit.MHz], dtype=cplx_dtype)
 
     if nq==2:
         J = J1[:nS].to(device)
@@ -111,10 +113,10 @@ if __name__ == '__main__':
     print("============================================")
     print("Printing data used in spin-qubit simulations")
     print("============================================\n")
-    print(f"gamma_e = {gamma_e*tesla/Mhz:.1f} MHz, gamma_n = {gamma_n*tesla/Mhz:.1f} MHz")
+    print(f"gamma_e = {gamma_e*unit.T/unit.MHz:.1f} MHz, gamma_n = {gamma_n*unit.T/unit.MHz:.1f} MHz")
     print("\nExchange valiues for 18nm separation:")
     for i in range(15):
-        print(f"J_18nm_{i} = {pt.real(J_100_18nm[i]).item()/Mhz:.1f} MHz")
+        print(f"J_18nm_{i} = {pt.real(J_100_18nm[i]).item()/unit.MHz:.1f} MHz")
     print("\nExchange valiues for 14nm separation:")
     for i in range(15):
-        print(f"J_14nm_{i} = {pt.real(J_100_14nm[i]).item()/Mhz:.1f} MHz")
+        print(f"J_14nm_{i} = {pt.real(J_100_14nm[i]).item()/unit.MHz:.1f} MHz")

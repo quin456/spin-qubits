@@ -11,7 +11,7 @@ from atomic_units import *
 from utils import get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
 from hamiltonians import get_H0, multi_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e
-
+import gates as gate
 
 
 from pdb import set_trace
@@ -104,16 +104,17 @@ def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, 
 
     return ax
 
-def plot_phases(psi, tN, ax=None):
+def plot_phases(psi, tN=None, T=None, ax=None):
 
     if ax is None: ax = plt.subplot() 
     N,dim = psi.shape 
     nq=get_nq_from_dim(dim)
-    T=pt.linspace(0,tN/nanosecond,N)
+    if T is None:
+        T=pt.linspace(0,tN,N)
     phase = pt.zeros_like(psi)
     for i in range(dim):
-        phase[:,i] = pt.angle(psi)[:,i]-pt.angle(psi)[:,0]
-        ax.plot(T,phase[:,i], label = f'$\phi_{i}$')
+        phase[:,i] = pt.angle(psi)[:,i]#-pt.angle(psi)[:,0]
+        ax.plot(T/nanosecond,phase[:,i], label = f'$\phi_{i}$')
     ax.legend()
     ax.set_xlabel("time (ns)")
     print(f"Final phase = {phase[-1,:]}")
@@ -168,21 +169,22 @@ def visualise_Hw(Hw,tN, eigs=None):
             ax[i,j].plot(T,pt.imag(y))
 
             
-def plot_fidelity(ax,fids,tN, legend=True, printfid=True):
+def plot_fidelity(ax,fids, T=None, tN=None, legend=True, printfid=True):
     if len(fids.shape)==1:
         fids = fids.reshape(1,*fids.shape)
     nS=len(fids); N = len(fids[0])
-    T = pt.linspace(0,tN/nanosecond, N)
+    if T is None:
+        T = pt.linspace(0,tN, N)
     if nS==1:
-        ax.plot(T,pt.real(fids[0]), label=f"Fidelity")
+        ax.plot(T,fids[0], label=f"Fidelity")
     else:
         for q in range(nS):
-            ax.plot(T,pt.real(fids[q]), label=f"System {q+1} fidelity")
+            ax.plot(T/nanosecond,fids[q], label=f"System {q+1} fidelity")
     if legend: ax.legend()
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("Fidelity")
     if annotate: ax.annotate("Fidelity progress", (0,0.95))
-    if printfid: print(f"Achieved fidelity = {pt.real(fids[0,-1]):.4f}")
+    if printfid: print(f"Achieved fidelity = {fids[0,-1]:.4f}")
     return ax
 
 
@@ -208,14 +210,14 @@ def plot_energy_spectrum_from_H0(H0):
 
 
 
-def show_fidelity(X, tN, target, ax=None):
+def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
     print(f"Final unitary:")
     print_rank2_tensor(X[-1]/(X[-1,0,0]/pt.abs(X[-1,0,0])))
     fids = fidelity_progress(X,target)
     print(f"Final fidelity = {fids[-1]}")
     
     if ax is None: ax = plt.subplot()
-    plot_fidelity(ax,fids,tN)
+    plot_fidelity(ax,fids,tN=tN, T=T)
     return fids
 
 
