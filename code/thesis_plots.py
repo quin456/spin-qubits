@@ -224,7 +224,8 @@ def chapter_3(chapter="Ch3-"):
 
     #investigate_3E_resfreqs(fp = f"{plots_folder}{chapter}all-allowed-3E-transitions.pdf")
 
-    show_NE_CX(get_A(1,1),2*unit.T, 30000)
+    show_NE_CX(get_A(1,1),2*unit.T, 100000, fp=f"{plots_folder}{chapter}NE_CX.pdf")
+    #show_EN_CX(get_A(1,1),2*unit.T, 40000, fp=f"{plots_folder}{chapter}EN_CX.pdf")
 
 def no_coupler():
     def plot_exchange_switch(A=get_A(1,3), J=get_J(1,3), fp=None):

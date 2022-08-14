@@ -198,8 +198,11 @@ def sum_H0_Hw(H0, Hw):
     H = pt.einsum('j,ab->jab',pt.ones_like(Hw[:,0,0]),H0) + Hw
     return H
 
-def get_U0(H0, tN, N):
-    T = pt.linspace(0,tN,N)
+def get_U0(H0, N, T=None, tN=None):
+    if T is None:
+        if tN is None:
+            raise Exception("No time specified for get_U0.")
+        T = pt.linspace(0,tN,N)
     H0T = pt.einsum('j,ab->jab',T,H0)
     U0 = pt.matrix_exp(-1j*H0T)
     return U0

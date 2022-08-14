@@ -18,7 +18,7 @@ from utils import *
 import utils
 from pulse_maker import pi_rot_square_pulse
 from data import get_A, gamma_e, gamma_n, cplx_dtype
-from visualisation import double_long_width, double_long_height, single_long_height, multi_NE_label_getter
+from visualisation import *
 from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine
 
 from pdb import set_trace
@@ -135,40 +135,25 @@ def print_specs(A, Bz, tN, N, gamma):
     max_coupling = get_max_allowed_coupling(H0)
     print(f"Max allowed coupling = {max_coupling/unit.MHz} MHz, corresponding to field strength B={max_coupling/(0.5*gamma) / mT} mT")
 
-def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2)): 
+def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=None): 
     print("Performing NE_CX, which flips electron spin conditionally on nuclear spin being down.")
     print_specs(A, Bz, tN, N, gamma=gamma_e)
-    fig,ax = plt.subplots(2,1)
+    fig,ax = plt.subplots(1,2)
     Bx,By,tN = NE_CX_pulse(tN,N,A,Bz)
-    X = get_NE_X(tN, N, Bz, A, Bx, By)
+    T = pt.linspace(0,tN,N)
+    X = get_NE_X(N, Bz, A, Bx, By, T=T)
     show_fidelity(X, tN=tN, target=gate.CX_native, ax=ax[0])
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,tN=tN, ax=ax[1])
+    plot_psi(psi,tN=tN, ax=ax[1], label_getter = NE_label_getter)
     #plot_phases(psi,tN=tN,ax=ax[3])
-
+    fig.set_size_inches(double_long_width, single_long_height)
+    fig.tight_layout()
+    if fp is not None:
+        fig.savefig(fp)
 
 
 def EN_CX_pulse(tN,N,A,Bz, ax=None):
 
-    w_res = -(2*A+gamma_n*Bz)
-    phase = 0
-
-    # get coupling of transition to transverse field
-    # Gbar = (gamma_e + gamma_P) * Bz / 2 # remove Bz from Gamma later on 
-    # alpha = -Gbar - np.sqrt(4*A**2+Gbar**2)
-    # beta = 2*A
-    # K = 1/np.sqrt(alpha**2+beta**2)
-    # alpha*=K; beta*=K 
-
-    # Ge = gamma_e/2
-    # Gn = -gamma_P/2
-    # c = alpha*Gn + beta*Ge
-    # E = pt.linalg.eig(H0).eigenvalues
-    # w_eigenres = E[1]-E[3]
-
-
-
-    # get actual resonant freq
     H0 = get_NE_H0(A,Bz)
     S,D = NE_eigensystem(H0)
 
@@ -179,17 +164,28 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
     if tN is None:
         tN = get_pi_pulse_tN_from_field_strength(B_mag, c)
 
-    Bx,By = pi_rot_square_pulse(w_eigenres, c, tN, N, phase)
+    Bx_CX, By_CX = pi_rot_square_pulse(w_eigenres, c, tN, N, 0)
 
     if ax is not None: 
         plot_fields(Bx,By,tN,ax)
 
+    T_CX = pt.linspace(0,tN,N)
+    X_CX = get_NE_X(N, Bz, A, Bx_CX, By_CX, T=T_CX)
+    T_CX = pt.linspace(0,tN,N)
 
-    return Bx, By, tN
+    fids = fidelity_progress(X_CX, gate.CXr)
+    set_trace()
+
+    Bx_wait, By_wait, T_wait = get_phase_correction(Bz, A, X_CX[-1], N, 500*unit.ns, target=gate.CXr)
+    T = pt.cat((T_CX, T_CX[-1]+T_wait))
+    Bx = pt.cat((Bx_CX, Bx_wait))
+    By = pt.cat((By_CX, By_wait))
+
+    return Bx, By, T
 
 
 
-
+#def get_EN_X_with_wait()
 
 
 
@@ -197,20 +193,25 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
 def get_NE_Hw(Bx,By):
     return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
 
-def get_NE_X(tN, N, Bz, A, Bx=None, By=None):
+def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
     # Bx and By both None results in free evolution X
     if Bx==None:
         Bx = pt.zeros(N, dtype=cplx_dtype, device=default_device)
     if By==None:
         By = pt.zeros(N, dtype=cplx_dtype, device=default_device)
-    #Bx,By = NE_CX_pulse(tN,N,A,Bz)
+    if T is None:
+        if tN is None:
+            raise Exception("No time specified for get_NE_X.")
+        else:
+            T = pt.linspace(0,tN,N)
     Hw = get_NE_Hw(Bx,By)
     H0 = get_NE_H0(A, Bz)
     H = sum_H0_Hw(H0,Hw)
 
 
-
-    U = pt.matrix_exp(-1j*H*tN/N)
+    dT = get_dT(T)
+    Ht = pt.einsum('jab,j->jab', H, dT)
+    U = pt.matrix_exp(-1j*Ht)
 
     X = forward_prop(U)
     S,D = NE_eigensystem(H0)
@@ -221,8 +222,7 @@ def get_NE_X(tN, N, Bz, A, Bx=None, By=None):
 
     #undo only zeeman evolution
     Hz=H_zeeman(Bz)
-    UZ = get_U0(Hz,tN,N)
-    U0 = get_U0(H0, tN, N)
+    UZ = get_U0(Hz, N, T=T)
 
 
     X = dagger(UZ) @ X
@@ -233,7 +233,7 @@ def get_NE_X(tN, N, Bz, A, Bx=None, By=None):
 
 def get_phase_correction(Bz, A, Xf, N_search, tN_search, target=gate.CXr):
     
-    X_search = Xf@get_NE_X(tN_search, N_search, Bz, A)
+    X_search = Xf@get_NE_X(N_search, Bz, A, tN=tN_search)
     fids = fidelity_progress(X_search, target)
 
     N_wait = pt.argmax(fids)
@@ -241,34 +241,32 @@ def get_phase_correction(Bz, A, Xf, N_search, tN_search, target=gate.CXr):
 
     print(f"Adding {tN_wait/unit.ns} ns free evolution to correct phase, achieving fidelity {fids[N_wait]}, up from {fids[0]}")
 
-    X_wait = X_search[:N_wait]
+    Bx_wait = pt.zeros(N_wait, dtype=cplx_dtype, device=default_device)
+    By_wait = pt.zeros(N_wait, dtype=cplx_dtype, device=default_device)
     T_wait = pt.linspace(0, tN_wait, N_wait)
-    set_trace()
-    return X_wait, T_wait 
+    return Bx_wait, By_wait, T_wait 
 
 
-def show_EN_CX(A,Bz,N, tN=None, psi0=spin_down_down, target = gate.CXr):
+def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), target = gate.CXr, fp=None):
     print("Performing EN_CX, which flips nuclear spin conditionally on electron spin being down.")
     print_specs(A, Bz, tN, N, gamma_n)
-    fig,ax = plt.subplots(1,3)
-    Bx,By,tN = EN_CX_pulse(tN,N,A,Bz)
-    X_CX = get_NE_X(tN, N, Bz, A, Bx, By)
-    T_CX = pt.linspace(0,tN,N)
+    fig,ax = plt.subplots(1,2)
 
-    set_trace()
-    
+    Bx,By,T = EN_CX_pulse(tN,N,A,Bz)
 
-    X_wait,T_wait = get_phase_correction(Bz, A, X_CX[-1], N, 500*unit.ns, target=target)
-    T = pt.cat((T_CX, T_CX[-1]+T_wait))
-    X = pt.cat((X_CX, X_wait))
+    X = get_NE_X(N, Bz, A, Bx, By, T=T)
 
 
-    fids=show_fidelity(X,T=T, target=target, ax=ax[2])
+    fids=show_fidelity(X,T=T, target=target, ax=ax[0])
 
 
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,T=T, ax=ax[0])
-    plot_phases(psi,T=T, ax=ax[1])
+    plot_psi(psi,T=T, ax=ax[1], label_getter=NE_label_getter)
+    #plot_phases(psi,T=T, ax=ax[1])
+
+    fig.set_size_inches(double_long_width, single_long_height)
+    fig.tight_layout()
+    if fp is not None: fig.savefig(fp)
 
 
 
@@ -332,11 +330,10 @@ def NE_swap_fidelity(A,Bz,tN,N):
 
 def show_NE_swap(A,Bz,tN,N, psi0=spin_down_down):
     fig,ax = plt.subplots(3,1)
-    Bx,By = NE_swap_pulse(tN,N,A,Bz, ax[0])
+    Bx,By,T = NE_swap_pulse(tN,N,A,Bz, ax[0])
 
     H0 = get_NE_H0(A, Bz)
-    X = get_NE_X(tN, N, Bz, A, Bx, By)
-    X = get_IP_X(X,H0,tN,N)
+    X = get_NE_X(N, Bz, A, Bx, By, T=T)
 
     show_fidelity(X,tN,gate.swap,ax[1])
 
@@ -451,9 +448,9 @@ if __name__ == '__main__':
 
 
     tN = lock_to_frequency(get_A(1,1),100*unit.ns)
-    show_NE_CX(get_A(1,1), Bz,  3*min_steps(tN)); plt.show()
+    #show_NE_CX(get_A(1,1), Bz,  3*min_steps(tN)); plt.show()
 
-    #show_EN_CX(get_A(1,1), Bz=Bz, N=40000); plt.show()
+    show_EN_CX(get_A(1,1), Bz=Bz, N=40000); plt.show()
     #test(); plt.show()
     #tN_locked = lock_to_coupling(get_A(1,1),500*unit.ns)
     #show_NE_swap(A=get_A(1,1), Bz=0.02*unit.T, tN=10*unit.ns, N=10000); plt.show()

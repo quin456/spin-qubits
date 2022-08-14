@@ -400,5 +400,15 @@ def get_rec_min_N(rf, tN, N_period=20, verbosity=0):
     return rec_min_N
 
 
+def get_dT(T):
+    '''
+    Gets dt's for each timestep from T tensor containing all time values. 
+    '''
+    dT = pt.zeros_like(T)
+    dT[0] = 0 
+    dT[1:] = T[1:] - T[:-1]
+    return dT
+
+
 if __name__ == '__main__':
     label_axis(plt.subplot(), offset=-0.1, label='A')

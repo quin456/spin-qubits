@@ -48,6 +48,22 @@ def eigenstate_label_getter(i, states_to_label=None):
     else:
         return f"E{i}"
 
+def NE_label_getter(j):
+
+    b = np.binary_repr(j,2)
+    label = '|'
+    if b[0]=='0':
+        label+=Uparrow
+    else:
+        label+=Downarrow 
+    if b[1]=='0':
+        label+=uparrow 
+    else:
+        label+=downarrow
+    label+='>'
+    return label
+
+
 
 def multi_NE_label_getter(j, label_states=None):
     ''' Returns state label corresponding to integer j\in[0,dim] '''
