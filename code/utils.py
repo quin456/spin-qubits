@@ -13,7 +13,6 @@ import itertools
 import gates as gate
 from gates import default_device, cplx_dtype
 from data import *
-from atomic_units import *
 
 
 

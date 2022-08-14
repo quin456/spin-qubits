@@ -1,8 +1,9 @@
 import torch as pt
 from scipy.optimize import minimize
 
-from atomic_units import *
+import atomic_units as unit
 from utils import get_nS_nq_from_A 
+from data import default_device
 
 
 ################################################################################################################
@@ -29,8 +30,8 @@ def make_Hz(delta_w,N,m=1):
 
     
 def optimise_coupling(delta_w,A,target,tN,N,u0=None,kap=1,L=0, alpha=0):
-    tN=tN*nanosecond
-    A=A*Mhz 
+    tN=tN*unit.ns
+    A=A*unit.MHz 
     nS,nq=get_nS_nq_from_A(delta_w);m=1
     if nq!=2 or nS not in [1,2]: raise Exception("Not implemented")
     
@@ -39,12 +40,12 @@ def optimise_coupling(delta_w,A,target,tN,N,u0=None,kap=1,L=0, alpha=0):
 
     hist=2*[[]]
     fun = lambda u: fast_cost(u,target,Hz,tN,H0,hist,kap=kap,L=L, alpha=alpha)
-    if u0==None: u0 = pt.ones(N*m)*0.1*tesla
+    if u0==None: u0 = pt.ones(N*m)*0.1*unit.T
     opt=minimize(fun,u0,method='CG',jac=True)
     u=opt.x
     print(f"nit = {opt.nfev}, nfev = {opt.nit}")
     print(f"final cost = {opt.fun}")
     T = pt.linspace(0,tN,N)
-    plt.plot(T/nanosecond,u)
+    plt.plot(T/unit.ns,u)
     plt.xlabel("time (ns)")
     plt.ylabel("Field strength (T)")
