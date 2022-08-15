@@ -404,7 +404,7 @@ def get_dT(T):
     Gets dt's for each timestep from T tensor containing all time values. 
     '''
     dT = pt.zeros_like(T)
-    dT[0] = 0 
+    dT[0] = T[1]-T[0] 
     dT[1:] = T[1:] - T[:-1]
     return dT
 

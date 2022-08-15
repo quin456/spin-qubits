@@ -39,7 +39,7 @@ def E_CX(A, Bz, tN, N, psi0=spin_up):
     Bx,By = NE_CX_pulse(tN,N,A,Bz)
     H0 = (A+gamma_e*Bz/2)*gate.Z 
     Hw = get_pulse_hamiltonian(Bx,By,gamma_e)
-    T = pt.linspace(0,tN,N)
+    T = pt.linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
     X = forward_prop(U)
@@ -53,7 +53,7 @@ def N_CX(A, Bz, tN, N, psi0=spin_up):
     Bx,By = EN_CX_pulse(tN,N,A,Bz)
     H0 = (-A-gamma_n*Bz/2)*gate.Z 
     Hw = get_pulse_hamiltonian(Bx, By, gamma_n)
-    T = pt.linspace(0,tN,N)
+    T = pt.linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
     H = sum_H0_Hw(H0,Hw)
     U = pt.matrix_exp(-1j*H*tN/N)
     X = forward_prop(U)
@@ -140,7 +140,7 @@ def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=
     print_specs(A, Bz, tN, N, gamma=gamma_e)
     fig,ax = plt.subplots(1,2)
     Bx,By,tN = NE_CX_pulse(tN,N,A,Bz)
-    T = pt.linspace(0,tN,N)
+    T = pt.linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
     X = get_NE_X(N, Bz, A, Bx, By, T=T)
     show_fidelity(X, tN=tN, target=gate.CX_native, ax=ax[0])
     psi = pt.matmul(X,psi0)
@@ -169,16 +169,17 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
     if ax is not None: 
         plot_fields(Bx,By,tN,ax)
 
-    T_CX = pt.linspace(0,tN,N)
+    T_CX = pt.linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
     X_CX = get_NE_X(N, Bz, A, Bx_CX, By_CX, T=T_CX)
-    T_CX = pt.linspace(0,tN,N)
+    T_CX = pt.linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
 
-    fids = fidelity_progress(X_CX, gate.CXr)
 
-    Bx_wait, By_wait, T_wait = get_phase_correction(Bz, A, X_CX[-1], N, 500*unit.ns, target=gate.CXr)
+    Bx_wait, By_wait, T_wait = get_phase_correction(Bz, A, X_CX[-1], N, 500*unit.ns, target=gate.CXr_native)
     T = pt.cat((T_CX, T_CX[-1]+T_wait))
     Bx = pt.cat((Bx_CX, Bx_wait))
     By = pt.cat((By_CX, By_wait))
+
+    #Bx = Bx_CX; By=By_CX; T=T_CX
 
     return Bx, By, T
 
@@ -202,7 +203,7 @@ def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
         if tN is None:
             raise Exception("No time specified for get_NE_X.")
         else:
-            T = pt.linspace(0,tN,N)
+            T = pt.linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
     Hw = get_NE_Hw(Bx,By)
     H0 = get_NE_H0(A, Bz)
     H = sum_H0_Hw(H0,Hw)
@@ -222,7 +223,6 @@ def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
     Hz=H_zeeman(Bz)
     UZ = get_U0(Hz, N, T=T)
 
-
     X = dagger(UZ) @ X
 
     #visualise_Hw(dagger(S)@dagger(U0)@Hw@U0@S,tN); plt.show()
@@ -230,7 +230,7 @@ def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
     return X
 
 def get_phase_correction(Bz, A, Xf, N_search, tN_search, target=gate.CXr):
-    X_search = Xf@get_NE_X(N_search, Bz, A, tN=tN_search)
+    X_search = get_NE_X(N_search, Bz, A, tN=tN_search) @ Xf
     fids = fidelity_progress(X_search, target)
 
     N_wait = pt.argmax(fids)
@@ -240,23 +240,21 @@ def get_phase_correction(Bz, A, Xf, N_search, tN_search, target=gate.CXr):
 
     Bx_wait = pt.zeros(N_wait, dtype=cplx_dtype, device=default_device)
     By_wait = pt.zeros(N_wait, dtype=cplx_dtype, device=default_device)
-    T_wait = pt.linspace(0, tN_wait, N_wait)
+    T_wait = pt.linspace(0, tN_wait, N_wait, dtype=cplx_dtype, device=default_device)
     return Bx_wait, By_wait, T_wait 
 
 
-def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), target = gate.CXr, fp=None):
+def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), target = gate.CXr_native, fp=None):
     print("Performing EN_CX, which flips nuclear spin conditionally on electron spin being down.")
     print_specs(A, Bz, tN, N, gamma_n)
     fig,ax = plt.subplots(1,2)
 
     Bx,By,T = EN_CX_pulse(tN,N,A,Bz)
 
-    set_trace()
     X = get_NE_X(N, Bz, A, Bx, By, T=T)
 
 
     fids=show_fidelity(X,T=T, target=target, ax=ax[0])
-
 
     psi = pt.matmul(X,psi0)
     plot_psi(psi,T=T, ax=ax[1], label_getter=NE_label_getter)
@@ -266,24 +264,8 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), tar
     fig.tight_layout()
     if fp is not None: fig.savefig(fp)
 
+    set_trace()
 
-# def show_EN_CX(A,Bz,N, tN=None, psi0=spin_down_down, target = gate.CXr):
-#     print("Performing EN_CX, which flips nuclear spin conditionally on electron spin being down.")
-#     print_specs(A, Bz, tN, N, gamma_n)
-#     fig,ax = plt.subplots(1,3)
-#     Bx,By,T = EN_CX_pulse(tN,N,A,Bz)
-#     X_CX = get_NE_X(N, Bz, A, Bx, By, T=T)
-#     T_CX = pt.linspace(0,tN,N)
-
-    
-
-
-    fids=show_fidelity(X,T=T, target=target, ax=ax[2])
-
-
-    psi = pt.matmul(X_CX,psi0)
-    plot_psi(psi,T=T_CX, ax=ax[0])
-    plot_phases(psi,T=T_CX, ax=ax[1])
 
 def get_swap_pulse_times(tN, A):
 
