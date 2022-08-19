@@ -9,7 +9,7 @@ if not pt.cuda.is_available():
 from matplotlib import pyplot as plt 
 import torch as pt 
 import atomic_units as unit
-from utils import get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
+from utils import linspace, get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
 from hamiltonians import get_H0, multi_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e
 import gates as gate
@@ -23,7 +23,7 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 double_long_width = 10
 single_long_height = 2.3
-double_long_height = 2.6
+double_long_height = 3.4
 square_size = 10/2.6
 
 annotate=False
@@ -127,7 +127,7 @@ def plot_phases(psi, tN=None, T=None, ax=None):
     N,dim = psi.shape 
     nq=get_nq_from_dim(dim)
     if T is None:
-        T=pt.linspace(0,tN,N)
+        T=linspace(0,tN,N)
     phase = pt.zeros_like(psi)
     for i in range(dim):
         phase[:,i] = pt.angle(psi)[:,i]#-pt.angle(psi)[:,0]
@@ -240,8 +240,29 @@ def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
 
 
 
+def plot_E_field(T,E, ax=None):
+    if ax is None: ax=plt.subplot()
+    ax.plot(T.cpu()/unit.ns,E.cpu()*unit.m/unit.MV)
+    ax.set_ylabel("Electric field (MV/m)")
+    ax.set_xlabel("Time (ns)")
 
+def plot_A(T, A, ax=None):
+    if ax is None: ax=plt.subplot()
+    ax.plot(T.cpu()/unit.ns,A.cpu()/unit.MHz)
+    ax.set_ylabel("Hyperfine coupling (MHz)")
+    ax.set_xlabel("Time (ns)")
 
+def plot_J(T, J, ax=None):
+    if ax is None: ax=plt.subplot()
+    ax.plot(T.cpu()/unit.ns,J.cpu()/unit.MHz)
+    ax.set_ylabel("Exchange (MHz)")
+    ax.set_xlabel("Time (ns)")
+
+def plot_E_A_J(T,E,A,J):
+    fig,ax = plt.subplots(3)
+    plot_E_field(T,E, ax[0])
+    plot_A(T,A, ax[1]) 
+    plot_J(T,J, ax[2])
 
 
 

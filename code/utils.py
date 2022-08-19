@@ -404,9 +404,12 @@ def get_dT(T):
     Gets dt's for each timestep from T tensor containing all time values. 
     '''
     dT = pt.zeros_like(T)
-    dT[0] = T[1]-T[0] 
+    dT[0] = T[0]-0 
     dT[1:] = T[1:] - T[:-1]
     return dT
+
+def linspace(start, end, N, dtype=cplx_dtype, device=default_device):
+    return pt.linspace(start+(end-start)/N, end, N, dtype=dtype, device=device)
 
 
 if __name__ == '__main__':

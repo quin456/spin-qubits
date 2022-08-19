@@ -343,6 +343,7 @@ class Grape:
         print(f"Running GRAPE optimisation")
         print("==========================")
         print(f"Number of systems: {self.nS}")
+        print(f"Pulse duration: {self.tN/unit.ns} ns")
         print("Resonant frequencies: {", end=" ")
         for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
         print("}")
@@ -612,7 +613,7 @@ class Grape:
         '''
         fig,ax = plt.subplots(2,2)
         self.plot_XY_fields(ax[0,0])
-        plot_fidelity(ax[1,0], fidelity_progress(self.X, self.target), self.tN)
+        plot_fidelity(ax[1,0], fidelity_progress(self.X, self.target), tN=self.tN)
         psi=self.X@psi0
         plot_psi(psi[0], self.tN, ax[0,1])
         plot_phases(psi[0], self.tN, ax[1,1])
@@ -624,7 +625,7 @@ class Grape:
         fig,ax = plt.subplots(1,2)
         self.plot_XY_fields(ax[0])
         fids = fidelity_progress(self.X, self.target)
-        plot_fidelity(ax[1], fids, self.tN)
+        plot_fidelity(ax[1], fids, tN=self.tN)
         fig.set_size_inches(double_long_width, single_long_height)
         fig.tight_layout()
         if fp is not None: 
@@ -665,7 +666,7 @@ class Grape:
         X_field, Y_field = self.sum_XY_fields()
         self.plot_XY_fields(ax[0,1],X_field,Y_field)
         transfids = fidelity_progress(X,self.target)
-        plot_fidelity(ax[1,0],transfids,tN,legend=True)
+        plot_fidelity(ax[1,0],transfids,tN=tN,legend=True)
         ax[0,0].set_xlabel("time (ns)")
 
 
@@ -798,8 +799,8 @@ class GrapeESR(Grape):
 
         print(f"System type: {system_type}")
         print(f"Bz = {self.Bz/unit.T} T")
-        print(f"Hyperfine: A = {self.A/unit.unit.MHz} MHz")
-        print(f"Exchange: J = {self.J/unit.unit.MHz} MHz")
+        print(f"Hyperfine: A = {self.A/unit.MHz} MHz")
+        print(f"Exchange: J = {self.J/unit.MHz} MHz")
         print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_control_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
 
 
@@ -1281,7 +1282,7 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         HZ = 0.5 * gamma_e * self.Bz * gate.get_Zn(nq)
 
         # this line only supports nq=2
-        H0 = pt.einsum('sjq,qab->sjab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sj,ab->sjab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('sj,ab->sjab',pt.ones(nS,self.N),HZ)
+        H0 = pt.einsum('sjq,qab->sjab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sj,ab->sjab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('sj,ab->sjab',pt.ones(nS,self.N, device=device),HZ)
         
         return H0.to(device)
 

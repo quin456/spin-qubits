@@ -5,7 +5,7 @@ import torch as pt
 import gates as gate
 import atomic_units as unit
 from data import cplx_dtype, default_device, gamma_e, gamma_n, get_A, get_J
-from utils import dagger, forward_prop, get_nS_nq_from_A
+from utils import dagger, forward_prop, get_nS_nq_from_A, linspace
 
 #####################################################################################
 ###########        Single electron        ###########################################
@@ -76,7 +76,7 @@ def get_U0(H0,tN,N):
     if len(H0.shape) == 2:
         H0=H0.reshape(1,*H0.shape)
         reshaped=True
-    U0 = pt.matrix_exp(-1j* pt.einsum('j,sab->sjab',pt.linspace(0,tN,N, dtype=cplx_dtype),H0))
+    U0 = pt.matrix_exp(-1j* pt.einsum('j,sab->sjab',linspace(0,tN,N, dtype=cplx_dtype),H0))
     if reshaped: return U0[0]
     return U0 
 
@@ -202,7 +202,7 @@ def get_U0(H0, N, T=None, tN=None):
     if T is None:
         if tN is None:
             raise Exception("No time specified for get_U0.")
-        T = pt.linspace(0,tN,N)
+        T = linspace(0,tN,N)
     H0T = pt.einsum('j,ab->jab',T,H0)
     U0 = pt.matrix_exp(-1j*H0T)
     return U0
@@ -216,9 +216,7 @@ def get_X_from_H(H, tN, N, H0_IP=None):
         X = dagger(U0)@X
     return X
 
-
     
-
 
 def get_IP_X(X,H0,tN,N):
     U0 = get_U0(H0, tN, N)

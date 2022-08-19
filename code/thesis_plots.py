@@ -208,6 +208,85 @@ def chapter_3(chapter="Ch3-"):
         if fp is not None: fig.savefig(fp)
         if fp1 is not None: fig1.savefig(fp1)
 
+    def NE_EN_CX(fp=f"{plots_folder}{chapter}NE_EN_CX.pdf"):
+        fig,ax = plt.subplots(2,2)
+        show_NE_CX(get_A(1,1),2*unit.T, 100000, ax=ax[0])
+        show_EN_CX(get_A(1,1),2*unit.T, 40000 , ax=ax[1])
+        fig.set_size_inches(double_long_width, double_long_height)
+        fig.tight_layout()
+        y_offset=-0.3
+        label_axis(ax[0,0], '(a)', y_offset=y_offset)
+        label_axis(ax[0,1], '(b)', y_offset=y_offset)
+        label_axis(ax[1,0], '(c)', y_offset=y_offset)
+        label_axis(ax[1,1], '(d)', y_offset=y_offset)
+        fig.savefig(fp)
+
+    def plot_swap_schedule(fp = f"{plots_folder}{chapter}swap_schedule.pdf"):
+        fig,ax = plt.subplots(1)
+        ax2 = ax.twinx()
+        color='blue'
+        color2='red'
+
+
+        B_e = 0.52
+        B_n = 1
+        t0=0
+
+        tn_CX = 10760.332
+        tn_wait = 171.237
+        te_CX = 34.188
+        te_wait = 59.790
+
+    
+
+        t0_tick = '0'
+        t1_tick=str(int(te_CX))
+        t2_tick = str(int(te_CX+te_wait))
+        t3_tick = str(int(te_CX+te_wait+tn_CX))
+        t4_tick = str(int(te_CX+te_wait+tn_CX+tn_wait))
+        t5_tick = str(int(te_CX+te_wait+tn_CX+tn_wait+te_CX))
+        t6_tick = str(int(te_CX+te_wait+tn_CX+tn_wait+te_CX+te_wait))
+        ticks = [t0_tick,t1_tick,t2_tick,t3_tick,t4_tick,t5_tick,t6_tick]
+
+
+        xn_CX = tn_CX/60
+        xn_wait = tn_wait/1.5
+
+        x0 = 0
+        x1 = int(te_CX)
+        x2 = int(te_CX+te_wait)
+        x3 = int(te_CX+te_wait+xn_CX)
+        x4 = int(te_CX+te_wait+xn_CX+xn_wait)
+        x5 = int(te_CX+te_wait+xn_CX+xn_wait+te_CX)
+        x6 = int(te_CX+te_wait+xn_CX+xn_wait+te_CX+te_wait)
+
+        x = [x0, x1, x2, x3, x4, x5, x6]
+
+        B = [0,B_e,B_e,0, 0, B_n,B_n,0, 0, B_e, B_e, 0, 0]
+        T = [x[0], x[0], x[1], x[1],x[2],x[2], x[3], x[3],x[4],x[4],  x[5],  x[5],x[6]]
+        ax.plot(T,B, color=color)
+        ax.set_xticks(x, ticks)
+        ax.set_xlabel("time (ns)")
+        ax.set_ylabel("$B_{ac}$ (mT)", color=color)
+        ax.set_yticks([0,B_e,B_n], [0,B_e, B_n])
+
+
+        w_n = -93.03
+        w_e = 55990
+        y1=0.2
+        y2=0.8
+        ax2.set_ylabel('$\omega$ (MHz)', color=color2)
+        ax2.set_yticks([y1,y2], [w_n, w_e])
+        ax.set_ylim([-0.3,1.3])
+        ax2.plot([x0,x1], [y2,y2], color=color2)
+        ax2.plot([x2,x3], [y1,y1], color=color2)
+        ax2.plot([x4,x5], [y2,y2], color=color2)
+
+
+        fig.set_size_inches(double_long_width, single_long_height)
+        fig.tight_layout()
+
+        fig.savefig(fp)
 
     #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
 
@@ -224,8 +303,9 @@ def chapter_3(chapter="Ch3-"):
 
     #investigate_3E_resfreqs(fp = f"{plots_folder}{chapter}all-allowed-3E-transitions.pdf")
 
-    show_NE_CX(get_A(1,1),2*unit.T, 100000, fp=f"{plots_folder}{chapter}NE_CX.pdf")
-    #show_EN_CX(get_A(1,1),2*unit.T, 40000, fp=f"{plots_folder}{chapter}EN_CX.pdf")
+    #NE_EN_CX()
+    #show_NE_swap(get_A(1,1),2*unit.T, 100000, 40000, fp=f"{plots_folder}{chapter}NE_swap.pdf")
+    plot_swap_schedule()
 
 def no_coupler():
     def plot_exchange_switch(A=get_A(1,3), J=get_J(1,3), fp=None):

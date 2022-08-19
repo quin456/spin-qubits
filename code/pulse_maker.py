@@ -12,8 +12,9 @@ import torch as pt
 
 import gates as gate 
 from gates import cplx_dtype
-from atomic_units import *
+import atomic_units as unit
 from data import default_device
+from utils import linspace
 
 from pdb import set_trace
 
@@ -22,7 +23,7 @@ from pdb import set_trace
 
 def square_pulse(B, omega, tN, N, phase=0):
 
-    T = pt.linspace(0,tN,N, device=default_device)
+    T = linspace(0,tN,N, device=default_device)
     
     Bx = B*pt.cos(omega*T-phase)
     By = B*pt.sin(omega*T-phase)
@@ -32,6 +33,7 @@ def square_pulse(B, omega, tN, N, phase=0):
 
 def pi_rot_square_pulse(w_res, coupling, tN, N, phase=0):
     Bw = np.pi / (coupling * tN)
+    print(f"Generating square pulse for π-rotation with amplitude {Bw/unit.mT} mT, frequency {w_res/unit.MHz} MHz.")
     Bx,By = square_pulse(Bw, w_res, tN, N, phase)
     return Bx,By
 

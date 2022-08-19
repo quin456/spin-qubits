@@ -162,6 +162,16 @@ def plot_load_time_vs_J_2q(fidelity_min = 0.999, N=2000, J=get_J(1,2), A=get_A(1
 
 
 
+def exchange_HF(R):
+
+    a = 1.8*unit.nm 
+    J = (R/a)**(5/2) * np.exp(-2*R/a)
+    return J
+    print(f" Exchange: J = {J/unit.MHz} MHz")
+
+
+
+
 if __name__ == '__main__':
     #plot_load_time_vs_J(fid_min=0.99, Jmin=1*unit.MHz, Jmax=50*unit.MHz, tN_max=100*unit.ns, A=get_A(1,3), n=100, get_t=get_t_wf)
 
@@ -169,6 +179,10 @@ if __name__ == '__main__':
 
     #print(f"{get_t_wf(get_J(1,3), get_A(1,3), 10*unit.ns,1000,0.99)/unit.ns} ns")
 
-    approximate_full_NE_optimisation_time()
+    #approximate_full_NE_optimisation_time()
+
+    R = np.linspace(14,20,100)*unit.nm 
+    J = exchange_HF(R)
+    plt.plot(R/unit.nm, J/unit.MHz)
 
     plt.show()

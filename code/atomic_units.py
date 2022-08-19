@@ -28,11 +28,26 @@ ns = 1e-9*s
 rad = 1
 A = C/s
 T = kg/(A*s**2)
-mT = 1e-3*T
 newton = kg*m*s**(-2)
-joule = newton*m
-hz = 2*np.pi/s # because frequencies are expected in rad/second
-MHz = 1e6*hz
-GHz = 1e9*hz
+J = newton*m
+V = J/C
+Hz = 2*np.pi/s # because frequencies are expected in rad/second
 rps = 1/s
+eV = qE*V 
+meV = 1e-3*eV
+
+
+MV = 1e6*V
+MHz = 1e6*Hz
+GHz = 1e9*Hz
+mT = 1e-3*T
 Mrps = 1e6*rps
+um = 1e-6*m 
+nm = 1e-9*m
+
+
+
+if __name__ == '__main__':
+    # Doing some unit conversions 
+    from pdb import set_trace
+    set_trace()

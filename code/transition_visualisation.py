@@ -28,7 +28,6 @@ from pdb import set_trace
 
 from utils import get_ordered_eigensystem
 from hamiltonians import get_H0
-from single_NE import NE_swap
 
 
 
