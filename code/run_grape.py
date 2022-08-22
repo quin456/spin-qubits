@@ -4,20 +4,20 @@ from email.policy import default
 import torch as pt
 import numpy as np
 import matplotlib
-
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
-import pickle
 
-import GRAPE
-from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation
+
 import gates as gate 
 import atomic_units as unit
+from utils import *
+from eigentools import *
 from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
 from visualisation import visualise_Hw, plot_E_A_J
-from utils import *
-from hamiltonians import get_U0
+from hamiltonians import get_U0, get_H0
+from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation
+
 
 from pdb import set_trace
 
@@ -57,19 +57,25 @@ def inspect_system():
 
 def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, init_u_fn=None, kappa=1, minprint=False, mergeprop=False):
 
-    if A is None: A = get_A(nS,nq, N=1, donor_composition=[1,1])
-    if J is None: J = get_J(nS,nq, N=1)
+    if A is None: A = get_A(nS, nq)
+    if J is None: J = get_J(nS, nq)
+
+    H0 = get_H0(A, J)
+    H0_phys = get_H0(A, J, B0)
+    S,D = get_ordered_eigensystem(H0, H0_phys)
+
+    rf,u0 = get_low_J_rf_u0(S, D, tN, N)
+    u0 = pt.cat((u0,u0))
+
 
     target = CNOT_targets(nS,nq)
-    if init_u_fn is not None:
-        u0,hist0 = grape.load_u(init_u_fn); hist0=list(hist0)
-    else:
-        u0=None; hist0=None
    
     grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data)
 
-    grape.run()
-    grape.plot_result()
+    grape.fidelity(grape.u)
+
+    # grape.run()
+    # grape.plot_result()
 
 
 def sigmoid(z):
@@ -92,7 +98,7 @@ def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False):
     E = get_smooth_E(tN, N)
 
     A = get_A_1P_2P(nS, N, E)
-    J = get_J_1P_2P(nS, N, E)/50
+    J = get_J_1P_2P(nS, N, E)
 
     # T = linspace(0,tN,N)
     # plot_E_A_J(T,E,A,J);plt.show()
@@ -107,22 +113,22 @@ def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False):
 if __name__ == '__main__':
 
 
-    run_2P_1P_CNOTs(3000*unit.ns, 7500, nS=1, max_time = 10)
+    #run_2P_1P_CNOTs(3000*unit.ns, 7500, nS=1, max_time = 10)
 
 
 
-    # run_CNOTs(
-    #     tN = 200.0*unit.ns, 
-    #     N = 400, 
-    #     nq = 2, 
-    #     nS = 1, 
-    #     max_time = 14, 
-    #     kappa = 1, 
-    #     rf = None, 
-    #     save_data = True, 
-    #     init_u_fn = None, 
-    #     mergeprop = False
-    #     )
+    run_CNOTs(
+        tN = 200.0*unit.ns, 
+        N = 400, 
+        nq = 2, 
+        nS = 1, 
+        max_time = 10, 
+        kappa = 1, 
+        rf = None, 
+        save_data = True, 
+        init_u_fn = None, 
+        mergeprop = False
+        )
     
 
 

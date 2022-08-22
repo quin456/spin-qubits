@@ -2,7 +2,6 @@
 
 # coding tools
 from abc import abstractmethod
-from email.policy import default
 from pdb import set_trace
 import time
 import warnings
@@ -107,33 +106,6 @@ def grad(f,x0,dx):
 
 
 
-'''
-The following functions are used to manipulate and access 'u', which contains the control field amplitudes at 
-each timestep, the learning parameters of the GRAPE algorithm. The most natural form for 'u' is an m x N matrix,
-but it is converted to and from vector form for input into scipy.minimize.
-'''
-def uToVector(u):
-    '''  Takes m x N torch tensor 'u' and converts to 1D tensor in which the columns of u are kept together.  '''
-    #return (ptflatten?) (pt.transpose(u,0,1))
-    return pt.reshape(pt.transpose(u,0,1),(u.numel(),))
-
-def uToMatrix(u,m):
-    '''  
-    Inverse of uToVector. Takes m*N length 1D tensor, splits into m N-sized tensors which are stacked together as columns of an
-    m x N tensor which is the output of the function.
-    '''
-    N = int(len(u)/m)
-    return pt.transpose(pt.reshape(u,(N,m)),0,1)
-
-def uIdx(u,m,j,k):
-    '''  Accesses element (j,k) of vector form u.  '''
-    if len(u.shape)==1:
-        return u[k*m+j]
-    return u[j,k]
-
-def uCol(u,j,m):
-    '''  Accepts vector form 'u' as input, and returns what would be column 'j' if 'u' were in matrix form  '''
-    return u[j*m:(j+1)*m]
 
 
 ################        BATCH OPERATIONS        ################################################################
@@ -309,13 +281,12 @@ class Grape:
         self.start_time = time.time()
         self.save_data = save_data
         self.H0 = self.get_H0()
-
         self.rf = self.get_control_frequencies() if rf is None else rf
         self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
         self.m = len(self.omega)
         self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
-        if u0 is None: u0=self.init_u()
-        self.u0=u0
+        if u0 is None: u=self.init_u()
+        self.u=u0
 
         # allow for H0 with no systems axis
         self.reshaped=False
@@ -338,6 +309,7 @@ class Grape:
         if save_data: self.preLog(save_data)  
 
         self.print_setup_info()
+        self.propagate()
 
     def print_setup_info(self):
         print("==========================")
@@ -358,7 +330,7 @@ class Grape:
 
 
 
-    def time_evolution(self, u, simSteps=1):
+    def time_evolution(self, simSteps=1):
         '''
         Calculates the time-evolution operators corresponding to each of the N timesteps,
         and returns as an array, U.
@@ -366,7 +338,7 @@ class Grape:
         dim = self.H0.shape[-1]
         nS=len(self.H0)
         simSteps=1
-        N = int(len(u)/self.m)
+        N = self.N
         dt = self.tN/self.N
 
         # add axes
@@ -393,13 +365,14 @@ class Grape:
                 U = pt.matmul(U_s, U)
             return U
 
-    def propagate(self, U, device=default_device):
+    def propagate(self, device=default_device):
         '''
         Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
         Backward propagates target evolution operators and stores in X.
 
         This function is sufficiently general to work on all GRAPE implementations.
         '''
+        U = self.time_evolution()
         target=self.target
         nS=len(U)
         N=len(U[0])
@@ -474,7 +447,6 @@ class Grape:
         H0 = pt.einsum('j,sab->sjab', pt.ones(N, dtype=cplx_dtype, device=default_device), H0)
 
 
-        U = self.time_evolution(u)
 
         X,P = self.propagate(U)
         
@@ -528,7 +500,7 @@ class Grape:
     def run(self):
         callback = self.check_time if self.max_time is not None else None
         try:
-            opt=minimize(self.cost,self.u0,method='CG',jac=True, callback=callback)
+            opt=minimize(self.cost,self.u,method='CG',jac=True, callback=callback)
             print(f"nit = {opt.nfev}, nfev = {opt.nit}")
             self.u=pt.tensor(opt.x, device=default_device)
             self.status='C' #complete
@@ -577,11 +549,6 @@ class Grape:
             print(f"texp={time_exp}, tprop={time_prop}, tgrad = {time_grad}, tfid={time_fid}")
 
 
-    def get_X(self):
-        U = self.time_evolution(self.u)
-        X,P = self.propagate(U)
-        Uf = X[0][-1]
-        return X
 
 
     def sum_XY_fields(self):
@@ -651,7 +618,7 @@ class Grape:
 
     def plot_result(self, show_plot=True):
         u=self.u 
-        X = self.get_X()
+        X = self.X
         omegas=self.omega
         m=self.m
         tN=self.tN
@@ -828,12 +795,12 @@ class GrapeESR(Grape):
 
         
 
-    def time_evolution(self, u, device=default_device):
+    def time_evolution(self, device=default_device):
         nS=self.nS; nq=self.nq; dim = 2**nq
         m,N = self.x_cf.shape
         sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
         dt = self.tN/N
-        u_mat = uToMatrix(u,m)
+        u_mat = self.u_mat()
         x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf).to(device)
         y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf).to(device)
         H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),self.H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
@@ -844,7 +811,7 @@ class GrapeESR(Grape):
         return U
 
 
-    def fidelity(self,u, device=default_device):
+    def fidelity(self, u, device=default_device):
         '''
         Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
         '''
@@ -859,17 +826,11 @@ class GrapeESR(Grape):
         sig_xn = gate.get_Xn(self.nq, device); sig_yn = gate.get_Yn(self.nq, device)
 
         t0 = time.time()
-        if pt.cuda.device_count()==2:
-            U2 = self.time_evolution(u, device='cuda:1')
-            U=U2.to('cuda:0')
-            del U2
-        else:
-            U = self.time_evolution(u, device=device)
         global time_exp 
         time_exp += time.time()-t0
 
         t0 = time.time()
-        self.X, self.P = self.propagate(U,device=device)
+        self.X, self.P = self.propagate(device=device)
         global time_prop 
         time_prop += time.time()-t0
         del U
@@ -1287,7 +1248,7 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         
         return H0.to(device)
 
-    def time_evolution(self, u, device=default_device):
+    def time_evolution(self, device=default_device):
         '''
         Determines time evolution sub-operators from system Hamiltonian H0 and control Hamiltonians.
         Since A and J vary, H0 already has a time axis in this class, unlike in GrapeESR.
@@ -1296,7 +1257,7 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         sig_xn = gate.get_Xn(self.nq,device); sig_yn = gate.get_Yn(self.nq,device)
         dim=2**self.nq
         dt = self.tN/N
-        u_mat = uToMatrix(u,m)
+        u_mat = self.u_mat()
         x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf).to(device)
         y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf).to(device)
         H = self.H0 + pt.einsum('s,jab->sjab',pt.ones(self.nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))

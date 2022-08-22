@@ -19,7 +19,6 @@ from pulse_maker import pi_pulse_field_strength
 
 
 
-
 def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_device):
     if Hw_shape is None:
         nq = get_nq_from_dim(H0.shape[-1])
@@ -89,15 +88,26 @@ def get_low_J_rf_u0(S, D, tN, N):
     target_transition = allowed_transitions[idx]
     allowed_transitions[idx] = allowed_transitions[0]
     allowed_transitions[0] = target_transition
-    freqs = get_transition_freqs(allowed_transitions, E)
+    rf = get_transition_freqs(allowed_transitions, E)
 
-    couplings = get_couplings()
-    m = len(freqs)
+    couplings = get_couplings(S)
+    m = len(rf)
     u0 = pt.zeros(m, N, dtype=cplx_dtype, device=default_device)
-    u0[0] = pi_pulse_field_strength(couplings[target_transition], tN)
+    u0[0] = pi_pulse_field_strength(couplings[target_transition], tN) / unit.T 
 
+
+    return rf, uToVector(u0)
     
-    
+def get_all_low_J_rf_u0(S, D, tN, N, device=default_device):
+    rf = pt.tensor([], dtype = real_dtype, device=device)
+    u0 = pt.tensor([], dtype = real_dtype, device=device)
+    nS = len(S); nq = get_nq_from_dim(S.shape[-1])
+    Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq)) / np.sqrt(2)
+    for q in range(nS):
+        rf_q, u0_q = get_low_J_rf_u0(S[q], D[q], tN, N)
+        rf=pt.cat((rf,rf_q))
+        u0 = pt.cat((u0, u0_q))
+    return rf
 
 
 
@@ -162,6 +172,15 @@ def get_ordered_eigensystem(H0, H0_phys=None, ascending=True):
     E,S = order_eigensystem(H0,E_phys, ascending=ascending)
     D = pt.diag(E)
     return S,D
+
+def get_multi_ordered_eigensystems(H0, H0_phys, ascending=True):
+    nS,dim,dim = H0.shape
+    S = pt.zeros(nS, dim, dim, dtype=cplx_dtype, device=default_device)
+    D = pt.zeros_like(S)
+    for q in range(nS):
+        S[q], D[q] = get_ordered_eigensystem(H0[q], H0_phys[q])
+    return S, D
+
 
 def order_eigensystem(H0, E_order, ascending=True):
 

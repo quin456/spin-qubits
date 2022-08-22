@@ -467,7 +467,8 @@ def get_2E_low_J_CNOT_pulse(tN = 20*unit.ns, N=500, J=1*unit.MHz, A=get_A(1,2), 
 
 if __name__ == '__main__':
 
-    H0 = get_H0(get_A(1,2), get_J(1,2))
-    H0_phys = get_H0(get_A(1,2), get_J(1,2), B0)
-    S,D = get_ordered_eigensystem(H0, H0_phys)
-    get_low_J_rf_u0(S,D)
+    H0 = get_H0(get_A(3,2), get_J(3,2))
+    H0_phys = get_H0(get_A(3,2), get_J(3,2), B0)
+    S,D = get_multi_ordered_eigensystems(H0, H0_phys)
+
+    get_all_low_J_rf_u0(S,D, 100*unit.ns, 500)
