@@ -226,21 +226,57 @@ def get_allowed_transitions(H0, Hw_shape=None, S=None, E=None, device=default_de
 
     return allowed_transitions
 
-def get_resonant_frequencies(H0,Hw_shape=None,device=default_device):
+def get_resonant_frequencies(H0,Hw_shape=None, E=None, device=default_device):
     '''
     Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
     Useful for >2qubit systems where analytically determining frequencies becomes difficult. 
     '''
-    freqs = []
-    eig = pt.linalg.eig(H0)
-    E=eig.eigenvalues
+    if E is None:
+        eig = pt.linalg.eig(H0)
+        E=eig.eigenvalues
     allowed_transitions = get_allowed_transitions(H0, Hw_shape=Hw_shape, device=device)
+    print(allowed_transitions)
+
+    return get_transition_freqs(allowed_transitions, E, device=device)
+
+def get_transition_freqs(allowed_transitions, E, device=default_device):
+    freqs = []
     for transition in allowed_transitions:
         freqs.append((pt.real(E[transition[0]]-E[transition[1]])).item())
-
     freqs = pt.tensor(remove_duplicates(freqs), dtype = real_dtype, device=device)
-    
     return freqs
+
+
+def get_low_J_rf_u0(S, D, N):
+    '''
+    Gets resonant frequencies and u0 in low J limit, where transition is driven mostly by a single frequency.
+    u0 is chosen to give appropriate pi-pulse.
+    '''
+
+    E = pt.diag(D)
+    H0 = S@D@S.T
+    allowed_transitions = get_allowed_transitions(H0, S=S, E=E)
+    target_transition = (2,3)
+    if target_transition in allowed_transitions:
+        idx = allowed_transitions.index(target_transition)
+    elif target_transition[::-1] in allowed_transitions:
+        idx = allowed_transitions.index(target_transition[::-1])
+    else:
+        raise Exception("Failed to find low J resonant frequencies and u0: target transition not in allowed transitions.")
+    
+    target_transition = allowed_transitions[idx]
+    allowed_transitions[idx] = allowed_transitions[0]
+    allowed_transitions[0] = target_transition
+    freqs = get_transition_freqs(allowed_transitions, E)
+
+    m = len(freqs)
+    u0 = pt.zeros(m, N, dtype=cplx_dtype, device=default_device)
+    u0[0] = pi_pu
+
+    
+    
+
+
 
 def get_multi_system_resonant_frequencies(H0s, device=default_device):
     rf = pt.tensor([], dtype = real_dtype, device=device)
@@ -250,6 +286,9 @@ def get_multi_system_resonant_frequencies(H0s, device=default_device):
         rf_q=get_resonant_frequencies(H0s[q], Hw_shape)
         rf=pt.cat((rf,rf_q))
     return rf
+
+
+
 
 def clean_vector(v, tol=1e-8):
     for i in range(len(v)):
@@ -411,6 +450,3 @@ def get_dT(T):
 def linspace(start, end, N, dtype=cplx_dtype, device=default_device):
     return pt.linspace(start+(end-start)/N, end, N, dtype=dtype, device=device)
 
-
-if __name__ == '__main__':
-    label_axis(plt.subplot(), offset=-0.1, label='A')

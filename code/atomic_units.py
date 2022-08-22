@@ -39,6 +39,7 @@ meV = 1e-3*eV
 
 MV = 1e6*V
 MHz = 1e6*Hz
+kHz = 1e3*Hz
 GHz = 1e9*Hz
 mT = 1e-3*T
 Mrps = 1e6*rps

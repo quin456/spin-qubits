@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib
 
 
+
+
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
@@ -12,9 +14,10 @@ from matplotlib import pyplot as plt
 import gates as gate
 import atomic_units  as unit
 from utils import *
+from eigentools import *
 from hamiltonians import get_H0, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
-from pulse_maker import pi_rot_square_pulse
-from visualisation import plot_psi, eigenstate_label_getter, visualise_Hw
+from pulse_maker import pi_pulse_square
+from visualisation import plot_psi, eigenstate_label_getter, visualise_Hw, show_fidelity
 
 
 from pdb import set_trace
@@ -327,7 +330,7 @@ def drive_electron_transition(S, D, transition, tN=100*unit.ns, N=10000, ax=None
     coupling = couplings[transition]
     print(f"Driving electron transition: |E{transition[0]}> <--> |E{transition[1]}> with frequency {pt.real(w_res)/unit.MHz} MHz, coupling {pt.real(coupling)*unit.T/unit.MHz} MHz/unit.T.")
 
-    Bx, By = pi_rot_square_pulse(w_res, coupling, tN, N)
+    Bx, By = pi_pulse_square(w_res, coupling, tN, N)
 
     Hw = get_pulse_hamiltonian(Bx, By, gamma_e, gate.get_Xn(nq), gate.get_Yn(nq))
 
@@ -375,7 +378,7 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*unit.ns, N=1000):
     transition = transitions[trans_idx]
     omega = E[transition[0]]-E[transition[1]]
 
-    Bx, By = pi_rot_square_pulse(omega, gamma_e, tN, N)
+    Bx, By = pi_pulse_square(omega, gamma_e, tN, N)
     Hw = get_pulse_hamiltonian(Bx, By, gamma_e, X=gate.get_Xn(nq), Y=gate.get_Yn(nq))
 
     dim = H0.shape[-1]
@@ -398,24 +401,64 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*unit.ns, N=1000):
     visualise_Hw(Hw_eig_IP,tN)
 
 
+def examine_electron_eigensystem(Bz = B0, A=get_A(1,2, NucSpin=[1,1], A_mags=[A_mag, A_2P_mag]), J=get_J(1,2), n=500, dim=4):
 
-def dressed_spins(Bz=0, A=get_A(1,2), J=get_J(1,2)/71, tN=150*unit.ns, N=10000):
+    J = pt.linspace(0.1, 45, n) * unit.MHz
+    S = pt.zeros(n, dim, dim, dtype=cplx_dtype, device=default_device)
+    D = pt.zeros_like(S)
+    E = pt.zeros(n, dim, dtype=cplx_dtype, device=default_device)
 
-    field_mult = 5
+    for i in range(n):
+        H0 = get_H0(A, J[i], B0/50)
+        H0_phys = get_H0(A, J[i], B0)
+        S[i], D[i] = get_ordered_eigensystem(H0, H0_phys, ascending=False)
+        E[i] = pt.diag(D[i])
 
-    psi0 = gate.spin_01 
+    alpha = pt.real(S[:,1,1])
+    beta = pt.real(S[:,2,1])
 
-    Bx = pt.zeros(N, dtype=cplx_dtype, device=default_device)
-    By = pt.zeros(N, dtype=cplx_dtype, device=default_device)
+    dA = A[0]-A[1]
+    K = (2*(4*J**2+dA**2+dA*pt.sqrt(4*J**2+dA**2)))**(-1/2)
+    alpha_anal = pt.multiply(K, pt.sqrt(4*J**2+dA**2)+dA)
+    beta_anal = pt.multiply(K, 2*J)
 
-    omega1 = 2*get_A(1,1)
-    omega2 = -2*get_A(1,1)
-    coupling = 1/2
-    Bx1,By1 = pi_rot_square_pulse(omega1, coupling, tN, N)
-    Bx2,By2 = pi_rot_square_pulse(omega2, coupling, tN, N)
-    #Bx = Bx1+Bx2; By=By1+By2
-    psi = electron_wf_evolution(tN, N, Bz, A, J, field_mult*Bx, field_mult*By, psi0)
-    plot_psi(psi, tN)
+
+    fig,ax=plt.subplots(1,2)
+    ax[0].plot(J/unit.MHz, alpha**2, label="alpha^2")
+    ax[0].plot(J/unit.MHz, beta**2, label="beta^2")
+    ax[0].legend()
+
+    ax[1].plot(J/unit.MHz, E[:,0]/unit.MHz, label="E0")
+    ax[1].plot(J/unit.MHz, E[:,1]/unit.MHz, label="E1")
+    ax[1].plot(J/unit.MHz, E[:,2]/unit.MHz, label="E2")
+    ax[1].plot(J/unit.MHz, E[:,3]/unit.MHz, label="E3")
+    ax[1].legend()
+
+
+    i = 0
+    while alpha[i]**2 > 0.999:
+        i += 1
+    print(f"alpha(J={J[i-1]/unit.MHz} MHz)^2 = {alpha[i-1]**2}")
+    print(f"alpha(J={J[i]/unit.MHz} MHz)^2 = {alpha[i]**2}")
+    print(f"alpha(J={J[i+1]/unit.MHz} MHz)^2 = {alpha[i+1]**2}")
+
+
+    plt.show()
+
+
+
+
+def get_2E_low_J_CNOT_pulse(tN = 20*unit.ns, N=500, J=1*unit.MHz, A=get_A(1,2), Bz=0):
+
+    H0 = get_H0(A, J, Bz)
+    H0_phys = get_H0(A, J, B0)
+    S,D = get_ordered_eigensystem(H0, H0_phys, ascending=False)
+    E = pt.diag(D)
+    omega = E[2]-E[3]
+    couplings = get_couplings(S)
+    return pi_pulse_square(omega, couplings[2,3], tN, N)
+    
+
 
 
 
@@ -423,12 +466,8 @@ def dressed_spins(Bz=0, A=get_A(1,2), J=get_J(1,2)/71, tN=150*unit.ns, N=10000):
 
 
 if __name__ == '__main__':
-    
-    dressed_spins()
 
-    # investigate_3E_resfreqs(tN=1000*unit.ns)
-    # nq=3
-    #visualise_3E_Hw(A=get_A(1,nq), J=get_J(1,nq))
-    plt.show()
-
-
+    H0 = get_H0(get_A(1,2), get_J(1,2))
+    H0_phys = get_H0(get_A(1,2), get_J(1,2), B0)
+    S,D = get_ordered_eigensystem(H0, H0_phys)
+    get_low_J_rf_u0(S,D)

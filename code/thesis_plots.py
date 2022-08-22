@@ -21,7 +21,6 @@ from architecture_design import plot_cell_array, plot_annotated_cell, generate_C
 from electrons import plot_free_electron_evolution, get_free_electron_evolution
 from transition_visualisation import visualise_E_transitions
 from single_NE import *
-from gates import spin_11
 from multi_NE import *
 from misc_calculations import plot_load_time_vs_J
 from voltage_plot import plot_CNOTs
@@ -157,7 +156,7 @@ def compare_free_3E_evols(fp=None):
     tN = 10*unit.ns 
     N = 500
     fig,ax = plt.subplots(1,2)
-    fig.set_size_inches(double_long_width, single_long_height)
+    fig.set_size_inches(fig_width_double_long, fig_height_single_long)
 
 
     plot_free_electron_evolution(tN, N, get_A(1,3,[0,1,0]), get_J(50,3, J1=J_100_14nm, J2=J_100_18nm)[15], ax=ax[0], label_getter=exchange_label_getter)
@@ -201,9 +200,9 @@ def chapter_3(chapter="Ch3-"):
         fig,ax = plt.subplots(1,2)
         grape.plot_u(ax[0])
         grape.plot_cost_hist(ax[1])
-        fig.set_size_inches(double_long_width, single_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig1,ax1 = grape.plot_field_and_evolution()
-        fig1.set_size_inches(double_long_width, double_long_height)
+        fig1.set_size_inches(fig_width_double_long, fig_height_double_long)
         plt.tight_layout()
         if fp is not None: fig.savefig(fp)
         if fp1 is not None: fig1.savefig(fp1)
@@ -212,7 +211,7 @@ def chapter_3(chapter="Ch3-"):
         fig,ax = plt.subplots(2,2)
         show_NE_CX(get_A(1,1),2*unit.T, 100000, ax=ax[0])
         show_EN_CX(get_A(1,1),2*unit.T, 40000 , ax=ax[1])
-        fig.set_size_inches(double_long_width, double_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_double_long)
         fig.tight_layout()
         y_offset=-0.3
         label_axis(ax[0,0], '(a)', y_offset=y_offset)
@@ -283,12 +282,14 @@ def chapter_3(chapter="Ch3-"):
         ax2.plot([x4,x5], [y2,y2], color=color2)
 
 
-        fig.set_size_inches(double_long_width, single_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
 
         fig.savefig(fp)
 
     #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
+    plot_NE_energy_diagram(Bz = pt.linspace(0,5, 100)*unit.mT, N=1000, fp=f"{plots_folder}{chapter}NE-energy-diagram.pdf")
+
 
     #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
 
@@ -302,10 +303,11 @@ def chapter_3(chapter="Ch3-"):
     #compare_free_3E_evols(fp = f"{plots_folder}Ch3-3E-free-evol-comparison.pdf")
 
     #investigate_3E_resfreqs(fp = f"{plots_folder}{chapter}all-allowed-3E-transitions.pdf")
+    #investigate_3E_resfreqs(N=2000)
 
     #NE_EN_CX()
     #show_NE_swap(get_A(1,1),2*unit.T, 100000, 40000, fp=f"{plots_folder}{chapter}NE_swap.pdf")
-    plot_swap_schedule()
+    #plot_swap_schedule()
 
 def no_coupler():
     def plot_exchange_switch(A=get_A(1,3), J=get_J(1,3), fp=None):
@@ -334,7 +336,7 @@ def no_coupler():
         psi = pt.cat((psi1, psi2))
         fig,ax = plt.subplots(1,1)
         plot_psi(psi, tN, legend_loc = 'center left', ax=ax, label_getter=exchange_label_getter)
-        fig.set_size_inches(double_long_width, double_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_double_long)
         ax.set_xlabel("time (ns)")
         ax.axvline(10, color='black', linestyle='--', linewidth=1)
         ax.annotate("$t=t_0$",[9,0.5])
@@ -392,10 +394,10 @@ def no_coupler():
         grape.plot_cost_hist(ax[0])
         label_axis(ax[0], '(a)', -0.15,-0.1)
         label_axis(ax[1], '(b)', -0.15, -0.1)
-        fig.set_size_inches(2*square_size, square_size)
+        fig.set_size_inches(fig_width_double, fig_height_single)
         if fp is not None: fig.savefig(fp)
 
-    def NE_swap_spin_states(tN, N, A, Bz, ax, psi0=spin_11):
+    def NE_swap_spin_states(tN, N, A, Bz, ax, psi0=gate.spin_11):
         Bx,By = NE_swap_pulse(tN,N,A,Bz, ax[0])
         H0 = get_NE_H0(A, Bz)
         X = get_NE_X(Bx, By, Bz, A, tN, N)

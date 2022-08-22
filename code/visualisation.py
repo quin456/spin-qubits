@@ -10,8 +10,8 @@ from matplotlib import pyplot as plt
 import torch as pt 
 import atomic_units as unit
 from utils import linspace, get_nq_from_dim, dagger, fidelity_progress, psi_to_cartesian, get_resonant_frequencies, get_ordered_eigensystem, print_rank2_tensor
-from hamiltonians import get_H0, multi_NE_H0
-from data import get_A, get_J, gamma_n, gamma_e
+from hamiltonians import get_H0, multi_NE_H0, get_NE_H0
+from data import get_A, get_J, gamma_n, gamma_e, B0, cplx_dtype, default_device
 import gates as gate
 
 
@@ -21,10 +21,12 @@ from pdb import set_trace
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-double_long_width = 10
-single_long_height = 2.3
-double_long_height = 3.4
-square_size = 10/2.6
+fig_width_double_long = 10
+fig_height_single_long = 2.3
+fig_height_double_long = 3.4
+fig_width_single = 3.2*1.2
+fig_width_double = fig_width_single*2 #untested
+fig_height_single = 2.4*1.2
 
 annotate=False
 y_axis_labels = False
@@ -225,6 +227,64 @@ def plot_energy_spectrum_from_H0(H0):
     plot_energy_spectrum(pt.diagonal(D))
 
 
+def plot_energy_level_variation(H0, x_axis, x_label, x_unit=unit.MHz, ax=None):
+    '''
+    Accepts array of H0 matrices corresponding to H0 evolution
+    '''
+
+    N,dim,dim = H0.shape
+    S = pt.zeros(N,dim,dim, dtype=cplx_dtype, device=default_device)
+    D = pt.zeros_like(S)
+    E = pt.zeros(N,dim, dtype=cplx_dtype, device=default_device)
+    for j in range(N):
+        S[j],D[j] = get_ordered_eigensystem(H0[j])
+        E[j] = pt.diag(D[j])
+
+
+    if ax is None: ax=plt.subplot()
+    for a in range(dim):
+        ax.plot(x_axis/x_unit, E[:,a]/unit.MHz, label=a, color='black')
+    ax.set_xlabel(x_label)
+    ax.set_ylabel("Energy (MHz)")
+
+    print("Initial eigenstates:")
+    print_rank2_tensor(S[0])
+    print("\nFinal eigenstates:")
+    print_rank2_tensor(S[-1])
+
+    return E
+
+
+def plot_exchange_energy_diagram(J=pt.linspace(0,100,100)*unit.MHz,A=None,Bz=B0):
+    N = len(J)
+    if A is None: A = get_A(N,2)
+    H0 = get_H0(A,J,Bz=Bz)
+    plot_energy_level_variation(H0, J, 'Exchange (MHz)')
+
+
+def plot_NE_energy_diagram(Bz = pt.linspace(0,0.2, 100)*unit.T, N=1000, A=get_A(1,1), ax=None, fp=None):
+
+    N = len(Bz) 
+    dim=4
+    H0 = pt.zeros(N, dim, dim)
+
+    for j in range(N):
+        H0[j] = get_NE_H0(A, Bz[j])
+
+    if ax is None: fig,ax=plt.subplots(1)
+    E = plot_energy_level_variation(H0, Bz, '$B_z$ (mT)', unit.mT, ax=ax)
+    ax.annotate('$T_0$', (-0.4,E[0,1]/unit.MHz+10))
+    ax.annotate('$T^+$', (-0.4, E[0,1]/unit.MHz-5))
+    ax.annotate('$T^-$', (-0.4, E[0,1]/unit.MHz-20))
+    ax.annotate('$S_0$', (-0.4,E[0,0]/unit.MHz))
+    ax.annotate(f'{Downarrow}{uparrow}', (5,E[-1,3]/unit.MHz-2.5))
+    ax.annotate(f'{Uparrow}{uparrow}', (5,E[-1,2]/unit.MHz-2.5))
+    ax.annotate(f'{Downarrow}{downarrow}', (5,E[-1,1]/unit.MHz-5))
+    ax.annotate(f'{Uparrow}{downarrow}', (5,E[-1,0]/unit.MHz-5))
+    ax.set_xlim((-0.5,5.5))
+    fig.set_size_inches(fig_width_single,fig_height_single)
+    fig.tight_layout()
+    if fp is not None: fig.savefig(fp)
 
 
 def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
@@ -267,10 +327,11 @@ def plot_E_A_J(T,E,A,J):
 
 
 
-if __name__=='__main__':
-    H0_3E = get_H0(A=get_A(1,3, NucSpin=[1,1,1]), J=get_J(2,3)[1], Bz=0.1*unit.T)
-    H0_3NE = multi_NE_H0(A=get_A(1,1), J=get_J(1,3), Bz=0.2*unit.T, gamma_n=10*gamma_n, gamma_e=gamma_e/10)
-    plot_energy_spectrum_from_H0(H0_3NE)
 
+if __name__=='__main__':
+
+
+    #plot_exchange_energy_diagram(J=pt.linspace(-100,100,100)*unit.MHz, A=get_A(100,2), Bz=0.02*unit.T)
+    plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.mT)
 
     plt.show()

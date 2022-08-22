@@ -93,7 +93,7 @@ def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm/2.3, N=1, device=default_device, E_r
     return J
 
 def get_A_1P_2P(nS, N, E):
-    eta2 = -300 * unit.um/unit.V
+    eta2 = -3e-3 * (unit.um/unit.V)**2
     A = get_A(nS, 2, [0,0], [A_mag, A_2P_mag])
     modulator = eta2 * E**2
     if nS==1:
@@ -120,6 +120,8 @@ if __name__ == '__main__':
     print("Printing data used in spin-qubit simulations")
     print("============================================\n")
     print(f"gamma_e = {gamma_e*unit.T/unit.MHz:.1f} MHz, gamma_n = {gamma_n*unit.T/unit.MHz:.1f} MHz")
+    print(f"\nHyperfine coupling: A_1P = {get_A(1,1)/unit.MHz:.2f} MHz")
+    print(f"\nHyperfine coupling: A_2P = {A_2P_mag/unit.MHz:.2f} MHz")
     print("\nExchange valiues for 18nm separation:")
     for i in range(15):
         print(f"J_18nm_{i} = {pt.real(J_100_18nm[i]).item()/unit.MHz:.1f} MHz")

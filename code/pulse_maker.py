@@ -30,9 +30,12 @@ def square_pulse(B, omega, tN, N, phase=0):
 
     return Bx,By
 
+def pi_pulse_field_strength(coupling, tN):
+    return np.pi / (coupling * tN)
 
-def pi_rot_square_pulse(w_res, coupling, tN, N, phase=0):
-    Bw = np.pi / (coupling * tN)
+
+def pi_pulse_square(w_res, coupling, tN, N, phase=0):
+    Bw = pi_pulse_field_strength(coupling, tN)
     print(f"Generating square pulse for π-rotation with amplitude {Bw/unit.mT} mT, frequency {w_res/unit.MHz} MHz.")
     Bx,By = square_pulse(Bw, w_res, tN, N, phase)
     return Bx,By

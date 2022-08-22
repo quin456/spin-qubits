@@ -22,7 +22,8 @@ from hamiltonians import get_H0, multi_NE_H0, get_pulse_hamiltonian
 from electrons import analyse_3E_system, simulate_electrons, electron_wf_evolution, get_electron_X
 from multi_NE import *
 from visualisation import uparrow, downarrow, Uparrow, Downarrow, plot_psi, eigenstate_label_getter, spin_state_label_getter
-from pulse_maker import pi_rot_square_pulse
+from pulse_maker import pi_pulse_square
+from GRAPE import Grape
 
 
 comp00 = pt.kron(gate.spin_000, gate.spin_111)
@@ -81,7 +82,7 @@ def get_E_transition(evec1_idx, evec0_idx, tN, N, A, NucSpin, J, Bz, S_NE):
     evec1_NE_idx = match_E_estate_to_NE_estate(S[:,evec1_idx],nuc_dec_state,S_NE)
     print(f"Electron eigenstate |E{evec1_idx}> = {psi_to_string(S[:,evec1_idx])} matches to nuclear-electron eigenstate |E{evec1_NE_idx}> = {psi_to_string(S_NE[:,evec1_NE_idx])}")
 
-    Bx, By = pi_rot_square_pulse(omega, coupling, tN, N)
+    Bx, By = pi_pulse_square(omega, coupling, tN, N)
 
     return Bx, By, evec1_NE_idx
 

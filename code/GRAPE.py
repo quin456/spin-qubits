@@ -27,13 +27,14 @@ import ast
 
 
 # Other python files in project
-from atomic_units import *
+import atomic_units as unit
 import gates as gate
 from utils import *
+from eigentools import *
 from data import *
 from hamiltonians import get_H0
 from visualisation import plot_fidelity, y_axis_labels, colors, plot_psi, plot_phases
-from visualisation import double_long_width, double_long_height, single_long_height
+from visualisation import fig_width_double_long, fig_height_double_long, fig_height_single_long
 
 time_exp = 0
 time_prop = 0
@@ -626,7 +627,7 @@ class Grape:
         self.plot_XY_fields(ax[0])
         fids = fidelity_progress(self.X, self.target)
         plot_fidelity(ax[1], fids, tN=self.tN)
-        fig.set_size_inches(double_long_width, single_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
         if fp is not None: 
             fig.savefig(fp)

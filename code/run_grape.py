@@ -92,10 +92,10 @@ def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False):
     E = get_smooth_E(tN, N)
 
     A = get_A_1P_2P(nS, N, E)
-    J = get_J_1P_2P(nS, N, E)
+    J = get_J_1P_2P(nS, N, E)/50
 
     # T = linspace(0,tN,N)
-    # plot_E_A_J(T,E,A,J)
+    # plot_E_A_J(T,E,A,J);plt.show()
 
     target = CNOT_targets(nS,nq)
     grape = GrapeESR_AJ_Modulation(J,A,tN,N, Bz=Bz, target=target, max_time=max_time, save_data=save_data)
@@ -107,7 +107,7 @@ def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False):
 if __name__ == '__main__':
 
 
-    run_2P_1P_CNOTs(100*unit.ns, 500, nS=150, max_time = 3400)
+    run_2P_1P_CNOTs(3000*unit.ns, 7500, nS=1, max_time = 10)
 
 
 

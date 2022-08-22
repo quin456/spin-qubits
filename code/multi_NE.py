@@ -10,18 +10,17 @@ if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
-from GRAPE import *
 import gates as gate
-from gates import spin_0010
 import atomic_units as unit
+from utils import *
+from eigentools import *
 from data import get_A, get_J
 from visualisation import plot_psi, plot_fields, plot_fidelity, multi_NE_label_getter
 from pulse_maker import square_pulse
-from utils import lock_to_frequency, get_couplings_over_gamma_e, psi_to_string
 from single_NE import NE_swap_pulse, NE_CX_pulse
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X_from_H, get_U0
- 
-from pulse_maker import pi_rot_square_pulse
+from GRAPE import Grape
+from pulse_maker import pi_pulse_square
 
 from pdb import set_trace
 
@@ -83,7 +82,7 @@ def double_NE_swap_with_exchange(Bz=2*unit.T, A=get_A(1,1), J=get_J(1,2), tN=500
     Bx,By = NE_swap_pulse(tN, N, A, Bz)
     def label_getter(j):
         return multi_NE_label_getter(j, label_states=label_states)
-    multi_NE_evol(Bx, By, tN, 2, A=A, J=J, psi0=spin_0010, deactivate_exchange=deactivate_exchange,ax=ax, label_getter=label_getter)
+    multi_NE_evol(Bx, By, tN, 2, A=A, J=J, psi0=gate.spin_0010, deactivate_exchange=deactivate_exchange,ax=ax, label_getter=label_getter)
 
 
 def get_nuclear_spin_ordered_eigensystem(Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3)):
@@ -231,6 +230,7 @@ def all_triple_NE_basis_transitions(tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get
     for i in basis:
         triple_NE_estate_transition(i, tN, N, Bz, A, J, ax[i//2,i%2])
 
+
 def get_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):
     H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
     S,D = get_ordered_eigensystem(H0) 
@@ -249,7 +249,7 @@ def get_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=
     omega=-omega
     coupling = couplings[i_psi0,i_psi1]
     print(f"Target nuclear spin flip: w_res = {pt.real(omega)/unit.MHz} MHz, coupling = {pt.real(coupling)*unit.T/unit.MHz} MHz/tesla")
-    Bx,By = pi_rot_square_pulse(omega, coupling, tN, N)
+    Bx,By = pi_pulse_square(omega, coupling, tN, N)
     return Bx,By
 
 def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):

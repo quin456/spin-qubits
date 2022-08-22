@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 
 import gates as gate
-from pulse_maker import pi_rot_square_pulse
+from pulse_maker import pi_pulse_square
 import atomic_units as unit
 from gates import spin_up, spin_down
 from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
@@ -38,7 +38,7 @@ def show_single_spin_evolution(Bz = 0*unit.T, A=get_A(1,1), tN = 500*unit.ns, N=
     w_res = gamma_e*Bz + 2*A
     #fig,ax = plt.subplots(2,2)
     fig,ax = plt.subplots(3,1)
-    Bx,By = pi_rot_square_pulse(w_res, gamma_e/2, tN, N)
+    Bx,By = pi_pulse_square(w_res, gamma_e/2, tN, N)
     plot_fields(Bx,By,tN,ax[0])
 
     H0 = single_electron_H0(Bz, A)

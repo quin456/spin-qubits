@@ -20,7 +20,7 @@ import gates as gate
 import atomic_units as unit
 from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import get_resonant_frequencies, get_allowed_transitions, print_rank2_tensor, get_nS_nq_from_A
-from pulse_maker import pi_rot_square_pulse
+from pulse_maker import pi_pulse_square
 from data import get_A, get_J, gamma_e, gamma_n, cplx_dtype, J_100_18nm
 
 from pdb import set_trace

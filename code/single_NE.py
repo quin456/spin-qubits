@@ -8,15 +8,15 @@ if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt
-from scipy.optimize import minimize
 
-from GRAPE import Grape
+
+
 import gates as gate 
 import atomic_units as unit
-from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from utils import *
-import utils
-from pulse_maker import pi_rot_square_pulse
+from eigentools import *
+from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
+from pulse_maker import pi_pulse_square
 from data import get_A, gamma_e, gamma_n, cplx_dtype
 from visualisation import *
 from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine
@@ -114,7 +114,7 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
     w_eigenres = D[2,2]-D[3,3]
     if tN is None:
         tN = lock_to_frequency(A,get_pi_pulse_tN_from_field_strength(B_mag, c))
-    Bx,By = pi_rot_square_pulse(w_eigenres, c, tN, N, phase)
+    Bx,By = pi_pulse_square(w_eigenres, c, tN, N, phase)
 
     #Bx,By = pi_rot_pulse(w_res, gamma_e/2, tN, N, phase)
     if ax is not None:
@@ -150,7 +150,7 @@ def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=
     plot_psi(psi,tN=tN, T=T, ax=ax[1], label_getter = NE_label_getter)
 
     if fig is not None:
-        fig.set_size_inches(double_long_width, single_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
     if fp is not None:
         fig.savefig(fp)
@@ -168,7 +168,7 @@ def EN_CX_pulse(tN,N,A,Bz, ax=None):
     if tN is None:
         tN = get_pi_pulse_tN_from_field_strength(B_mag, c)
 
-    Bx_CX, By_CX = pi_rot_square_pulse(w_eigenres, c, tN, N, 0)
+    Bx_CX, By_CX = pi_pulse_square(w_eigenres, c, tN, N, 0)
 
     if ax is not None: 
         plot_fields(Bx,By,tN,ax)
@@ -269,7 +269,7 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), tar
     #plot_phases(psi,T=T, ax=ax[1])
 
     if fig is not None:
-        fig.set_size_inches(double_long_width, single_long_height)
+        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
     if fp is not None: fig.savefig(fp)
 
@@ -327,7 +327,7 @@ def show_NE_swap(A, Bz, N_e, N_n, psi0=None, fp=None):
     plot_psi(psi, T=T, ax=ax[1], label_getter = NE_label_getter)
 
 
-    fig.set_size_inches(double_long_width, double_long_height)
+    fig.set_size_inches(fig_width_double_long, fig_height_double_long)
     fig.tight_layout()
     if fp is not None: fig.savefig(fp)
 
