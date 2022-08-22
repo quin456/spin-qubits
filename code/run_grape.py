@@ -72,11 +72,10 @@ def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_d
    
     grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=None,u0=None, max_time=max_time, save_data=save_data)
 
-    #grape.fidelity(grape.u)
-    #grape.propagate()
+    set_trace()
 
-    grape.run()
-    grape.plot_result()
+    # grape.run()
+    # grape.plot_result()
 
 
 def sigmoid(z):
@@ -114,7 +113,7 @@ def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False):
 if __name__ == '__main__':
 
 
-    #run_2P_1P_CNOTs(3000*unit.ns, 7500, nS=1, max_time = 10)
+    #run_2P_1P_CNOTs(100*unit.ns, 500, nS=1, max_time = 10)
 
 
 

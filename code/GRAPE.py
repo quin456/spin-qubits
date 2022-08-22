@@ -405,7 +405,7 @@ class Grape:
             raise TimeoutError
 
 
-    def fidelity(self, u):
+    def fidelity(self):
 
         '''
         Determines the time evolution resulting from control field amplitudes in 'u', and 
@@ -433,14 +433,12 @@ class Grape:
 
         # determine time evolution resulting from control fields
         nq=self.nq
-        target=self.target
         tN=self.tN
         N = self.N
         nS=self.nS
         H0 = self.H0
         Hw = self.Hw
         d=2**nq
-        m = self.m
 
         # add axes
         Hw = pt.einsum('s,kjab->skjab', pt.ones(nS, dtype=cplx_dtype, device=default_device), Hw)
@@ -474,9 +472,9 @@ class Grape:
         (ie running many CNOTs in parallel, where Hw is constructed on the fly).
         '''
         nS=self.nS
-        u = pt.tensor(u,dtype=cplx_dtype, device=default_device)
+        self.u = pt.tensor(u,dtype=cplx_dtype, device=default_device)
 
-        Phi, dPhi = self.fidelity(u)
+        Phi, dPhi = self.fidelity()
 
 
         J = 1 - pt.sum(Phi,0)/nS
@@ -530,7 +528,7 @@ class Grape:
 
     def print_result(self, verbosity=1):
 
-        fidelities = self.fidelity(self.u)[0]
+        fidelities = self.fidelity()[0]
         avgfid=sum(fidelities)/len(fidelities)
         minfid = min(fidelities).item()
 
@@ -811,7 +809,7 @@ class GrapeESR(Grape):
         return U
 
 
-    def fidelity(self, u, device=default_device):
+    def fidelity(self, device=default_device):
         '''
         Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
         '''
@@ -870,7 +868,7 @@ class GrapeESR(Grape):
         return Phi, dPhi
 
 
-    def cost(self,u):
+    def cost(self, u):
         '''
         Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
 
@@ -892,10 +890,10 @@ class GrapeESR(Grape):
         target=self.target
         cost_hist=self.cost_hist
 
-        u=pt.tensor(u, dtype=cplx_dtype, device=default_device)
+        self.u = pt.tensor(u, dtype=cplx_dtype, device=default_device)
         m=len(x_cf)
         t0 = time.time()
-        Phi,dPhi = self.fidelity(u)
+        Phi,dPhi = self.fidelity()
         global time_fid 
         time_fid += time.time()-t0
         J = 1 - pt.sum(Phi,0)/nS
