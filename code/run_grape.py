@@ -64,18 +64,19 @@ def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_d
     H0_phys = get_H0(A, J, B0)
     S,D = get_ordered_eigensystem(H0, H0_phys)
 
-    rf,u0 = get_low_J_rf_u0(S, D, tN, N)
-    u0 = pt.cat((u0,u0))
+    #rf,u0 = get_low_J_rf_u0(S, D, tN, N)
+    #u0 = pt.cat((u0,u0))
 
 
     target = CNOT_targets(nS,nq)
    
-    grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data)
+    grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=None,u0=None, max_time=max_time, save_data=save_data)
 
-    grape.fidelity(grape.u)
+    #grape.fidelity(grape.u)
+    #grape.propagate()
 
-    # grape.run()
-    # grape.plot_result()
+    grape.run()
+    grape.plot_result()
 
 
 def sigmoid(z):

@@ -285,7 +285,7 @@ class Grape:
         self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
         self.m = len(self.omega)
         self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
-        if u0 is None: u=self.init_u()
+        if u0 is None: u0 = self.init_u()
         self.u=u0
 
         # allow for H0 with no systems axis
@@ -309,7 +309,7 @@ class Grape:
         if save_data: self.preLog(save_data)  
 
         self.print_setup_info()
-        self.propagate()
+        #self.propagate()
 
     def print_setup_info(self):
         print("==========================")
@@ -345,7 +345,7 @@ class Grape:
         Hw = pt.einsum('s,kjab->skjab', pt.ones(nS, dtype=cplx_dtype, device=default_device), self.Hw)
         H0 = pt.einsum('j,sab->sjab', pt.ones(N, dtype=cplx_dtype, device=default_device), self.H0)
 
-        H_control = pt.einsum('kj,skjab->sjab', uToMatrix(u,self.m), Hw)
+        H_control = pt.einsum('kj,skjab->sjab', uToMatrix(self.u,self.m), Hw)
 
 
         if interaction_picture:
@@ -448,7 +448,7 @@ class Grape:
 
 
 
-        X,P = self.propagate(U)
+        X,P = self.propagate()
         
         Uf = P[:,-1]; Ut = X[:,-1]
         # fidelity of resulting unitary with target
@@ -833,8 +833,6 @@ class GrapeESR(Grape):
         self.X, self.P = self.propagate(device=device)
         global time_prop 
         time_prop += time.time()-t0
-        del U
-
         Ut = self.P[:,-1]; Uf = self.X[:,-1]
         # fidelity of resulting unitary with target
         IP = batch_IP(Ut,Uf)
