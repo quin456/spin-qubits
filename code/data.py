@@ -4,19 +4,27 @@ import pickle
 import torch as pt 
 from atomic_units import *
 import atomic_units as unit
-
 from pdb import set_trace
 
 cplx_dtype = pt.complex128
 real_dtype = pt.float64
 
+VERBOSE = False
+
 default_device = 'cuda:0' if pt.cuda.is_available() else 'cpu'
 
 dir = './'
 exch_filename = f"exchange_data_updated.p"
+exch_data_folder = "exchange_data_fab/"
 exch_data = pickle.load(open(exch_filename,"rb"))
-J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype) * unit.MHz
-J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype) * unit.MHz
+J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype, device=default_device) * unit.MHz
+J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype, device=default_device) * unit.MHz
+J_110_18nm = pt.tensor(exch_data['110_18'], dtype=cplx_dtype, device=default_device) * unit.MHz
+J_110_14nm = pt.tensor(exch_data['110_14'], dtype=cplx_dtype, device=default_device) * unit.MHz
+J_2P_1P_fab = pt.load(f"{exch_data_folder}J").to(cplx_dtype).to(device=default_device) * unit.MHz
+A_2P_1P_fab = pt.load(f"{exch_data_folder}A_2P_1P").to(cplx_dtype).to(default_device) * unit.MHz
+A_2P_fab = pt.load(f"{exch_data_folder}A_2P") * unit.MHz
+
 
 J_extended = pt.cat((J_100_18nm, J_100_18nm*1.1, J_100_18nm*1.2, J_100_18nm*1.3, J_100_18nm*1.4, J_100_18nm*1.5, J_100_18nm*1.6, J_100_18nm*1.7, J_100_18nm*1.8, J_100_18nm*1.9))
 
@@ -92,26 +100,14 @@ def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm/2.3, N=1, device=default_device, E_r
         return J[0]
     return J
 
-def get_A_1P_2P(nS, N, E):
-    eta2 = -3e-3 * (unit.um/unit.V)**2
-    A = get_A(nS, 2, [0,0], [A_mag, A_2P_mag])
-    modulator = eta2 * E**2
-    if nS==1:
-        dA = pt.einsum('j,q->jq', modulator, A)
-        return pt.einsum('q,j->jq',A,pt.ones(N,device=default_device)) + dA
-    else:
-        dA = pt.einsum('j,sq->sjq', modulator, A)
-        return pt.einsum('sq,j->sjq',A,pt.ones(N,device=default_device)) + dA
+def get_A_1P_2P(nS, NucSpin=[0,0]):
+    A = A_2P_1P_fab[:nS] if nS>1 else A_2P_1P_fab[0]
+    return A
 
 
-def get_J_1P_2P(nS, N, E, J1=J_extended):
-    J = get_J(nS, 2, J1=J1)
-    rise_prop = 3
-    modulator = pt.cat((pt.linspace(0.01, 1, N//rise_prop, device=default_device), pt.ones(N-2*(N//rise_prop), device=default_device), pt.linspace(1, 0.01, N//rise_prop, device=default_device)))
-    if nS==1:
-        return modulator*J
-    J = pt.einsum('j,s->sj', modulator, J)
-    return J
+def get_J_1P_2P(nS):
+    return get_J(nS, 2, J1=J_2P_1P_fab)
+
 
 
 
@@ -121,10 +117,22 @@ if __name__ == '__main__':
     print("============================================\n")
     print(f"gamma_e = {gamma_e*unit.T/unit.MHz:.1f} MHz, gamma_n = {gamma_n*unit.T/unit.MHz:.1f} MHz")
     print(f"\nHyperfine coupling: A_1P = {get_A(1,1)/unit.MHz:.2f} MHz")
-    print(f"\nHyperfine coupling: A_2P = {A_2P_mag/unit.MHz:.2f} MHz")
-    print("\nExchange valiues for 18nm separation:")
+    print("\nExchange valiues for (100) 18nm separation:")
     for i in range(15):
-        print(f"J_18nm_{i} = {pt.real(J_100_18nm[i]).item()/unit.MHz:.1f} MHz")
-    print("\nExchange valiues for 14nm separation:")
+        print(f"J_18nm_100_{i} = {pt.real(J_100_18nm[i]).item()/unit.MHz:.1f} MHz")
+    print("\nExchange valiues for (100) 18nm separation:")
+    for i in range(15):
+        print(f"J_18nm_110_{i} = {pt.real(J_110_18nm[i]).item()/unit.MHz:.1f} MHz")
+    print("\nExchange valiues for (100) 14nm separation:")
     for i in range(15):
         print(f"J_14nm_{i} = {pt.real(J_100_14nm[i]).item()/unit.MHz:.1f} MHz")
+    print("\nExchange valiues for (110) 14nm separation:")
+    for i in range(15):
+        print(f"J_14nm_{i} = {pt.real(J_110_14nm[i]).item()/unit.MHz:.1f} MHz")
+
+    print(f"\nHyperfine coupling 2P-1P (fabricated):")
+    for i in range(len(A_2P_1P_fab)):
+        print(f"A_2P_{i} = {A_2P_fab[i].item()/unit.MHz:.2f} MHz")
+    print(f"Exchange 2P-1P (fabricated)")
+    for i in range(len(A_2P_1P_fab)):
+        print(f"J_2P_1P_{i} = {J_2P_1P_fab[i].item()/unit.MHz:.2f} MHz")

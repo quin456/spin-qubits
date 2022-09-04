@@ -19,14 +19,13 @@ from GRAPE import Grape
 import gates as gate 
 import atomic_units as unit
 from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
-from utils import get_resonant_frequencies, get_allowed_transitions, print_rank2_tensor, get_nS_nq_from_A
+from utils import print_rank2_tensor, get_nS_nq_from_A
+from eigentools import get_resonant_frequencies, get_allowed_transitions, get_ordered_eigensystem
 from pulse_maker import pi_pulse_square
 from data import get_A, get_J, gamma_e, gamma_n, cplx_dtype, J_100_18nm
 
 from pdb import set_trace
 
-
-from utils import get_ordered_eigensystem
 from hamiltonians import get_H0
 
 

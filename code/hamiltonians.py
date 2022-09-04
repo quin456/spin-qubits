@@ -102,7 +102,7 @@ def get_U0(H0,tN,N):
 ###########        Nuclear-electron        ##########################################
 #####################################################################################
 
-def H_zeeman(Bz):
+def H_zeeman(Bz, gamma_e=gamma_e, gamma_n=gamma_n):
     Iz = gate.get_Iz_sum(1)
     Sz = gate.get_Sz_sum(1)
     return gamma_e*Bz*Sz - gamma_n*Bz*Iz
@@ -110,8 +110,8 @@ def H_zeeman(Bz):
 def H_hyperfine(A):
     return A * gate.sigDotSig
 
-def get_NE_H0(A,Bz):
-    return H_zeeman(Bz) + H_hyperfine(A)
+def get_NE_H0(A,Bz, gamma_e=gamma_e, gamma_n=gamma_n):
+    return H_zeeman(Bz, gamma_e=gamma_e, gamma_n=gamma_n) + H_hyperfine(A)
 
 
 #####################################################################################

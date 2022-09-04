@@ -17,12 +17,12 @@ from eigentools import *
 from data import get_A, get_J
 from visualisation import plot_psi, plot_fields, plot_fidelity, multi_NE_label_getter
 from pulse_maker import square_pulse
-from single_NE import NE_swap_pulse, NE_CX_pulse
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X_from_H, get_U0
 from GRAPE import Grape
 from pulse_maker import pi_pulse_square
 
 from pdb import set_trace
+
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -233,29 +233,28 @@ def all_triple_NE_basis_transitions(tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get
 
 def get_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):
     H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
-    S,D = get_ordered_eigensystem(H0) 
+    S,D = get_ordered_eigensystem(H0, ascending=True) 
     couplings = get_triple_NE_couplings(S)
     E = pt.diag(D)
 
-    allowed_transitions = get_allowed_transitions(H0)
+    allowed_transitions = get_allowed_transitions(H0,S=S, E=E)
     if (i_psi0,i_psi1) in allowed_transitions:
         omega = E[i_psi0] - E[i_psi1]
     elif (i_psi1,i_psi0) in allowed_transitions:
         omega = E[i_psi1] - E[i_psi0]
     else:
         raise Exception(f"Transition |{i_psi0}> <--> |{i_psi1}> not allowed.")
+        
 
-    print("Performing dodgy frequency fix: w_res -> -w_res...")
-    omega=-omega
     coupling = couplings[i_psi0,i_psi1]
     print(f"Target nuclear spin flip: w_res = {pt.real(omega)/unit.MHz} MHz, coupling = {pt.real(coupling)*unit.T/unit.MHz} MHz/tesla")
     Bx,By = pi_pulse_square(omega, coupling, tN, N)
     return Bx,By
 
-def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):
+def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=1000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):
 
     H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
-    S,D = get_ordered_eigensystem(H0) 
+    S,D = get_ordered_eigensystem(H0, ascending=True) 
     E = pt.diag(D)
 
 
@@ -265,7 +264,8 @@ def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, 
     allowed_transitions = get_allowed_transitions(H0)
 
 
-    Bx, By = get_NE_estate_transition(i_psi0=i_psi0, i_psi1=i_psi1, tN=tN, N=10000, Bz=Bz, A=A, J=J, ax=ax)
+    Bx, By = get_NE_estate_transition(i_psi0=i_psi0, i_psi1=i_psi1, tN=tN, N=N, Bz=Bz, A=A, J=J, ax=ax)
+
 
     Hw = multi_NE_Hw(Bx, By, 3)
     
@@ -461,15 +461,13 @@ if __name__ == '__main__':
     # #print_rank2_tensor(D)
 
 
-    rf = get_resonant_frequencies(multi_NE_H0())
-    set_trace()
 
 
     #analyse_3NE_eigensystem()
     #map_3NE_transitions()
     
     
-    #triple_NE_estate_transition()
+    triple_NE_estate_transition()
     #triple_NE_free_evolution()
     
     

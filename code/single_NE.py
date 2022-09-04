@@ -3,12 +3,10 @@
 import numpy as np
 import torch as pt
 import matplotlib
-
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt
-
 
 
 import gates as gate 
@@ -17,9 +15,11 @@ from utils import *
 from eigentools import *
 from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fidelity, plot_fields, plot_phases, plot_energy_spectrum, show_fidelity
 from pulse_maker import pi_pulse_square
-from data import get_A, gamma_e, gamma_n, cplx_dtype
+from data import *
 from visualisation import *
 from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine
+from GRAPE import Grape
+
 
 from pdb import set_trace
 
@@ -88,7 +88,7 @@ def NE_couplings(H0):
     couplings = S.T @ Hw_mag @ S
 
     print("Couplings (MHz/T):")
-    utils.print_rank2_tensor(pt.real(couplings)*unit.T/unit.MHz)
+    print_rank2_tensor(pt.real(couplings)*unit.T/unit.MHz)
     return couplings
 
 def get_coupling(A,Bz):
@@ -125,6 +125,62 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
     Bx,By,T = correct_phase(Bx, By, T, N, Bz, A, gate.CX)
     return Bx,By,T
 
+def EN_CX_pulse(tN,N,A,Bz, ax=None):
+
+    H0 = get_NE_H0(A,Bz)
+    S,D = NE_eigensystem(H0)
+
+    couplings = NE_couplings(H0)
+    c = pt.abs(couplings[1,3])
+    w_eigenres = D[1,1]-D[3,3]
+
+    if tN is None:
+        tN = get_pi_pulse_tN_from_field_strength(B_mag, c)
+
+    Bx_CX, By_CX = pi_pulse_square(w_eigenres, c, tN, N, 0)
+
+    if ax is not None: 
+        plot_fields(Bx,By,tN,ax)
+
+    T_CX = linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
+
+    Bx, By, T = correct_phase(Bx_CX, By_CX, T_CX, N, Bz, A, gate.CXr)
+
+    #Bx = Bx_CX; By=By_CX; T=T_CX
+
+    return Bx, By, T
+
+def get_swap_pulse_times(tN, A):
+
+    tN_EN = 0.9*tN 
+    tN_NE = (tN-tN_EN)/2 
+
+    tN_EN = lock_to_frequency(A, tN_EN)
+    tN_NE = lock_to_frequency(A, tN_NE)
+
+    return tN_NE, tN_EN
+
+
+def NE_swap_pulse(N_e, N_n, A, Bz, ax=None):
+
+    Bx_NE,By_NE,T_e = NE_CX_pulse(None,N_e, A, Bz)
+    Bx_EN,By_EN, T_n = EN_CX_pulse(None, N_n, A, Bz)
+
+    Bx_swap = pt.cat((Bx_NE,Bx_EN,Bx_NE))
+    By_swap = pt.cat((By_NE,By_EN,By_NE))
+    T_swap = pt.cat((T_e, T_e[-1]+T_n, T_e[-1]+T_n[-1]+T_e))
+
+
+    N_swap = len(Bx_swap)
+    X_swap = get_NE_X(N_swap, Bz, A, Bx_swap, By_swap, T=T_swap)
+
+    return Bx_swap, By_swap, T_swap
+
+    #Bx=Bx_swap; By=By_swap; T=T_swap
+
+    if ax is not None:
+        plot_fields(Bx,By,T=T,ax=ax)
+    return Bx,By,T
 def print_specs(A, Bz, tN, N, gamma):
     print("System specifications:")
     print(f"Hyperfine A = {A/unit.MHz} MHz")
@@ -155,31 +211,6 @@ def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=
     if fp is not None:
         fig.savefig(fp)
 
-
-def EN_CX_pulse(tN,N,A,Bz, ax=None):
-
-    H0 = get_NE_H0(A,Bz)
-    S,D = NE_eigensystem(H0)
-
-    couplings = NE_couplings(H0)
-    c = pt.abs(couplings[1,3])
-    w_eigenres = D[1,1]-D[3,3]
-
-    if tN is None:
-        tN = get_pi_pulse_tN_from_field_strength(B_mag, c)
-
-    Bx_CX, By_CX = pi_pulse_square(w_eigenres, c, tN, N, 0)
-
-    if ax is not None: 
-        plot_fields(Bx,By,tN,ax)
-
-    T_CX = linspace(0,tN,N, dtype=cplx_dtype, device=default_device)
-
-    Bx, By, T = correct_phase(Bx_CX, By_CX, T_CX, N, Bz, A, gate.CXr)
-
-    #Bx = Bx_CX; By=By_CX; T=T_CX
-
-    return Bx, By, T
 
 
 
@@ -274,37 +305,6 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), tar
     if fp is not None: fig.savefig(fp)
 
 
-def get_swap_pulse_times(tN, A):
-
-    tN_EN = 0.9*tN 
-    tN_NE = (tN-tN_EN)/2 
-
-    tN_EN = lock_to_frequency(A, tN_EN)
-    tN_NE = lock_to_frequency(A, tN_NE)
-
-    return tN_NE, tN_EN
-
-
-def NE_swap_pulse(N_e, N_n, A, Bz, ax=None):
-
-    Bx_NE,By_NE,T_e = NE_CX_pulse(None,N_e, A, Bz)
-    Bx_EN,By_EN, T_n = EN_CX_pulse(None, N_n, A, Bz)
-
-    Bx_swap = pt.cat((Bx_NE,Bx_EN,Bx_NE))
-    By_swap = pt.cat((By_NE,By_EN,By_NE))
-    T_swap = pt.cat((T_e, T_e[-1]+T_n, T_e[-1]+T_n[-1]+T_e))
-
-
-    N_swap = len(Bx_swap)
-    X_swap = get_NE_X(N_swap, Bz, A, Bx_swap, By_swap, T=T_swap)
-
-    return Bx_swap, By_swap, T_swap
-
-    #Bx=Bx_swap; By=By_swap; T=T_swap
-
-    if ax is not None:
-        plot_fields(Bx,By,T=T,ax=ax)
-    return Bx,By,T
 
 
 
@@ -316,7 +316,6 @@ def show_NE_swap(A, Bz, N_e, N_n, psi0=None, fp=None):
     fig,ax = plt.subplots(1,2)
     Bx,By,T = NE_swap_pulse(N_e, N_n, A, Bz)
 
-    set_trace()
     
     X = get_NE_X(0, Bz, A, Bx=Bx, By=By, T=T)
 
@@ -361,7 +360,7 @@ def NE_energy_levels(A=get_A(1,1)*unit.MHz, Bz=2*unit.T):
     ax.legend()
 
 def triple_NE_H0():
-    return gamma_e*Bz*gate.get_Sz_sum(3) - gamma_n*Bz*gate.get_Iz_sum(3) # unfinished
+    return gamma_e*B0*gate.get_Sz_sum(3) - gamma_n*B0*gate.get_Iz_sum(3) # unfinished
 
 def get_subops(H,dt):
     ''' Gets suboperators for time-independent Hamiltonian H '''
@@ -445,9 +444,9 @@ def kms(N=5, Bz = 2*unit.T, A=get_A(1,1)):
 if __name__ == '__main__':
 
 
-    tN = lock_to_frequency(get_A(1,1),100*unit.ns)
+    #tN = lock_to_frequency(get_A(1,1),100*unit.ns)
 
-    show_NE_CX(get_A(1,1), 2*unit.T,  100000); plt.show()
+    #show_NE_CX(get_A(1,1), 2*unit.T,  100000); plt.show()
 
     #show_EN_CX(get_A(1,1), Bz=2*unit.T, N=40000); plt.show()
 

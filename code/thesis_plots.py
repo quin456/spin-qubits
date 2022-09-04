@@ -10,12 +10,13 @@ import numpy as np
 
 from GRAPE import GrapeESR
 import gates as gate
-from utils import psi_from_polar, get_A, get_J, normalise, get_resonant_frequencies, label_axis
+from utils import psi_from_polar, normalise, label_axis
+from eigentools import get_resonant_frequencies, lock_to_frequency
 from hamiltonians import get_pulse_hamiltonian, get_U0
 from visualisation import plot_psi
 from visualisation import *
 from single_spin import show_single_spin_evolution
-from data import dir, cplx_dtype, gamma_e, gamma_n, J_100_14nm, J_100_18nm
+from data import dir, cplx_dtype, gamma_e, gamma_n, J_100_14nm, J_100_18nm, get_A, get_J
 import atomic_units as unit
 from architecture_design import plot_cell_array, plot_annotated_cell, generate_CNOTs, numbered_qubits_cell, plot_single_cell
 from electrons import plot_free_electron_evolution, get_free_electron_evolution
@@ -27,6 +28,7 @@ from voltage_plot import plot_CNOTs
 from electrons import investigate_3E_resfreqs
 
 
+import qiskit
 from qiskit.visualization import plot_bloch_vector
 
 plots_folder = f"{dir}thesis-plots/"
@@ -51,10 +53,66 @@ max_time = 10
 ################        CHAPTER 1 INTRODUCTION        ##########################################################
 ################################################################################################################
 
+def plot_rotation(psi_cartesian, angle0, d_angle, ax, zorder=3):
+    rho = 0.2
+    r=psi_cartesian.copy(); r[0]=psi_cartesian[1]; r[1] = -psi_cartesian[0]
+    x,y,z = r
+    
+    rmid = r/2 
+    v1 = np.array([-rmid[1], rmid[0], 0]); v1=v1/np.sqrt(np.dot(v1,v1))
+    v2 = np.array([0, rmid[2], -rmid[1]])
+    
+    # Gram Schmidt
+    v2 = v2 - np.dot(v2,v1)*v1 
+    v2 = v2 / np.sqrt(np.dot(v2,v2))
 
-def bloch_sphere(psi, fp=None):
-    blochs = psi_to_cartesian(psi).numpy()
-    plot_bloch_vector(blochs)
+    p1 = v1+rmid
+    p2 = v2+rmid
+    print(f"rmid={rmid}, v1={v1}, t1 = {p1}")
+    #ax.plot([p1[0],rmid[0]], [p1[1],rmid[1]], [p1[2],rmid[2]])
+    #ax.plot([p2[0],rmid[0]], [p2[1],rmid[1]], [p2[2],rmid[2]])
+
+    n = 50
+    rho = 0.2
+    theta = np.linspace(angle0,angle0+d_angle,n)
+    
+    arc = np.einsum('i,a->ia',np.ones(n),rmid) + np.einsum('i,a->ia',rho*np.cos(theta),v1) + np.einsum('i,a->ia',rho*np.sin(theta),v2)
+
+
+    ax.plot(arc[:,0], arc[:,1], arc[:,2], zorder=zorder, linewidth=3)
+
+
+
+def bloch_sphere_XZH(psi, fp=None):
+
+    psi = pt.tensor([
+        [1/np.sqrt(2), 1/np.sqrt(2)],
+        [1.001, 0.001],
+        [np.cos(np.pi/8), np.sin(np.pi/8)]
+    ])
+    psi_cartesian = psi_to_cartesian(psi).numpy()
+
+    fig = plt.figure()
+    ax = []
+    ax.append(fig.add_subplot(1, 3, 1, projection='3d'))
+    ax.append(fig.add_subplot(1, 3, 2, projection='3d'))
+    ax.append(fig.add_subplot(1, 3, 3, projection='3d'))
+    
+    plot_bloch_vector(psi_cartesian[0], ax=ax[0])
+    plot_bloch_vector(psi_cartesian[1], ax=ax[1])
+    plot_bloch_vector(psi_cartesian[2], ax=ax[2])
+    plot_rotation(psi_cartesian[0], 0, np.pi, ax[0])
+    plot_rotation(psi_cartesian[1], -np.pi, np.pi, ax[1])
+    plot_rotation(psi_cartesian[2], -np.pi/2, np.pi, ax[2])
+
+    z_offset = -0.5
+    x_offset = 0.15
+    label_axis(ax[0], 'X', projection='3D', x_offset=x_offset, z_offset = z_offset)
+    label_axis(ax[1], 'Z', projection='3D', x_offset=x_offset, z_offset = z_offset)
+    label_axis(ax[2], 'H', projection='3D', x_offset=x_offset, z_offset = z_offset)
+
+
+    fig.set_size_inches(1.2*fig_width_double, 1.2*fig_height_single)
     if fp is not None: plt.savefig(fp)
 
 
@@ -89,7 +147,6 @@ def energy_level_picture(H0, state_labels=None, energy_labels=None, colors=color
     if fp is not None:
         plt.savefig(fp)
     
-    set_trace()
 
 def two_electron_energy_level_picture(J=get_J(1,2), Bz=0.05*unit.T, ax=None, fp = None, detuning=True):
 
@@ -177,9 +234,9 @@ def show_2E_Hw(J,A, tN, N, fp=None):
     visualise_Hw(S.T@dagger(U0)@Hw@U0@S, tN)
 
 def chapter_1():
-    #bloch_sphere(psi_from_polar(np.pi/2,np.pi/4), fp = f'{plots_folder}Ch1-bloch-sphere.pdf')
+    bloch_sphere_XZH(psi_from_polar(np.pi/4,0), fp = f'{plots_folder}Ch1-bloch-sphere.pdf')
     #show_single_spin_evolution(tN=100*unit.ns, fp = f"{plots_folder}Ch1-analytic-example.pdf")
-    two_electron_energy_level_picture(fp=f"{plots_folder}Ch1-2E-energy-levels.pdf")
+    #two_electron_energy_level_picture(fp=f"{plots_folder}Ch1-2E-energy-levels.pdf")
 
 
 def chapter_2(chapter='Ch2-'):
@@ -196,16 +253,19 @@ def chapter_2(chapter='Ch2-'):
 def chapter_3(chapter="Ch3-"):
 
     def grape_1s2q(fp=None, fp1=None):
-        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*unit.ns,N=500, max_time=5); grape.run()
+        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*unit.ns,N=500, max_time=None, verbosity=2); grape.run()
         fig,ax = plt.subplots(1,2)
         grape.plot_u(ax[0])
         grape.plot_cost_hist(ax[1])
+        label_axis(ax[0], "(a)", x_offset=-0.08, y_offset=-0.15)
+        label_axis(ax[1], "(b)", x_offset=-0.08, y_offset=-0.15)
         fig.set_size_inches(fig_width_double_long, fig_height_single_long)
-        fig1,ax1 = grape.plot_field_and_evolution()
-        fig1.set_size_inches(fig_width_double_long, fig_height_double_long)
-        plt.tight_layout()
+        #fig1,ax1 = grape.plot_field_and_evolution()
+        #fig1.set_size_inches(fig_width_double_long, fig_height_double_long)
+        fig.tight_layout()
+        #fig1.tight_layout()
         if fp is not None: fig.savefig(fp)
-        if fp1 is not None: fig1.savefig(fp1)
+        #if fp1 is not None: fig1.savefig(fp1)
 
     def NE_EN_CX(fp=f"{plots_folder}{chapter}NE_EN_CX.pdf"):
         fig,ax = plt.subplots(2,2)
@@ -287,14 +347,27 @@ def chapter_3(chapter="Ch3-"):
 
         fig.savefig(fp)
 
-    #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
-    plot_NE_energy_diagram(Bz = pt.linspace(0,5, 100)*unit.mT, N=1000, fp=f"{plots_folder}{chapter}NE-energy-diagram.pdf")
+    def plot_NE_energy_diagram_and_alpha_beta(fp=None):
+        fig,ax = plt.subplots(1,2)
+        plot_NE_energy_diagram(Bz = pt.linspace(0,5, 100)*unit.mT, N=1000, ax=ax[0])
+        plot_NE_alpha_beta(Bz = pt.linspace(0,5, 100)*unit.mT, N=1000, ax=ax[1])
 
+        label_axis(ax[0], '(a)')
+        label_axis(ax[1], '(b)')
+        fig.set_size_inches(fig_width_double,fig_height_single)
+        fig.tight_layout()
+
+
+
+        if fp is not None: fig.savefig(fp)
+
+    #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
+    #plot_NE_energy_diagram_and_alpha_beta(fp=f"{plots_folder}{chapter}NE-energy-diagram-alpha-beta.pdf")
 
     #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
 
 
-    #grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-evolution.pdf")
+    grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-evolution.pdf")
 
     #grape = GrapeESR(get_J(1,3), get_A(1,3), tN=100*unit.ns, N=500, max_time=max_time); grape.run(); grape.plot_field_and_fidelity(f"{plots_folder}Ch3-3E-field-and-evolution.pdf")
 
@@ -433,6 +506,7 @@ def no_coupler():
 
 
 if __name__=='__main__':
+    #chapter_1()
     #chapter_2()
     chapter_3()
 

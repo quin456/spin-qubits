@@ -34,6 +34,7 @@ from data import *
 from hamiltonians import get_H0
 from visualisation import plot_fidelity, y_axis_labels, colors, plot_psi, plot_phases
 from visualisation import fig_width_double_long, fig_height_double_long, fig_height_single_long
+from pulse_maker import get_smooth_E
 
 time_exp = 0
 time_prop = 0
@@ -72,8 +73,10 @@ precision_loss_msg = "Desired error not necessarily achieved due to precision lo
 ################################################################################################################
 
 
-def CNOT_targets(nS,nq,device=default_device):
+def CNOT_targets(nS,nq,device=default_device, native=False):
     if nq==2:
+        if native:
+            return pt.einsum('i,ab->iab',pt.ones(nS, device=device),gate.CX_native.to(device))
         return pt.einsum('i,ab->iab',pt.ones(nS, device=device),gate.CX.to(device))
     elif nq==3:
         return pt.einsum('i,ab->iab',pt.ones(nS, device=device),gate.CX3q.to(device))
@@ -165,45 +168,6 @@ def mergeMatmul(A, backwards=False):
 
 
 ################       COST FUNCTION        ############################################################
-def fluc_cost(u,m,alpha):
-    '''
-    Cost function term which penalises fluctuations in u between adjacent timesteps.
-    '''
-    N = int(len(u)/m)
-    u = uToMatrix(u,m)
-    u_aug = pt.cat((u[:,0:1],u, u[:,N-1:N]),dim=1)
-    J = alpha  * np.real(pt.sum( (u[:,1:] - u[:,:N-1])**2).item())
-    dJ = pt.real(uToVector( 2*alpha*(2*u-u_aug[:,2:]-u_aug[:,0:N]) ))
-    return J,dJ
-
-
-def reg_cost(u,lam):
-    '''
-    Regularisation cost function term which penalises large values of u.
-    '''
-    J = lam/(2*len(u)) * np.real(pt.dot(u,u).item())
-    dJ = lam/len(u) * pt.real(u)
-    return J,dJ
-
-def lock_endpoints(u_mat, u0_L, uf_L):
-    '''
-    Cost function terms which locks the endpoints of each u_k by applying a large penalty when endpoints
-    deviate from specified positions.
-
-    Inputs:
-        u_mat: (k,N) tensor - matrix form of u
-        u0_L: k element vector representing initial values at which to lock u.  
-        uf_L: k element vector representing final values at which to lock u.  
-    '''
-    L=1e4 # Any number big enough to enforce lock
-
-    J = 0.5 * L * pt.norm(u_mat[:,0]-u0_L)**2 + pt.norm(u_mat[:,-1]-uf_L)**2
-
-    dJ = pt.zeros(*u_mat.shape)
-    dJ[:,0] = L * (u_mat[:,0] - u0_L)
-    dJ[:,-1] = L * (u_mat[:,-1] - uf_L)
-
-    return J,uToVector(dJ)
 
 def hamShape(H0,Hw):
     if save_mem:
@@ -272,7 +236,7 @@ class Grape:
     '''
     General GRAPE class.
     '''
-    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600, verbosity=1):
+    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600, verbosity=1, filename=None, logging=False, operation="Setting up"):
         self.tN=tN
         self.N=N
         self.nS=nS
@@ -281,12 +245,9 @@ class Grape:
         self.start_time = time.time()
         self.save_data = save_data
         self.H0 = self.get_H0()
-        self.rf = self.get_control_frequencies() if rf is None else rf
-        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
-        self.m = len(self.omega)
-        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,N)
-        if u0 is None: u0 = self.init_u()
-        self.u=u0
+        self.rf = rf 
+        self.u = u0
+        self.initialise_control_fields()
 
         # allow for H0 with no systems axis
         self.reshaped=False
@@ -301,32 +262,47 @@ class Grape:
         self.sp_distance = sp_distance
 
         self.cost_hist=cost_hist if cost_hist is not None else []  
-        self.filename = None
+        self.filename = filename
 
         self.verbosity = verbosity
-        
-        # Log job start
-        if save_data: self.preLog(save_data)  
+        self.logging=logging
+        self.operation=operation
+        self.iters=0 
+
+        self.preLog()  
 
         self.print_setup_info()
-        #self.propagate()
+        self.propagate()
+
+
+    def initialise_control_fields(self):
+        
+        if self.rf is None: self.rf = self.get_control_frequencies()
+        self.omega,self.phase = config_90deg_phase_fields(self.rf); self.m = len(self.omega) 
+        self.m = len(self.omega)
+        self.x_cf,self.y_cf = get_control_fields(self.omega,self.phase,self.tN,self.N)
+        if self.u is None: self.u = self.init_u()
+
 
     def print_setup_info(self):
-        print("==========================")
-        print(f"Running GRAPE optimisation")
-        print("==========================")
+        print("====================================================")
+        print(f"{self.operation} GRAPE")
+        print("====================================================")
         print(f"Number of systems: {self.nS}")
         print(f"Pulse duration: {self.tN/unit.ns} ns")
-        print("Resonant frequencies: {", end=" ")
-        for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
-        print("}")
+        print(f"Resonant frequencies: rf_max = {pt.max(self.rf)/unit.MHz} MHz, rf_min = {pt.min(self.rf)/unit.MHz} MHz")
+        
+        if self.verbosity>1:
+            print("{", end=" ")
+            for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
+            print("}")
 
     def get_control_frequencies(self, device=default_device):
         return get_multi_system_resonant_frequencies(self.H0, device=device)
 
 
     def u_mat(self):
-        return uToMatrix(self.u, self.m)
+        return uToMatrix(self.u, self.m).to(default_device)
 
 
 
@@ -465,40 +441,106 @@ class Grape:
         return Phi, dPhi
 
 
-    def cost(self, u):
+    def fluc_cost(self):
         '''
-        Generalised GRAPE cost function, taking arbitrary Hamiltonians as input. 
-        More optimised cost functions may be needed for specific implementations
-        (ie running many CNOTs in parallel, where Hw is constructed on the fly).
+        Cost function term which penalises fluctuations in u between adjacent timesteps.
         '''
-        nS=self.nS
-        self.u = pt.tensor(u,dtype=cplx_dtype, device=default_device)
-
-        Phi, dPhi = self.fidelity()
-
-
-        J = 1 - pt.sum(Phi,0)/nS
-        dJ = -uToVector(pt.sum(dPhi,0))/nS
+        N = int(len(u)/m)
+        u = self.u_mat()
+        u_aug = pt.cat((u[:,0:1],u, u[:,N-1:N]),dim=1)
+        J = self.alpha  * np.real(pt.sum( (u[:,1:] - u[:,:N-1])**2).item())
+        dJ = pt.real(uToVector( 2*self.alpha*(2*u-u_aug[:,2:]-u_aug[:,0:N]) ))
+        return J,dJ
 
 
+    def reg_cost(self):
+        '''
+        Regularisation cost function term which penalises large values of u.
+        '''
+        J = self.lam/(2*len(self.u)) * np.real(pt.dot(self.u,self.u).item())
+        dJ = self.lam/len(self.u) * pt.real(self.u)
+        return J,dJ
+
+
+    def lock_endpoints(self, u_mat, u0_L, uf_L):
+        '''
+        Cost function terms which locks the endpoints of each u_k by applying a large penalty when endpoints
+        deviate from specified positions.
+
+        Inputs:
+            u_mat: (k,N) tensor - matrix form of u
+            u0_L: k element vector representing initial values at which to lock u.  
+            uf_L: k element vector representing final values at which to lock u.  
+        '''
+        L=1e4 # Any number big enough to enforce lock
+
+        J = 0.5 * L * pt.norm(u_mat[:,0]-u0_L)**2 + pt.norm(u_mat[:,-1]-uf_L)**2
+
+        dJ = pt.zeros(*u_mat.shape)
+        dJ[:,0] = L * (u_mat[:,0] - u0_L)
+        dJ[:,-1] = L * (u_mat[:,-1] - uf_L)
+
+        return J,uToVector(dJ)
 
         
-        J=J.item(); dJ = dJ.cpu().detach().numpy() 
-        self.cost_hist.append(J)
-        return J, dJ
+    def cost(self, u):
+        '''
+        Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
+
+        INPUTS:
+            u: control field amplitudes
+            x_cf: 0.5*g*mu*(1T)*cos(wt-phi) - An (m,N) tensor recording coefficients of sigma_x for Hw_kj
+            y_cf: 0.5*g*mu*(1T)*sin(wt-phi) - An (m,N) tensor recording coefficients of sigma_y for Hw_kj
+                Hw = x_cf * sig_x + y_cf * sig_y
+        
+        '''
+        self.iters+=1
+        kappa=1
+        target=self.target
+        cost_hist=self.cost_hist
+
+        self.u = pt.tensor(u, dtype=cplx_dtype, device=default_device)
+        
+        t0 = time.time()
+        Phi,dPhi = self.fidelity()
+        global time_fid 
+        time_fid += time.time()-t0
+        J = 1 - pt.sum(Phi,0)/self.nS
+        dJ = -uToVector(dPhi)/self.nS
+
+        # J_fluc,dJ_fluc = fluc_cost(u,m,alpha)
+        # J+=J_fluc; dJ+=dJ_fluc
+        
+        dJ = dJ * self.tN/self.nS
+        #dJ = dJ*self.tN/self.N
+        #dJ = dJ*300*unit.ns/nS
+
+        if self.lam:
+            J_reg, dJ_reg = self.reg_cost()
+            J += J_reg; dJ+= dJ_reg
+
+
+        J=J.item(); dJ = dJ.cpu().detach().numpy()
+        cost_hist.append(J)
+
+
+        return J, dJ / kappa
+
 
     def init_u(self, device='cpu'):
         '''
         Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         '''
-        u0 = hbar/(g_e*mu_B*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/unit.T
-        return uToVector(u0)*0.1
+        u0 = 1/(gamma_e*self.tN) * pt.ones(self.m,self.N,dtype=cplx_dtype, device=device)/unit.T
+        return uToVector(u0)
 
     def run(self):
         callback = self.check_time if self.max_time is not None else None
+        print("\n+++++  RUNNING OPTIMISATION  +++++")
         try:
             opt=minimize(self.cost,self.u,method='CG',jac=True, callback=callback)
+            print("Optimisation completed")
             print(f"nit = {opt.nfev}, nfev = {opt.nit}")
             self.u=pt.tensor(opt.x, device=default_device)
             self.status='C' #complete
@@ -512,18 +554,22 @@ class Grape:
 
 
         
-    def save(self):
-        if self.save_data:
-            # save_system_data will overwrite previous file if job was not terminated by gadi
-            fidelities = self.fidelity(self.u)[0]
-            avgfid=sum(fidelities)/len(fidelities)
-            minfid = min(fidelities).item()
+    def save(self, fp=None):
+        # save_system_data will overwrite previous file if job was not terminated by gadi
+        if fp is None: 
+            print("Saving GRAPE optimisation")
+        else:
+            print(f"Saving GRAPE optimisation to: '{fp}'")
+        fidelities = self.fidelity()[0]
+        avgfid=sum(fidelities)/len(fidelities)
+        minfid = min(fidelities).item()
+        if self.logging:
             self.log_result(minfid,avgfid)
-            self.save_system_data(fid=fidelities)
-            self.save_field()
+        self.save_system_data(fid=fidelities, fp=fp)
+        self.save_field(fp)
 
     @abstractmethod
-    def save_system_data(self, fid=None):
+    def save_system_data(self, fid=None, fp=None):
         raise Exception(NotImplemented)
 
     def print_result(self, verbosity=1):
@@ -531,14 +577,16 @@ class Grape:
         fidelities = self.fidelity()[0]
         avgfid=sum(fidelities)/len(fidelities)
         minfid = min(fidelities).item()
-
+        print("\n+++++  PRINTING RESULTS:  +++++")
         if self.nS==1:
             print(f"Fidelity = {avgfid}")
         else:
             print(f"Average fidelity = {avgfid}")
             print(f"Min fidelity = {minfid}")
         if verbosity>=1:
-            print(f"Time taken = {self.time_taken}")
+            if self.time_taken is not None:
+                print(f"Time taken = {self.time_taken}")
+            print(f"Call to cost function: {self.iters}")
         if verbosity>=2:
             print(f"All fidelities = {fidelities}")
         if verbosity>=3:
@@ -557,8 +605,8 @@ class Grape:
         wt = pt.einsum('k,j->kj', self.rf, T)
         cos_wt = pt.cos(wt)
         sin_wt = pt.sin(wt)
-        X_field = pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[:self.m//2,:],cos_wt),0) + pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[self.m//2:,:],sin_wt),0)
-        Y_field = pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[:self.m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[self.m//2:,:],cos_wt),0)
+        X_field = pt.real(pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[:self.m//2,:],cos_wt),0) + pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[self.m//2:,:],sin_wt),0))
+        Y_field = pt.real(pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[:self.m//2:,:],sin_wt),0) - pt.sum(pt.einsum('kj,kj->kj', self.u_mat()[self.m//2:,:],cos_wt),0))
         return X_field, Y_field
 
 
@@ -581,8 +629,8 @@ class Grape:
         self.plot_XY_fields(ax[0,0])
         plot_fidelity(ax[1,0], fidelity_progress(self.X, self.target), tN=self.tN)
         psi=self.X@psi0
-        plot_psi(psi[0], self.tN, ax[0,1])
-        plot_phases(psi[0], self.tN, ax[1,1])
+        plot_psi(psi[0], tN=self.tN, ax=ax[0,1])
+        plot_phases(psi[0], tN=self.tN, ax=ax[1,1])
         return fig,ax
 
 
@@ -662,6 +710,8 @@ class Grape:
     def plot_XY_fields(self, ax, X_field=None, Y_field=None):
         if X_field is None:
             X_field, Y_field = self.sum_XY_fields()
+        max_field = pt.max(pt.sqrt(X_field**2+Y_field**2))
+        print(f"Max field = {max_field*1e3:.2f} mT")
         X_field = X_field.cpu().numpy(); Y_field=Y_field.cpu().numpy()
         t_axis = np.linspace(0, self.tN/unit.ns, self.N)
         ax.plot(t_axis,X_field*1e3,label='$B_x$ (mT)')
@@ -684,17 +734,17 @@ class Grape:
         return ax
 
 
-    def save_field(self):
+    def save_field(self, fp=None):
         '''
         Saves total control field. Assumes each omega has x field and y field part, so may need to send only half of 
         omega tensor to this function while pi/2 offset is being handled manually.
         '''
-        filepath = f"{dir}fields/{self.filename}"
-        pt.save(self.u, filepath)
+        if fp is None: fp = f"{dir}fields/{self.filename}"
+        pt.save(self.u, fp)
         X_field, Y_field = self.sum_XY_fields()
         fields = pt.stack((X_field,Y_field))
-        pt.save(fields, f"{filepath}_XY")
-        pt.save(np.array(self.cost_hist), f"{filepath}_cost_hist")
+        pt.save(fields, f"{fp}_XY")
+        pt.save(np.array(self.cost_hist), f"{fp}_cost_hist")
 
 
 
@@ -716,14 +766,15 @@ class Grape:
                 field_filename, avgfid, minfid, now, self.alpha, self.nS, self.nq, self.tN/unit.ns, self.N, self.status, self.time_taken))
 
 
-    def preLog(self,save_data):
+    def preLog(self):
         '''
         Logs some data prior to running job incase job is terminated and doesn't get a chance to log at the end.
         If job completes, system_data will be rewritten with more info (eg fidelities).
         '''
         self.ID = self.get_next_ID()
-        self.filename = self.get_field_filename()
-        if save_data: 
+        if self.filename is None:
+            self.filename = self.get_field_filename()
+        if self.save_data: 
             self.save_system_data()
             with open(ID_fn, 'a') as f:
                 f.write(f"{self.ID}\n")
@@ -734,7 +785,7 @@ class Grape:
 
 class GrapeESR(Grape):
 
-    def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
+    def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0, lam=0, operation="Setting up", verbosity=1):
 
         # save data first
         self.J=J 
@@ -747,11 +798,19 @@ class GrapeESR(Grape):
         self.target=target if target is not None else CNOT_targets(self.nS, self.nq)
         self.status = 'UC'
         # perform super.__init__() 2nd
-        super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data)
+        super().__init__(tN, N, self.target, rf, self.nS, u0, cost_hist, max_time, save_data, operation=operation, verbosity=verbosity)
         
         # perform calculations last
         self.rf=self.get_control_frequencies() if rf is None else rf
         self.alpha=alpha
+        self.lam=lam
+
+    def copy(self):
+        grape_copy = self.__class__(self.J, self.A, self.tN, self.N, self.Bz, self.target, self.rf, self.u, self.cost_hist, self.max_time, self.save_data, self.alpha, self.lam, operation="Copying")
+        grape_copy.time_taken = self.time_taken 
+        grape_copy.propagate()
+        return grape_copy 
+
 
     def get_nS_nq(self):
         return get_nS_nq_from_A(self.A)
@@ -767,6 +826,7 @@ class GrapeESR(Grape):
         print(f"Bz = {self.Bz/unit.T} T")
         print(f"Hyperfine: A = {self.A/unit.MHz} MHz")
         print(f"Exchange: J = {self.J/unit.MHz} MHz")
+        print(f"Pulse duration = {self.tN/unit.ns} ns")
         print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_control_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
 
 
@@ -799,8 +859,8 @@ class GrapeESR(Grape):
         sig_xn = gate.get_Xn(nq,device); sig_yn = gate.get_Yn(nq,device)
         dt = self.tN/N
         u_mat = self.u_mat()
-        x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf).to(device)
-        y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf).to(device)
+        x_sum = pt.einsum('kj,kj->j',u_mat,self.x_cf)
+        y_sum = pt.einsum('kj,kj->j',u_mat,self.y_cf)
         H = pt.einsum('j,sab->sjab',pt.ones(N,device=device),self.H0.to(device)) + pt.einsum('s,jab->sjab',pt.ones(nS,device=device),pt.einsum('j,ab->jab',x_sum,sig_xn)+pt.einsum('j,ab->jab',y_sum,sig_yn))
         H=pt.reshape(H, (nS*N,dim,dim))
         U = pt.matrix_exp(-1j*H*dt)
@@ -868,44 +928,6 @@ class GrapeESR(Grape):
         return Phi, dPhi
 
 
-    def cost(self, u):
-        '''
-        Fast cost is faster and more memory efficient but less generalised cost function which can be used for CNOTs.
-
-        INPUTS:
-            u: control field amplitudes
-            x_cf: 0.5*g*mu*(1T)*cos(wt-phi) - An (m,N) tensor recording coefficients of sigma_x for Hw_kj
-            y_cf: 0.5*g*mu*(1T)*sin(wt-phi) - An (m,N) tensor recording coefficients of sigma_y for Hw_kj
-                Hw = x_cf * sig_x + y_cf * sig_y
-        
-        '''
-        MP=False; kappa=1; alpha=0
-        H0=self.H0
-        nS=self.nS
-        J=self.J
-        A=self.A
-        x_cf=self.x_cf
-        y_cf=self.y_cf
-        tN=self.tN
-        target=self.target
-        cost_hist=self.cost_hist
-
-        self.u = pt.tensor(u, dtype=cplx_dtype, device=default_device)
-        m=len(x_cf)
-        t0 = time.time()
-        Phi,dPhi = self.fidelity()
-        global time_fid 
-        time_fid += time.time()-t0
-        J = 1 - pt.sum(Phi,0)/nS
-        dJ = -uToVector(dPhi)/nS
-        J=J.item(); dJ = dJ.cpu().detach().numpy()
-        cost_hist.append(J)
-
-        # J_fluc,dJ_fluc = fluc_cost(u,m,alpha)
-        # J+=J_fluc; dJ+=dJ_fluc
-        
-        return J, dJ * tN/nS / kappa
-
 
     #class FieldOptimiser(object):
     '''
@@ -932,7 +954,7 @@ class GrapeESR(Grape):
     ################################################################################################################
     ################        Save Data        #######################################################################
     ################################################################################################################
-    def save_system_data(self, fid=None):
+    def save_system_data(self, fid=None, fp=None):
         '''
         Saves system data to a file.
         
@@ -944,7 +966,8 @@ class GrapeESR(Grape):
         '''
         J=pt.real(self.J)/unit.MHz; A=pt.real(self.A)/unit.MHz; tN = self.tN/unit.ns
         if type(J)==pt.Tensor: J=J.tolist()
-        with open(f"{dir}fields/{self.filename}.txt", 'w') as f:
+        if fp is None: fp = f"{dir}fields/{self.filename}"
+        with open(f"{fp}.txt", 'w') as f:
             f.write("J = "+str(J)+"\n")
             f.write("A = "+str((A).tolist())+"\n")
             f.write("tN = "+str(tN)+"\n")
@@ -969,18 +992,21 @@ class GrapeESR(Grape):
 
 
 
-def load_u(filename, SP=None):
+def load_u(fp=None, SP=None):
     '''
     Loads saved 'u' tensor and cost history from files
     '''
-    u_path = f"{dir}fields/{filename}" if SP is None else f"fields/{filename}_SP{SP}"
-    u = pt.load(u_path, map_location=pt.device('cpu')).type(cplx_dtype)
-    cost_hist = pt.load(f"{dir}fields/{filename}_cost_hist")
+    u = pt.load(fp, map_location=pt.device('cpu')).type(cplx_dtype)
+    cost_hist = list(pt.load(f"{fp}_cost_hist"))
     return u,cost_hist
 
 
 
-
+def load_grape(fp, Grape=GrapeESR, max_time=None, verbosity=1):
+    grape = load_system_data(fp, Grape=Grape, max_time=max_time, verbosity=verbosity)
+    grape.u, grape.cost_hist = load_u(fp)
+    grape.propagate()
+    return grape
 
 
 def process_u_file(filename,SP=None, save_SP = False):
@@ -994,24 +1020,22 @@ def process_u_file(filename,SP=None, save_SP = False):
     grape.plot_result()
 
 
-
-
-
-def load_system_data(filename):
+def load_system_data(fp, Grape=GrapeESR, max_time=None, verbosity=1):
     '''
     Retrieves system data (exchange, hyperfine, pulse length, target, fidelity) from file.
     '''
-    with open(dir+"fields/"+filename+'.txt','r') as f:
+    with open(f'{fp}.txt','r') as f:
         lines = f.readlines()
-        J = pt.tensor(ast.literal_eval(lines[0][4:-1]), dtype=cplx_dtype)
-        A = pt.tensor(ast.literal_eval(lines[1][4:-1]), dtype=cplx_dtype)
-        tN = float(lines[2][4:-1])
+        J = pt.tensor(ast.literal_eval(lines[0][4:-1]), dtype=cplx_dtype) * unit.MHz
+        A = pt.tensor(ast.literal_eval(lines[1][4:-1]), dtype=cplx_dtype) * unit.MHz
+        tN = float(lines[2][4:-1]) * unit.ns
         N = int(lines[3][3:-1])
         target = pt.tensor(ast.literal_eval(lines[4][9:-1]),dtype=cplx_dtype)
         try:
             fid = ast.literal_eval(lines[6][11:-1])
         except: fid=None
-    grape = GrapeESR(J,A,tN,N,None,target)
+    grape = Grape(J=J, A=A, tN=tN, N=N, Bz=0, target=target, operation="Loading", max_time=max_time, verbosity=verbosity)
+    grape.time_taken=None
     return grape
 
 
@@ -1209,16 +1233,29 @@ def get_2q_freqs(J,A, all_freqs=True, device=default_device):
 
 class GrapeESR_AJ_Modulation(GrapeESR):
 
-    def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0):
-
-        
-        super().__init__(J, A, tN, N, Bz=Bz, target=target, rf=rf, u0=u0, cost_hist=cost_hist, max_time=max_time, save_data=save_data)
+    def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0, lam=0, operation="Setting up", verbosity=1):
 
 
-    def get_nS_nq(self):
-        if len(self.J.shape) == 1:
-            return 1, 2
-        return self.J.shape[0], 2
+        self.E = get_smooth_E(tN, N)
+        super().__init__(J, A, tN, N, Bz=Bz, target=target, rf=rf, u0=u0, cost_hist=cost_hist, max_time=max_time, save_data=save_data, lam=lam, operation=operation, verbosity=verbosity)
+    def print_setup_info(self):
+        Grape.print_setup_info(self)
+        system_type = "Electron spin qubits on 2P-1P donors coupled via direct exchange"
+
+        print(f"System type: {system_type}")
+        print(f"Bz = {self.Bz/unit.T} T")
+        if self.nS==1:
+            print(f"Hyperfine: A = {(self.A/unit.MHz).tolist()} MHz")
+            print(f"Exchange: J = {(self.J/unit.MHz).tolist()} MHz")
+        else:
+            print("Hyperfines:")
+            for q in range(self.nS): 
+                print(''.ljust(10)+f"{(self.A[q]/unit.MHz).tolist()}")
+            print("Exchange:")
+            for q in range(self.nS): 
+                print(''.ljust(10)+f"{(self.J[q]/unit.MHz).tolist()}")
+        print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_control_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
+
 
     def get_H0(self, device=default_device):
         '''
@@ -1226,21 +1263,24 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         
         self.A: (nS,nq, N) and self.J: (nS, N), describe hyperfine and exchange couplings, which are allowed to vary over the N timesteps.
         '''
-        if self.nS==1:
-            A = self.A.reshape(1,*self.A.shape)
-            J = self.J.reshape(1,*self.J.shape)
-        else:
-            A = self.A 
-            J = self.J
+        # if self.nS==1:
+        #     A = self.modulate_A().reshape(1,*self.A.shape)
+        #     J = self.J.reshape(1,*self.J.shape)
+        # else:
+        A = self.modulate_A() 
+        J = self.modulate_J()
 
         nS, nq = self.get_nS_nq()
-        d = 2**nq
+        dim = 2**nq
 
         # Zeeman splitting term is generally rotated out, which is encoded by setting Bz=0
         HZ = 0.5 * gamma_e * self.Bz * gate.get_Zn(nq)
 
         # this line only supports nq=2
-        H0 = pt.einsum('sjq,qab->sjab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sj,ab->sjab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('sj,ab->sjab',pt.ones(nS,self.N, device=device),HZ)
+        if nS==1:
+            H0 = pt.einsum('jq,qab->jab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('j,ab->jab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('j,ab->jab',pt.ones(self.N, device=device),HZ).reshape(1,self.N,dim,dim)
+        else:
+            H0 = pt.einsum('sjq,qab->sjab', A.to(device), gate.get_PZ_vec(nq).to(device)) + pt.einsum('sj,ab->sjab', J.to(device), gate.get_coupling_matrices(nq).to(device)) + pt.einsum('sj,ab->sjab',pt.ones(nS,self.N, device=device),HZ)
         
         return H0.to(device)
 
@@ -1264,10 +1304,31 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         return U
 
     def get_control_frequencies(self, device=default_device):
-        print(f"H0 has shape {self.H0.shape}")
+        
+        analytic = False 
+        # if analytic:
+        #     return get_2E_multi_system_rf_analytic(self.J, self.A)
         return get_multi_system_resonant_frequencies(self.H0[:,self.N//2])
 
         
+    def modulate_A(self):
+        eta2 = -3e-3 * (unit.um/unit.V)**2
+        modulator = eta2 * self.E**2
+        if self.nS==1:
+            dA = pt.einsum('j,q->jq', modulator, self.A)
+            return pt.einsum('q,j->jq',self.A,pt.ones(self.N,device=default_device)) + dA
+        else:
+            dA = pt.einsum('j,sq->sjq', modulator, self.A)
+            return pt.einsum('sq,j->sjq',self.A,pt.ones(self.N,device=default_device)) + dA
+
+    def modulate_J(self):
+        rise_prop = 100
+        modulator = pt.cat((pt.linspace(0.01, 1, self.N//rise_prop, device=default_device), pt.ones(self.N-2*(self.N//rise_prop), device=default_device), pt.linspace(1, 0.01, self.N//rise_prop, device=default_device)))
+        if self.nS==1:
+            return modulator*self.J
+        J = pt.einsum('j,s->sj', modulator, self.J)
+        return J
+
 ################################################################################################################
 ################        Run GRAPE        #######################################################################
 ################################################################################################################
@@ -1301,6 +1362,7 @@ def refine_u(filename, N_new):
     grape.u = interpolate_u(u,m,N_new)
     grape.run()
     grape.result()
+
 
 
 

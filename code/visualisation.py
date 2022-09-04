@@ -24,8 +24,8 @@ colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 fig_width_double_long = 10
-fig_height_single_long = 2.3
-fig_height_double_long = 3.4
+fig_height_single_long = 2.8
+fig_height_double_long = 4.5
 fig_width_single = 3.2*1.2
 fig_width_double = fig_width_single*2 #untested
 fig_height_single = 2.4*1.2
@@ -275,18 +275,51 @@ def plot_NE_energy_diagram(Bz = pt.linspace(0,0.2, 100)*unit.T, N=1000, A=get_A(
 
     if ax is None: fig,ax=plt.subplots(1)
     E = plot_energy_level_variation(H0, Bz, '$B_z$ (mT)', unit.mT, ax=ax)
-    ax.annotate('$T_0$', (-0.4,E[0,1]/unit.MHz+10))
+    ax.annotate('$T_0$', (-0.4,E[0,1]/unit.MHz+14))
     ax.annotate('$T^+$', (-0.4, E[0,1]/unit.MHz-5))
-    ax.annotate('$T^-$', (-0.4, E[0,1]/unit.MHz-20))
-    ax.annotate('$S_0$', (-0.4,E[0,0]/unit.MHz))
-    ax.annotate(f'{Downarrow}{uparrow}', (5,E[-1,3]/unit.MHz-2.5))
-    ax.annotate(f'{Uparrow}{uparrow}', (5,E[-1,2]/unit.MHz-2.5))
-    ax.annotate(f'{Downarrow}{downarrow}', (5,E[-1,1]/unit.MHz-5))
-    ax.annotate(f'{Uparrow}{downarrow}', (5,E[-1,0]/unit.MHz-5))
+    ax.annotate('$T^-$', (-0.4, E[0,1]/unit.MHz-24))
+    ax.annotate('$S_0$', (-0.4,E[0,3]/unit.MHz))
+    ax.annotate(f'{Downarrow}{uparrow}', (5,E[-1,0]/unit.MHz-2.5))
+    ax.annotate(f'{Uparrow}{uparrow}', (5,E[-1,1]/unit.MHz-2.5))
+    ax.annotate(f'{Downarrow}{downarrow}', (5,E[-1,2]/unit.MHz-5))
+    ax.annotate(f'{Uparrow}{downarrow}', (5,E[-1,3]/unit.MHz-5))
     ax.set_xlim((-0.5,5.5))
-    fig.set_size_inches(fig_width_single,fig_height_single)
-    fig.tight_layout()
     if fp is not None: fig.savefig(fp)
+
+
+def plot_NE_alpha_beta(Bz = pt.linspace(0,0.2, 100)*unit.T, N=1000, A=get_A(1,1), ax=None):
+
+    n = len(Bz) 
+    dim=4
+    H0 = pt.zeros(n, dim, dim)
+    H0_phys = pt.zeros_like(H0)
+    for j in range(n):
+        H0[j] = get_NE_H0(A, Bz[j])
+        H0_phys[j] = get_NE_H0(A, 1*unit.T, gamma_n=gamma_e, gamma_e=gamma_n)
+    S,D = get_multi_ordered_eigensystems(H0, H0_phys)
+    
+    if ax is None: ax=plt.subplot()
+    plot_alpha_beta(S, D, Bz/unit.mT, ax=ax)
+    ax.set_xlabel("Bz (mT)")
+
+
+    
+
+def plot_alpha_beta(S, D, x_axis, ax=None):
+
+    alpha = pt.real(S[:,2,1])
+    beta = pt.real(S[:,1,1])
+    #bad
+
+    if ax is None: ax=plt.subplot()
+    ax.plot(x_axis, alpha**2, label="$α^2$")
+    ax.plot(x_axis, beta**2, label="$ß^2$")  
+    ax.legend()
+
+    i = 0
+    while alpha[i]**2 > 0.999:
+        i += 1
+
 
 
 def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
@@ -334,6 +367,6 @@ if __name__=='__main__':
 
 
     #plot_exchange_energy_diagram(J=pt.linspace(-100,100,100)*unit.MHz, A=get_A(100,2), Bz=0.02*unit.T)
-    plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.mT)
-
+    #plot_NE_alpha_beta(Bz = pt.linspace(0,5, 500)*unit.T)
+    plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.T)
     plt.show()

@@ -12,7 +12,7 @@ import itertools
 
 import gates as gate
 from gates import default_device, cplx_dtype
-from data import *
+import atomic_units as unit
 
 
 
@@ -21,6 +21,11 @@ from pdb import set_trace
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
+def zeros_like_reshape(tensor, shape):
+    '''
+    Returns array of zeros of specified shape with dtype and device of tensor.
+    '''
+    return pt.zeros(*shape, dtype = tensor.dtype, device=tensor.device)
 
 def get_nS_nq_from_A(A):
     ''' Returns (number of systems, number of qubits in each system) '''
@@ -66,6 +71,20 @@ def wf_fidelity(u,v):
 def get_nq_from_dim(d):
     ''' Takes the dimension of the Hilbert space as input, and returns the number of qubits. '''
     return int(np.log2(d))
+
+def sigmoid(z):
+    return 1 / (1 + pt.exp(-z))
+
+
+def slow_batch_diag(D):
+    '''
+    More time computing, less time coding
+    '''
+    E = zeros_like_reshape(D, D.shape[:-1])
+    if len(D.shape)>3: raise Exception("Not implemented")
+    for i in range(D.shape[0]):
+        E[i] = pt.diag(D[i])
+    return E
 
 #######################################################################################################################
             # GRAPE UTILS
@@ -260,7 +279,7 @@ def print_rank2_tensor(T):
         else:
             print("|")
 
-def label_axis(ax, label, x_offset=-0.05, y_offset=-0.05):
+def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, projection='2D', z_offset=0):
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     dx = xlim[1]-xlim[0]
@@ -272,8 +291,13 @@ def label_axis(ax, label, x_offset=-0.05, y_offset=-0.05):
     # if offset<0:
     #     ax.set_xlim(offset, xlim[1])
     #     ax.set_ylim(offset, ylim[1])
-
-    ax.text(x, y, label, fontsize=16, fontweight="bold", va="bottom", ha="left")
+    if projection=='3D':
+        zlim = ax.get_ylim()
+        dz = zlim[1]-zlim[0]
+        z = zlim[0]+z_offset*dz 
+        ax.text(x, y, z, label, fontsize=16, fontweight="bold", va="bottom", ha="left")
+    else:    
+        ax.text(x, y, label, fontsize=16, fontweight="bold", va="bottom", ha="left")
 
 
 
@@ -288,10 +312,10 @@ def get_rec_min_N(rf, tN, N_period=20, verbosity=0):
     T=1/rf
     max_w=pt.max(rf).item()
     rec_min_N = int(np.ceil(N_period*max_w*tN/(2*np.pi)))
-    if verbosity>=1: 
+    if verbosity>1: 
         print(f"resonant freqs = {rf/unit.MHz}")
         print(f"T = {T/unit.ns}")
-    print(f"Recommened min N = {rec_min_N}")
+        print(f"Recommened min N = {rec_min_N}")
 
     return rec_min_N
 

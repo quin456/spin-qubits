@@ -15,7 +15,8 @@ import atomic_units as unit
 from gates import spin_up, spin_down
 from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
 from data import gamma_e, dir, cplx_dtype
-from utils import forward_prop, lock_to_frequency
+from utils import forward_prop
+from eigentools import lock_to_frequency
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_U0
 from data import get_A
 from GRAPE import Grape

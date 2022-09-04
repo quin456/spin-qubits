@@ -1,30 +1,23 @@
 
-import torch as pt 
-import numpy as np
 import matplotlib
-
-
-
+import numpy as np
+import torch as pt
 
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
-from matplotlib import pyplot as plt 
-
-
-import gates as gate
-import atomic_units  as unit
-from utils import *
-from eigentools import *
-from hamiltonians import get_H0, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
-from pulse_maker import pi_pulse_square
-from visualisation import plot_psi, eigenstate_label_getter, visualise_Hw, show_fidelity
-
-
 from pdb import set_trace
 
+from matplotlib import pyplot as plt
 
-from data import gamma_e, gamma_n, cplx_dtype, default_device
-
+import atomic_units as unit
+import gates as gate
+from data import *
+from eigentools import *
+from hamiltonians import (get_H0, get_pulse_hamiltonian, get_U0, get_X_from_H,
+                          sum_H0_Hw)
+from pulse_maker import pi_pulse_square
+from utils import *
+from visualisation import eigenstate_label_getter, plot_psi, show_fidelity, visualise_Hw, plot_alpha_beta
 
 spin_up = pt.tensor([1,0],dtype=cplx_dtype)
 spin_down = pt.tensor([0,1], dtype=cplx_dtype)
@@ -227,7 +220,7 @@ def forward_prop(U,device=default_device):
         return X[0]
 
 
-def get_electron_X(tN, N, Bz, A, J, Bx, By):
+def get_electron_X(tN, N, Bz, A, J, Bx=None, By=None):
     if Bx is None:
         Bx = pt.zeros(N, dtype=cplx_dtype, device=default_device)
     if By is None:
@@ -401,50 +394,19 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*unit.ns, N=1000):
     visualise_Hw(Hw_eig_IP,tN)
 
 
-def examine_electron_eigensystem(Bz = B0, A=get_A(1,2, NucSpin=[1,1], A_mags=[A_mag, A_2P_mag]), J=get_J(1,2), n=500, dim=4):
+def examine_electron_eigensystem(Bz = B0, NucSpin=[1,0], A_mags=[A_mag, A_2P_mag], n=500, dim=4):
 
-    J = pt.linspace(0.1, 45, n) * unit.MHz
+    A = get_A(n,2, NucSpin, A_mags)
+    J = pt.linspace(0.1, 145, n) * unit.MHz
     S = pt.zeros(n, dim, dim, dtype=cplx_dtype, device=default_device)
     D = pt.zeros_like(S)
-    E = pt.zeros(n, dim, dtype=cplx_dtype, device=default_device)
-
-    for i in range(n):
-        H0 = get_H0(A, J[i], B0/50)
-        H0_phys = get_H0(A, J[i], B0)
-        S[i], D[i] = get_ordered_eigensystem(H0, H0_phys, ascending=False)
-        E[i] = pt.diag(D[i])
-
-    alpha = pt.real(S[:,1,1])
-    beta = pt.real(S[:,2,1])
-
-    dA = A[0]-A[1]
-    K = (2*(4*J**2+dA**2+dA*pt.sqrt(4*J**2+dA**2)))**(-1/2)
-    alpha_anal = pt.multiply(K, pt.sqrt(4*J**2+dA**2)+dA)
-    beta_anal = pt.multiply(K, 2*J)
 
 
-    fig,ax=plt.subplots(1,2)
-    ax[0].plot(J/unit.MHz, alpha**2, label="alpha^2")
-    ax[0].plot(J/unit.MHz, beta**2, label="beta^2")
-    ax[0].legend()
+    H0 = get_H0(A, J, B0/50)
+    H0_phys = get_H0(A, J, B0)
 
-    ax[1].plot(J/unit.MHz, E[:,0]/unit.MHz, label="E0")
-    ax[1].plot(J/unit.MHz, E[:,1]/unit.MHz, label="E1")
-    ax[1].plot(J/unit.MHz, E[:,2]/unit.MHz, label="E2")
-    ax[1].plot(J/unit.MHz, E[:,3]/unit.MHz, label="E3")
-    ax[1].legend()
-
-
-    i = 0
-    while alpha[i]**2 > 0.999:
-        i += 1
-    print(f"alpha(J={J[i-1]/unit.MHz} MHz)^2 = {alpha[i-1]**2}")
-    print(f"alpha(J={J[i]/unit.MHz} MHz)^2 = {alpha[i]**2}")
-    print(f"alpha(J={J[i+1]/unit.MHz} MHz)^2 = {alpha[i+1]**2}")
-
-
-    plt.show()
-
+    S,D = get_multi_ordered_eigensystems(H0, H0_phys)
+    plot_alpha_beta(S,D, J/unit.MHz)
 
 
 
@@ -467,8 +429,4 @@ def get_2E_low_J_CNOT_pulse(tN = 20*unit.ns, N=500, J=1*unit.MHz, A=get_A(1,2), 
 
 if __name__ == '__main__':
 
-    H0 = get_H0(get_A(3,2), get_J(3,2))
-    H0_phys = get_H0(get_A(3,2), get_J(3,2), B0)
-    S,D = get_multi_ordered_eigensystems(H0, H0_phys)
-
-    get_all_low_J_rf_u0(S,D, 100*unit.ns, 500)
+    examine_electron_eigensystem()
