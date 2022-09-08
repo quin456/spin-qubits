@@ -341,9 +341,9 @@ def drive_electron_transition(S, D, transition, tN=100*unit.ns, N=10000, ax=None
 
 
 
-def investigate_3E_resfreqs(tN=1000*unit.ns, N=10000, fp=None):
+def investigate_3E_resfreqs(tN=1000*unit.ns, N=50000, fp=None):
     nq=3
-    H0 = get_H0(get_A(1,nq), get_J(1,nq))
+    H0 = get_H0(get_A(1,nq), get_J(1,nq, J1=J_100_18nm, J2=J_100_14nm))
     S,D = get_ordered_eigensystem(H0); E=pt.diag(D)
 
     fig,ax=plt.subplots(5,3)

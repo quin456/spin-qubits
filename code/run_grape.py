@@ -18,7 +18,7 @@ from data import *
 from utils import *
 from eigentools import *
 from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
-from visualisation import visualise_Hw, plot_E_A_J, plot_psi, show_fidelity
+from visualisation import visualise_Hw, plot_E_A_J, plot_psi, show_fidelity, fidelity_bar_plot
 from hamiltonians import get_U0, get_H0, get_X_from_H
 from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation, load_grape
 from electrons import get_electron_X
@@ -60,63 +60,30 @@ def inspect_system():
     plt.show()
     
 
-def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, init_u_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0):
+def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, prev_grape_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0):
 
-    div=10
+    div=1
 
     if A is None: A = get_A(nS, nq)
-    if J is None: J = get_J(nS, nq)/div
+    if J is None: J = get_J(nS, nq, J1=J_100_18nm, J2=J_100_14nm[8:])/div
 
     H0 = get_H0(A, J)
     H0_phys = get_H0(A, J, B0)
     S,D = get_ordered_eigensystem(H0, H0_phys)
 
-    rf,u0 = get_low_J_rf_u0(S, D, tN, N)
+    #rf,u0 = get_low_J_rf_u0(S, D, tN, N)
     rf=None; u0=None
 
     target = CNOT_targets(nS,nq, native=True)
-   
-    grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data, lam=lam)
-    #fig,ax = plt.subplots(1,2)
-    print_rank2_tensor(S)
-    print_rank2_tensor(grape.X[0,-1])
-    #show_fidelity(grape.X[0], tN=tN, ax=ax[0])
-
-
-    
-    grape.run()
-    grape.plot_result()
-
-
-
-
-
-
-
-
-
-def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False, lam=0, prev_grape_fn=None):
-
-    nq = 2
-
-
-    E = get_smooth_E(tN, N)
-
-    A = get_A_1P_2P(nS, NucSpin=[0,0])
-    J = get_J_1P_2P(nS)
-
-    # T = linspace(0,tN,N)
-    # plot_E_A_J(T,E,A,J);plt.show()
-
-    target = CNOT_targets(nS,nq)
     if prev_grape_fn is None:
-        grape = GrapeESR_AJ_Modulation(J,A,tN,N, Bz=Bz, target=target, max_time=max_time, save_data=save_data, lam=lam, verbosity=1)
+        grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data, lam=lam)
     else:
         grape = load_grape(prev_grape_fn, max_time=max_time)
     grape.run()
-    set_trace()
+    grape.plot_result()
+
     grape.save()
-    grape.plot_result() 
+
 
 
 
@@ -195,20 +162,15 @@ def test_sum(tN = 5000*unit.ns, N=5000, nS=2, max_time=15, div=1, lam=0, save_gr
         print(f"CX, free fids: {fidelity(grape.X[0,-1], gate.CX):.3f} {fidelity(grape.X[0,-1], X_free[0,-1]):.3f}")
 
 
-
+    
+    
 if __name__ == '__main__':
 
     lam=1e11
 
-    run_2P_1P_CNOTs(5000*unit.ns, 5000, nS=2, max_time = 1, lam=1e8, save_data=True, prev_grape_fn='fields/c813_2S_2q_5000ns_5000step')
-    #run_2P_1P_CNOTs(200*unit.ns, 500, nS=1, max_time = 10, lam=0)
-
-
-    #run_CNOTs(tN = 5000.0*unit.ns, N = 10000, nq = 2, nS = 1, max_time = 10, save_data = True, lam=lam)
+    run_CNOTs(tN = 200.0*unit.ns, N = 500, nq = 2, nS = 15, max_time = 3600, save_data = True, lam=0, prev_grape_fn=None)
     
-    #test_sum(tN = 3000.0*unit.ns, N = 5000, lam=1e8, max_time=45)
     
-
 
 
 

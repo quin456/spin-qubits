@@ -38,12 +38,21 @@ downarrow = u'\u2193'
 Uparrow = '⇑'
 Downarrow = '⇓'
 
+time_axis_label = "Time (ns)"
+
 def spin_state_label_getter(i, nq, states_to_label=None):
     if states_to_label is not None:
         if i in states_to_label:
             return np.binary_repr(i,nq)
     else:
         return np.binary_repr(i,nq)
+
+def spin_state_ket_label_getter(i, nq=2, states_to_label=None):
+    return f"$<{spin_state_label_getter(i, nq, states_to_label=states_to_label)}|\psi>$"
+
+def spin_state_ket_sq_label_getter(i, nq=2, states_to_label=None):
+    return f"|{spin_state_ket_label_getter(i, nq=nq, states_to_label=states_to_label)}$|^2$"
+
 
 def eigenstate_label_getter(i, states_to_label=None):
     if states_to_label is not None:
@@ -120,12 +129,12 @@ def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, 
     ax.legend(loc=legend_loc)
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
-
+    print(squared)
     if fp is not None: plt.savefig(fp)
 
     return ax
 
-def plot_phases(psi, tN=None, T=None, ax=None):
+def plot_phases(psi, tN=None, T=None, ax=None, legend_loc='upper center'):
 
     if ax is None: ax = plt.subplot() 
     N,dim = psi.shape 
@@ -190,7 +199,7 @@ def visualise_Hw(Hw,tN, eigs=None):
             ax[i,j].plot(T,pt.imag(y))
 
             
-def plot_fidelity(ax,fids, T=None, tN=None, legend=True, printfid=True):
+def plot_fidelity(ax,fids, T=None, tN=None, legend=True, printfid=False):
     if len(fids.shape)==1:
         fids = fids.reshape(1,*fids.shape)
     nS=len(fids); N = len(fids[0])
@@ -205,8 +214,20 @@ def plot_fidelity(ax,fids, T=None, tN=None, legend=True, printfid=True):
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("Fidelity")
     if annotate: ax.annotate("Fidelity progress", (0,0.95))
-    if printfid: print(f"Achieved fidelity = {fids[0,-1]:.4f}")
+    if printfid: print(f"Achieved fidelity = {fids[:,-1]:.4f}")
     return ax
+
+
+def plot_avg_min_fids(ax, X, target, tN):
+    nS,N = X.shape[:2]
+    fid_progress = fidelity_progress(X, target)
+    avg_fid = pt.sum(fid_progress, 0) / nS
+    min_fid = pt.min(fid_progress, 0).values
+    T = linspace(0, tN/unit.ns, N)
+    ax.plot(T, avg_fid, color='blue', label='Average fidelity')
+    ax.plot(T, min_fid, color='red', label='Minimum fidelity')
+    ax.set_xlabel("Time (ns)")
+    ax.legend()
 
 
 def plot_multi_sys_energy_spectrum(E, ax=None):
@@ -361,6 +382,26 @@ def plot_E_A_J(T,E,A,J):
 
 
 
+def fidelity_bar_plot(fids, ax=None, f1=0.9999, f2=0.99, f3=0.98):
+    '''
+    Accepts nS length array of final fidelities for each system.
+    '''
+    def get_fid_color(fid):
+        if fid>f1:
+            return 'green'
+        elif fid>f2:
+            return 'orange'
+        elif fid>f3:
+            return 'red'
+        else:
+            return 'darkred'
+
+    color = [get_fid_color(fid) for fid in fids]
+    if ax is None: ax = plt.subplot()
+    nS=len(fids)
+    ax.bar(np.linspace(0,nS-1,nS), fids, np.ones(nS)*0.3, color = color)
+    
+
 
 
 if __name__=='__main__':
@@ -368,5 +409,6 @@ if __name__=='__main__':
 
     #plot_exchange_energy_diagram(J=pt.linspace(-100,100,100)*unit.MHz, A=get_A(100,2), Bz=0.02*unit.T)
     #plot_NE_alpha_beta(Bz = pt.linspace(0,5, 500)*unit.T)
-    plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.T)
+    #plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.T)
+    fidelity_bar_plot(np.array([0.99, 0.95, 0.92, 0.99, 0.9999, 0.978]))
     plt.show()

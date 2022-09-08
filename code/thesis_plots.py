@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.pyplot import figure 
 import numpy as np 
 
-from GRAPE import GrapeESR
+from GRAPE import GrapeESR, load_grape
 import gates as gate
 from utils import psi_from_polar, normalise, label_axis
 from eigentools import get_resonant_frequencies, lock_to_frequency
@@ -252,20 +252,44 @@ def chapter_2(chapter='Ch2-'):
 
 def chapter_3(chapter="Ch3-"):
 
-    def grape_1s2q(fp=None, fp1=None):
-        grape = GrapeESR(J=get_J(1,2),A=get_A(1,2),tN=20*unit.ns,N=500, max_time=None, verbosity=2); grape.run()
+    def grape_1s2q(fp=None, fp1=None, fp2=None):
+        grape = GrapeESR(J=get_J(1,2), A=get_A(1,2),tN=100*unit.ns, N=500, max_time=None, verbosity=2); grape.run()
         fig,ax = plt.subplots(1,2)
+        fig1, ax1 = plt.subplots(1,2)
+        fig2, ax2 = plt.subplots(1,2)
         grape.plot_u(ax[0])
         grape.plot_cost_hist(ax[1])
+        grape.plot_field_and_fidelity(fp1, fig=fig1, ax=ax1)
+        grape.plot_psi_with_phase(ax2)
+        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
+        fig1.set_size_inches(fig_width_double_long, fig_height_single_long)
+        fig2.set_size_inches(fig_width_double_long, fig_height_single_long)
+        fig.tight_layout()
+        fig1.tight_layout()
+        fig2.tight_layout()
         label_axis(ax[0], "(a)", x_offset=-0.08, y_offset=-0.15)
         label_axis(ax[1], "(b)", x_offset=-0.08, y_offset=-0.15)
-        fig.set_size_inches(fig_width_double_long, fig_height_single_long)
-        #fig1,ax1 = grape.plot_field_and_evolution()
-        #fig1.set_size_inches(fig_width_double_long, fig_height_double_long)
-        fig.tight_layout()
-        #fig1.tight_layout()
+        label_axis(ax1[0], "(a)", x_offset=-0.08, y_offset=-0.15)
+        label_axis(ax1[1], "(b)", x_offset=-0.08, y_offset=-0.15)
+        label_axis(ax2[0], "(a)", x_offset=-0.08, y_offset=-0.15)
+        label_axis(ax2[1], "(b)", x_offset=-0.08, y_offset=-0.15)
         if fp is not None: fig.savefig(fp)
-        #if fp1 is not None: fig1.savefig(fp1)
+        if fp1 is not None: fig1.savefig(fp1)
+        if fp2 is not None: fig2.savefig(fp2)
+
+    def grape_1s3q(fp1=None, grape_fp='fields/c864_1S_3q_200ns_2000step', lam=1e8, max_time=None):
+        A = get_A(1, 3)
+        J = get_J(1, 3, J1=J_100_18nm, J2=J_100_14nm[8:])
+        
+        if grape_fp is None:
+            grape = GrapeESR(J, A, tN=200*unit.ns, N=2000, max_time=max_time, save_data=False, lam=0)
+            grape.run()
+            grape.save()
+        else:
+            grape = load_grape(grape_fp, GrapeESR)
+        grape.plot_result()
+        grape.plot_field_and_fidelity(fp1)
+
 
     def NE_EN_CX(fp=f"{plots_folder}{chapter}NE_EN_CX.pdf"):
         fig,ax = plt.subplots(2,2)
@@ -283,7 +307,7 @@ def chapter_3(chapter="Ch3-"):
     def plot_swap_schedule(fp = f"{plots_folder}{chapter}swap_schedule.pdf"):
         fig,ax = plt.subplots(1)
         ax2 = ax.twinx()
-        color='blue'
+        color='black'
         color2='red'
 
 
@@ -361,14 +385,32 @@ def chapter_3(chapter="Ch3-"):
 
         if fp is not None: fig.savefig(fp)
 
+    def all_15_2q_CNOTs(fp1 = None,tN=1000*unit.ns, N=2500, prev_grape_fp=None, max_time=1800, lam=1e7):
+
+        nS = 15; nq = 2
+        A = get_A(nS, nq)
+        J = get_J(nS, nq)
+        if prev_grape_fp is None:
+            grape = GrapeESR(J, A, tN, N, max_time=max_time, lam=lam)
+            grape.run()
+            grape.save()
+        else:
+            grape = load_grape(prev_grape_fp, max_time=max_time, lam=lam)
+
+        #grape.plot_result()
+
+        fig1, ax1 = plt.subplots(1,2)
+        grape.plot_field_and_fidelity(fp1, fig1, ax1, fid_legend=False, all_fids=False)
+
+
     #NE_energy_level_picture(fp=f"{plots_folder}Ch3-NE-energy-levels.pdf")
     #plot_NE_energy_diagram_and_alpha_beta(fp=f"{plots_folder}{chapter}NE-energy-diagram-alpha-beta.pdf")
 
     #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
 
 
-    grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-evolution.pdf")
-
+    #grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-fidelity.pdf", fp2 = f"{plots_folder}Ch3-psi-evolution.pdf")
+    #grape_1s3q(fp1 = f"{plots_folder}Ch3-3E-field-and-fidelity.pdf")
     #grape = GrapeESR(get_J(1,3), get_A(1,3), tN=100*unit.ns, N=500, max_time=max_time); grape.run(); grape.plot_field_and_fidelity(f"{plots_folder}Ch3-3E-field-and-evolution.pdf")
 
     #show_2E_Hw(get_J(1,2),get_A(1,2),30*unit.ns,500, "Ch3-2E-Hw.pdf")
@@ -380,7 +422,8 @@ def chapter_3(chapter="Ch3-"):
 
     #NE_EN_CX()
     #show_NE_swap(get_A(1,1),2*unit.T, 100000, 40000, fp=f"{plots_folder}{chapter}NE_swap.pdf")
-    #plot_swap_schedule()
+    plot_swap_schedule()
+    #all_15_2q_CNOTs(fp1=f"{plots_folder}Ch3-15-2E-field-and-fidelity.pdf", prev_grape_fp='fields/c877_15S_2q_200ns_500step', max_time=None)
 
 def no_coupler():
     def plot_exchange_switch(A=get_A(1,3), J=get_J(1,3), fp=None):

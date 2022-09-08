@@ -23,7 +23,7 @@ J_110_18nm = pt.tensor(exch_data['110_18'], dtype=cplx_dtype, device=default_dev
 J_110_14nm = pt.tensor(exch_data['110_14'], dtype=cplx_dtype, device=default_device) * unit.MHz
 J_2P_1P_fab = pt.load(f"{exch_data_folder}J").to(cplx_dtype).to(device=default_device) * unit.MHz
 A_2P_1P_fab = pt.load(f"{exch_data_folder}A_2P_1P").to(cplx_dtype).to(default_device) * unit.MHz
-A_2P_fab = pt.load(f"{exch_data_folder}A_2P") * unit.MHz
+A_2P_fab = pt.load(f"{exch_data_folder}A_2P").to(default_device) * unit.MHz
 
 
 J_extended = pt.cat((J_100_18nm, J_100_18nm*1.1, J_100_18nm*1.2, J_100_18nm*1.3, J_100_18nm*1.4, J_100_18nm*1.5, J_100_18nm*1.6, J_100_18nm*1.7, J_100_18nm*1.8, J_100_18nm*1.9))
@@ -76,11 +76,11 @@ def get_A(nS,nq, NucSpin=None, A_mags=None, device=default_device, E_rise_time =
 
 
 def all_J_pairs(J1, J2, device=default_device):
-    nJ=15
+    nJ = min((len(J1), len(J2)))
     J = pt.zeros(nJ**2,2, device=device,dtype=cplx_dtype)
     for i in range(nJ):
         for j in range(nJ):
-            J[i*15+j,0] = J1[i]; J[i*15+j,1] = J2[j]
+            J[i*nJ+j,0] = J1[i]; J[i*nJ+j,1] = J2[j]
     return J
 
 def get_J(nS,nq,J1=J_100_18nm,J2=J_100_18nm/2.3, N=1, device=default_device, E_rise_time=1*unit.ns):
@@ -136,3 +136,6 @@ if __name__ == '__main__':
     print(f"Exchange 2P-1P (fabricated)")
     for i in range(len(A_2P_1P_fab)):
         print(f"J_2P_1P_{i} = {J_2P_1P_fab[i].item()/unit.MHz:.2f} MHz")
+    
+    
+    set_trace()

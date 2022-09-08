@@ -6,6 +6,7 @@ from pdb import set_trace
 import time
 import warnings
 
+
 warnings.filterwarnings("ignore")
 
 # library imports
@@ -32,8 +33,7 @@ from utils import *
 from eigentools import *
 from data import *
 from hamiltonians import get_H0
-from visualisation import plot_fidelity, y_axis_labels, colors, plot_psi, plot_phases
-from visualisation import fig_width_double_long, fig_height_double_long, fig_height_single_long
+from visualisation import *
 from pulse_maker import get_smooth_E
 
 time_exp = 0
@@ -236,7 +236,7 @@ class Grape:
     '''
     General GRAPE class.
     '''
-    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600, verbosity=1, filename=None, logging=False, operation="Setting up"):
+    def __init__(self, tN, N, target, rf, nS=1, u0=None, cost_hist=[], max_time=9999999, save_data=False, sp_distance = 99999*3600, verbosity=1, filename=None, operation="Setting up"):
         self.tN=tN
         self.N=N
         self.nS=nS
@@ -265,11 +265,9 @@ class Grape:
         self.filename = filename
 
         self.verbosity = verbosity
-        self.logging=logging
         self.operation=operation
         self.iters=0 
-
-        self.preLog()  
+        self.time_taken = None
 
         self.print_setup_info()
         self.propagate()
@@ -290,7 +288,7 @@ class Grape:
         print("====================================================")
         print(f"Number of systems: {self.nS}")
         print(f"Pulse duration: {self.tN/unit.ns} ns")
-        print(f"Resonant frequencies: rf_max = {pt.max(self.rf)/unit.MHz} MHz, rf_min = {pt.min(self.rf)/unit.MHz} MHz")
+        print(f"Found {len(self.rf)} resonant frequencies: rf_max = {pt.max(self.rf)/unit.MHz} MHz, rf_min = {pt.min(self.rf)/unit.MHz} MHz")
         
         if self.verbosity>1:
             print("{", end=" ")
@@ -538,6 +536,10 @@ class Grape:
     def run(self):
         callback = self.check_time if self.max_time is not None else None
         print("\n+++++  RUNNING OPTIMISATION  +++++")
+        if self.max_time is None:
+            print("No max time set")
+        else:
+            print(f"max optimisation time = {self.max_time}")
         try:
             opt=minimize(self.cost,self.u,method='CG',jac=True, callback=callback)
             print("Optimisation completed")
@@ -549,6 +551,8 @@ class Grape:
             self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
             self.status='UC' #uncomplete
         self.time_taken = time.time() - self.start_time
+        if self.verbosity>=1:
+            print(f"Time taken = {self.time_taken}")
         self.print_result()
 
 
@@ -556,15 +560,18 @@ class Grape:
         
     def save(self, fp=None):
         # save_system_data will overwrite previous file if job was not terminated by gadi
-        if fp is None: 
-            print("Saving GRAPE optimisation")
-        else:
-            print(f"Saving GRAPE optimisation to: '{fp}'")
+
+        if fp is None:
+            self.ID = self.get_next_ID()
+            with open(ID_fn, 'a') as f:
+                f.write(f"{self.ID}\n")
+            fp = f"fields/{self.get_field_filename()}"
+        print(f"Saving GRAPE optimisation to: '{fp}'")
+            
         fidelities = self.fidelity()[0]
         avgfid=sum(fidelities)/len(fidelities)
         minfid = min(fidelities).item()
-        if self.logging:
-            self.log_result(minfid,avgfid)
+        self.log_result(minfid,avgfid)
         self.save_system_data(fid=fidelities, fp=fp)
         self.save_field(fp)
 
@@ -583,9 +590,6 @@ class Grape:
         else:
             print(f"Average fidelity = {avgfid}")
             print(f"Min fidelity = {minfid}")
-        if verbosity>=1:
-            if self.time_taken is not None:
-                print(f"Time taken = {self.time_taken}")
             print(f"Call to cost function: {self.iters}")
         if verbosity>=2:
             print(f"All fidelities = {fidelities}")
@@ -621,25 +625,35 @@ class Grape:
     ################        VISUALISATION        ###################################################################
     ################################################################################################################
 
+    def plot_fidelity(self, ax=None, all_fids=True, legend=True):
+        if ax is None: ax = plt.subplot()
+        if all_fids:
+            plot_fidelity(ax, fidelity_progress(self.X, self.target), tN=self.tN, legend=legend)
+        else:
+            plot_avg_min_fids(ax, self.X, self.target, self.tN)
+
+
     def plot_field_and_evolution(self, fp=None, psi0 = pt.tensor([1,0,1,0], dtype=cplx_dtype)/np.sqrt(2)):
         '''
         Nicely presented plots for thesis. Plots 
         '''
         fig,ax = plt.subplots(2,2)
         self.plot_XY_fields(ax[0,0])
-        plot_fidelity(ax[1,0], fidelity_progress(self.X, self.target), tN=self.tN)
-        psi=self.X@psi0
-        plot_psi(psi[0], tN=self.tN, ax=ax[0,1])
-        plot_phases(psi[0], tN=self.tN, ax=ax[1,1])
+        self.plot_psi_with_phase(ax[:,1], psi0=psi0)
+        self.plot_fidelity([1,0])
         return fig,ax
 
+    def plot_psi_with_phase(self, ax, psi0 = pt.tensor([2,1,2,1], dtype=cplx_dtype)/np.sqrt(10)):
+        psi=self.X@psi0
+        plot_psi(psi[0], tN=self.tN, ax=ax[0], label_getter=spin_state_ket_sq_label_getter)
+        plot_phases(psi[0], tN=self.tN, ax=ax[1])
 
 
-    def plot_field_and_fidelity(self, fp=None):
-        fig,ax = plt.subplots(1,2)
+    def plot_field_and_fidelity(self, fp=None, fig=None, ax=None, fid_legend=True, all_fids=True):
+        if ax is None:
+            fig,ax = plt.subplots(1,2)
         self.plot_XY_fields(ax[0])
-        fids = fidelity_progress(self.X, self.target)
-        plot_fidelity(ax[1], fids, tN=self.tN)
+        self.plot_fidelity(ax[1], all_fids=all_fids, legend=fid_legend)
         fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
         if fp is not None: 
@@ -707,7 +721,8 @@ class Grape:
         ax.legend()
 
 
-    def plot_XY_fields(self, ax, X_field=None, Y_field=None):
+    def plot_XY_fields(self, ax=None, X_field=None, Y_field=None):
+        if ax is None: ax = plt.subplot()
         if X_field is None:
             X_field, Y_field = self.sum_XY_fields()
         max_field = pt.max(pt.sqrt(X_field**2+Y_field**2))
@@ -716,7 +731,7 @@ class Grape:
         t_axis = np.linspace(0, self.tN/unit.ns, self.N)
         ax.plot(t_axis,X_field*1e3,label='$B_x$ (mT)')
         ax.plot(t_axis,Y_field*1e3,label='$B_y$ (mT)')
-        ax.set_xlabel("time (ns)")
+        ax.set_xlabel(time_axis_label)
         if y_axis_labels:
             ax.set_ylabel("Total applied field")
         ax.legend()
@@ -731,6 +746,7 @@ class Grape:
         ax.axhline(0, color='orange', linestyle = '--')
         if ax_label is not None:
             ax.set_title(ax_label, loc='left', fontdict={'fontsize': 20})
+        ax.set_ylim([0, min(1.2, ax.get_ylim()[1])])
         return ax
 
 
@@ -762,22 +778,10 @@ class Grape:
         #J_formatted = [round(elem,2) for elem in (pt.real(J).flatten()/Mhz).tolist()]
         now = datetime.now().strftime("%H:%M:%S %d-%m-%y")
         with open(log_fn, 'a') as f:
-            f.write("{},{:.4f},{:.4f},{},{:.3e},{},{},{:.1f},{},{},{}\n".format(
-                field_filename, avgfid, minfid, now, self.alpha, self.nS, self.nq, self.tN/unit.ns, self.N, self.status, self.time_taken))
+            f.write("{},{:.4f},{:.4f},{},{},{}\n".format(
+                field_filename, avgfid, minfid, now, self.status, self.time_taken))
 
 
-    def preLog(self):
-        '''
-        Logs some data prior to running job incase job is terminated and doesn't get a chance to log at the end.
-        If job completes, system_data will be rewritten with more info (eg fidelities).
-        '''
-        self.ID = self.get_next_ID()
-        if self.filename is None:
-            self.filename = self.get_field_filename()
-        if self.save_data: 
-            self.save_system_data()
-            with open(ID_fn, 'a') as f:
-                f.write(f"{self.ID}\n")
 
 
 
@@ -1002,8 +1006,8 @@ def load_u(fp=None, SP=None):
 
 
 
-def load_grape(fp, Grape=GrapeESR, max_time=None, verbosity=1):
-    grape = load_system_data(fp, Grape=Grape, max_time=max_time, verbosity=verbosity)
+def load_grape(fp, Grape=GrapeESR, max_time=None, verbosity=1, lam=0):
+    grape = load_system_data(fp, Grape=Grape, max_time=max_time, verbosity=verbosity, lam=lam)
     grape.u, grape.cost_hist = load_u(fp)
     grape.propagate()
     return grape
@@ -1020,21 +1024,21 @@ def process_u_file(filename,SP=None, save_SP = False):
     grape.plot_result()
 
 
-def load_system_data(fp, Grape=GrapeESR, max_time=None, verbosity=1):
+def load_system_data(fp, Grape=GrapeESR, max_time=None, verbosity=1, lam=0):
     '''
     Retrieves system data (exchange, hyperfine, pulse length, target, fidelity) from file.
     '''
     with open(f'{fp}.txt','r') as f:
         lines = f.readlines()
-        J = pt.tensor(ast.literal_eval(lines[0][4:-1]), dtype=cplx_dtype) * unit.MHz
-        A = pt.tensor(ast.literal_eval(lines[1][4:-1]), dtype=cplx_dtype) * unit.MHz
+        J = pt.tensor(ast.literal_eval(lines[0][4:-1]), dtype=cplx_dtype, device=default_device) * unit.MHz
+        A = pt.tensor(ast.literal_eval(lines[1][4:-1]), dtype=cplx_dtype, device=default_device) * unit.MHz
         tN = float(lines[2][4:-1]) * unit.ns
         N = int(lines[3][3:-1])
-        target = pt.tensor(ast.literal_eval(lines[4][9:-1]),dtype=cplx_dtype)
+        target = pt.tensor(ast.literal_eval(lines[4][9:-1]),dtype=cplx_dtype, device=default_device)
         try:
             fid = ast.literal_eval(lines[6][11:-1])
         except: fid=None
-    grape = Grape(J=J, A=A, tN=tN, N=N, Bz=0, target=target, operation="Loading", max_time=max_time, verbosity=verbosity)
+    grape = Grape(J=J, A=A, tN=tN, N=N, Bz=0, target=target, operation="Loading", max_time=max_time, verbosity=verbosity, lam=lam)
     grape.time_taken=None
     return grape
 
@@ -1236,7 +1240,7 @@ class GrapeESR_AJ_Modulation(GrapeESR):
     def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0, lam=0, operation="Setting up", verbosity=1):
 
 
-        self.E = get_smooth_E(tN, N)
+        self.E = get_smooth_E(tN, N).to(default_device)
         super().__init__(J, A, tN, N, Bz=Bz, target=target, rf=rf, u0=u0, cost_hist=cost_hist, max_time=max_time, save_data=save_data, lam=lam, operation=operation, verbosity=verbosity)
     def print_setup_info(self):
         Grape.print_setup_info(self)
@@ -1248,12 +1252,13 @@ class GrapeESR_AJ_Modulation(GrapeESR):
             print(f"Hyperfine: A = {(self.A/unit.MHz).tolist()} MHz")
             print(f"Exchange: J = {(self.J/unit.MHz).tolist()} MHz")
         else:
-            print("Hyperfines:")
-            for q in range(self.nS): 
-                print(''.ljust(10)+f"{(self.A[q]/unit.MHz).tolist()}")
-            print("Exchange:")
-            for q in range(self.nS): 
-                print(''.ljust(10)+f"{(self.J[q]/unit.MHz).tolist()}")
+            if self.verbosity >= 2:
+                print("Hyperfines:")
+                for q in range(self.nS): 
+                    print(''.ljust(10)+f"{(self.A[q]/unit.MHz).tolist()}")
+                print("Exchange:")
+                for q in range(self.nS): 
+                    print(''.ljust(10)+f"{(self.J[q]/unit.MHz).tolist()}")
         print(f"Number of timesteps N = {self.N}, recommended N is {get_rec_min_N(rf=self.get_control_frequencies(), tN=self.tN, verbosity = self.verbosity)}")
 
 
@@ -1320,7 +1325,7 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         else:
             dA = pt.einsum('j,sq->sjq', modulator, self.A)
             return pt.einsum('sq,j->sjq',self.A,pt.ones(self.N,device=default_device)) + dA
-
+        
     def modulate_J(self):
         rise_prop = 100
         modulator = pt.cat((pt.linspace(0.01, 1, self.N//rise_prop, device=default_device), pt.ones(self.N-2*(self.N//rise_prop), device=default_device), pt.linspace(1, 0.01, self.N//rise_prop, device=default_device)))
