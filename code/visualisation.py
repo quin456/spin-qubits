@@ -364,7 +364,7 @@ def plot_E_field(T,E, ax=None):
 
 def plot_A(T, A, ax=None):
     if ax is None: ax=plt.subplot()
-    ax.plot(T.cpu()/unit.ns,A.cpu()/unit.MHz)
+    ax.plot(T.cpu()/unit.ns, A.cpu()/unit.MHz)
     ax.set_ylabel("Hyperfine coupling (MHz)")
     ax.set_xlabel("Time (ns)")
 
@@ -374,11 +374,6 @@ def plot_J(T, J, ax=None):
     ax.set_ylabel("Exchange (MHz)")
     ax.set_xlabel("Time (ns)")
 
-def plot_E_A_J(T,E,A,J):
-    fig,ax = plt.subplots(3)
-    plot_E_field(T,E, ax[0])
-    plot_A(T,A, ax[1]) 
-    plot_J(T,J, ax[2])
 
 
 

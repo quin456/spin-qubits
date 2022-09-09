@@ -332,3 +332,6 @@ def get_dT(T):
 def linspace(start, end, N, dtype=cplx_dtype, device=default_device):
     return pt.linspace(start+(end-start)/N, end, N, dtype=dtype, device=device)
 
+def rise_ones_fall(N, rise_prop):
+    N_rise = int((N*rise_prop)//1)
+    return pt.cat((linspace(0, 1, N_rise, device=default_device), pt.ones(N-2*N_rise, device=default_device), linspace(1, 0, N_rise, device=default_device)))

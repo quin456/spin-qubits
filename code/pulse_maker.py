@@ -25,6 +25,12 @@ def get_smooth_E(tN, N, rise_time = 1*unit.ns):
     E = E_mag * (sigmoid((T-10*unit.ns)/rise_time) - sigmoid((T-T[-1]+10*unit.ns)/rise_time))
     return E
 
+def get_simple_E(tN, N, rise_time = 10*unit.ns, E_max = 1*unit.MV/unit.m):
+    rise_prop = rise_time / tN
+    E = E_max * rise_ones_fall(N, rise_prop)
+    return E
+    
+
 
 def square_pulse(B, omega, tN, N, phase=0):
     T = linspace(0,tN,N, device=default_device)

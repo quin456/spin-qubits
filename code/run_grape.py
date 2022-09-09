@@ -18,7 +18,7 @@ from data import *
 from utils import *
 from eigentools import *
 from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
-from visualisation import visualise_Hw, plot_E_A_J, plot_psi, show_fidelity, fidelity_bar_plot
+from visualisation import visualise_Hw, plot_psi, show_fidelity, fidelity_bar_plot
 from hamiltonians import get_U0, get_H0, get_X_from_H
 from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation, load_grape
 from electrons import get_electron_X
@@ -168,7 +168,7 @@ if __name__ == '__main__':
 
     lam=1e11
 
-    run_CNOTs(tN = 200.0*unit.ns, N = 500, nq = 2, nS = 15, max_time = 3600, save_data = True, lam=0, prev_grape_fn=None)
+    run_CNOTs(tN = 1000.0*unit.ns, N = 1500, nq = 2, nS = 15, max_time = 18000, save_data = True, lam=0, prev_grape_fn=None)
     
     
 

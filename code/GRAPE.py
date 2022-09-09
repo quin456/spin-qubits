@@ -34,7 +34,7 @@ from eigentools import *
 from data import *
 from hamiltonians import get_H0
 from visualisation import *
-from pulse_maker import get_smooth_E
+from pulse_maker import get_smooth_E, get_simple_E
 
 time_exp = 0
 time_prop = 0
@@ -292,7 +292,7 @@ class Grape:
         
         if self.verbosity>1:
             print("{", end=" ")
-            for freq in self.rf: print(f"{freq/Mrps} Mrad/s,", end=" ")
+            for freq in self.rf: print(f"{freq/unit.Mrps} Mrad/s,", end=" ")
             print("}")
 
     def get_control_frequencies(self, device=default_device):
@@ -443,7 +443,7 @@ class Grape:
         '''
         Cost function term which penalises fluctuations in u between adjacent timesteps.
         '''
-        N = int(len(u)/m)
+        N = int(len(u)/self.m)
         u = self.u_mat()
         u_aug = pt.cat((u[:,0:1],u, u[:,N-1:N]),dim=1)
         J = self.alpha  * np.real(pt.sum( (u[:,1:] - u[:,:N-1])**2).item())
@@ -1239,8 +1239,9 @@ class GrapeESR_AJ_Modulation(GrapeESR):
 
     def __init__(self, J, A, tN, N, Bz=0, target=None, rf=None, u0=None, cost_hist=[], max_time=9999999, save_data=False, alpha=0, lam=0, operation="Setting up", verbosity=1):
 
-
+        self.rise_time = 10*unit.ns
         self.E = get_smooth_E(tN, N).to(default_device)
+        self.E = get_simple_E(tN, N).to(default_device)
         super().__init__(J, A, tN, N, Bz=Bz, target=target, rf=rf, u0=u0, cost_hist=cost_hist, max_time=max_time, save_data=save_data, lam=lam, operation=operation, verbosity=verbosity)
     def print_setup_info(self):
         Grape.print_setup_info(self)
@@ -1315,7 +1316,6 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         #     return get_2E_multi_system_rf_analytic(self.J, self.A)
         return get_multi_system_resonant_frequencies(self.H0[:,self.N//2])
 
-        
     def modulate_A(self):
         eta2 = -3e-3 * (unit.um/unit.V)**2
         modulator = eta2 * self.E**2
@@ -1326,13 +1326,45 @@ class GrapeESR_AJ_Modulation(GrapeESR):
             dA = pt.einsum('j,sq->sjq', modulator, self.A)
             return pt.einsum('sq,j->sjq',self.A,pt.ones(self.N,device=default_device)) + dA
         
+    def modulate_A_old(self):
+        eta2 = -3e-3 * (unit.um/unit.V)**2
+        modulator = eta2 * self.E**2
+        if self.nS==1:
+            dA = pt.einsum('j,q->jq', modulator, self.A)
+            return pt.einsum('q,j->jq',self.A,pt.ones(self.N,device=default_device)) + dA
+        else:
+            dA = pt.einsum('j,sq->sjq', modulator, self.A)
+            return pt.einsum('sq,j->sjq',self.A,pt.ones(self.N,device=default_device)) + dA
+    
     def modulate_J(self):
+        E_max = pt.max(pt.real(self.E))
+        modulator = rise_ones_fall(self.N, self.rise_time/self.tN)
+        if self.nS==1:
+            return modulator*self.J
+        J_mod = pt.einsum('j,s->sj', modulator, self.J)
+        return J_mod
+
+
+    def modulate_J_old(self):
         rise_prop = 100
         modulator = pt.cat((pt.linspace(0.01, 1, self.N//rise_prop, device=default_device), pt.ones(self.N-2*(self.N//rise_prop), device=default_device), pt.linspace(1, 0.01, self.N//rise_prop, device=default_device)))
         if self.nS==1:
             return modulator*self.J
-        J = pt.einsum('j,s->sj', modulator, self.J)
-        return J
+        J_mod = pt.einsum('j,s->sj', modulator, self.J)
+        return J_mod
+
+        
+    def plot_E_A_J(self):
+        fig,ax = plt.subplots(3)
+        T = linspace(0, self.tN, self.N)
+        A = self.modulate_A()
+        J = self.modulate_J()
+        plot_E_field(T, self.E, ax[0])
+        if self.nS > 1:
+            print("Plotting A and J for system 1")
+            A = A[0]; J=J[0]
+        plot_A(T, A, ax[1]) 
+        plot_J(T, J, ax[2])
 
 ################################################################################################################
 ################        Run GRAPE        #######################################################################

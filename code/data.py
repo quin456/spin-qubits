@@ -2,8 +2,9 @@
 
 import pickle 
 import torch as pt 
-from atomic_units import *
 import atomic_units as unit
+from atomic_units import hbar, qE, mE
+
 from pdb import set_trace
 
 cplx_dtype = pt.complex128
