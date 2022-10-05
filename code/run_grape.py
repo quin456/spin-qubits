@@ -60,29 +60,6 @@ def inspect_system():
     plt.show()
     
 
-def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, prev_grape_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0):
-
-    div=1
-
-    if A is None: A = get_A(nS, nq)
-    if J is None: J = get_J(nS, nq, J1=J_100_18nm, J2=J_100_14nm[8:])/div
-
-    H0 = get_H0(A, J)
-    H0_phys = get_H0(A, J, B0)
-    S,D = get_ordered_eigensystem(H0, H0_phys)
-
-    #rf,u0 = get_low_J_rf_u0(S, D, tN, N)
-    rf=None; u0=None
-
-    target = CNOT_targets(nS,nq, native=True)
-    if prev_grape_fn is None:
-        grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, save_data=save_data, lam=lam)
-    else:
-        grape = load_grape(prev_grape_fn, max_time=max_time)
-    grape.run()
-    grape.plot_result()
-
-    grape.save()
 
 
 
@@ -117,58 +94,38 @@ def sum_grapes(grapes):
     
     return grape
 
-def save_grapes(J=get_J_1P_2P(48), A=get_A_1P_2P(48), tN=5000*unit.ns, N=5000, idxs = np.linspace(0,47,48).astype(int), max_time=60, lam=1e8):
-
-    for i in idxs:
-        grape = GrapeESR_AJ_Modulation(J[i], A[i], tN, N, Bz=0, target=CNOT_targets(1,2), max_time=max_time, lam=lam)
-        grape.run()
-        grape.save(f"grape_bunch/grape{i}")
-
-
-def test_sum(tN = 5000*unit.ns, N=5000, nS=2, max_time=15, div=1, lam=0, save_grapes=False):
-    save_data=False
-    nq=2
-    target_single = CNOT_targets(1, nq)
-    J = get_J_1P_2P(48)
-    A = get_A_1P_2P(48)
-
-    grapes = []
-
-    if save_grapes:
-        grape = GrapeESR_AJ_Modulation(J[0], A[0], tN, N, Bz=0, target=target_single, max_time=max_time, save_data=save_data, lam=lam)
-        grape.run()
-        grape.save("grape_bunch/grape0")
-        grape = GrapeESR_AJ_Modulation(J[1], A[1], tN, N, Bz=0, target=target_single, max_time=max_time, save_data=save_data, lam=lam)
-        grape.run()
-        grape.save("grape_bunch/grape1")
     
-    grape0 = load_grape("grape_bunch/grape0", GrapeESR_AJ_Modulation)
-    grape0.print_result()
-    grape1 = load_grape("grape_bunch/grape1", GrapeESR_AJ_Modulation)
-    grapes=[grape0, grape1]
+def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, prev_grape_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0, alpha=0):
 
-    grape = sum_grapes(grapes)
+    div=1
+
+    if A is None: A = get_A(nS, nq)
+    if J is None: J = get_J(nS, nq, J1=J_100_18nm, J2=J_100_14nm[8:])/div
+
+    H0 = get_H0(A, J)
+    H0_phys = get_H0(A, J, B0)
+    S,D = get_ordered_eigensystem(H0, H0_phys)
+
+    #rf,u0 = get_low_J_rf_u0(S, D, tN, N)
+    rf=None; u0=None
+
+    target = CNOT_targets(nS,nq, native=True)
+    if prev_grape_fn is None:
+        grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, lam=lam, alpha=alpha)
+    else:
+        grape = load_grape(prev_grape_fn, max_time=max_time)
+    grape.run()
     grape.plot_result()
-
-    for i in range(48):
-        grape.J = J[i]/div
-        grape.A = A[i]
-        grape.H0=grape.get_H0()
-        #X_free = get_electron_X(grape.tN, grape.N, 0, grape.A, grape.J)
-        X_free = get_X_from_H(grape.H0, tN, N)
-        grape.propagate()
-
-
-        print(f"CX, free fids: {fidelity(grape.X[0,-1], gate.CX):.3f} {fidelity(grape.X[0,-1], X_free[0,-1]):.3f}")
-
-
-    
+    if save_data:
+        grape.save()
     
 if __name__ == '__main__':
 
     lam=1e11
 
-    run_CNOTs(tN = 1000.0*unit.ns, N = 1500, nq = 2, nS = 15, max_time = 18000, save_data = True, lam=0, prev_grape_fn=None)
+    #run_CNOTs(tN = 100.0*unit.ns, N = 500, nq = 2, nS = 1, max_time = 18000, save_data = True, lam=1e8, prev_grape_fn=None)
+    run_CNOTs(tN = 200.0*unit.ns, N = 500, nq = 2, nS = 2, max_time = 10, save_data = True, lam=0, alpha=0, prev_grape_fn=None)
+    plt.show()
     
     
 

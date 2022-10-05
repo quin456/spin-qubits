@@ -23,6 +23,7 @@ kg = 1/mE_n
 C = 1/qE_n 
 s = hbar_n*kg*m**2
 ns = 1e-9*s
+ps = 1e-12*s
 
 
 rad = 1
@@ -35,6 +36,8 @@ Hz = 2*np.pi/s # because frequencies are expected in rad/second
 rps = 1/s
 eV = qE*V 
 meV = 1e-3*eV
+K=1
+mK=1e-3*K
 
 
 MV = 1e6*V
@@ -46,6 +49,7 @@ Mrps = 1e6*rps
 um = 1e-6*m 
 nm = 1e-9*m
 
+kB = 1.38e-23 * m**2 * kg / (s**2 * K)
 
 
 if __name__ == '__main__':

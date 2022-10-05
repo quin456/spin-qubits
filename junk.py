@@ -55,3 +55,51 @@ def placement_symmetries(delta_x = 50, delta_y = 0):
     print(f"Unique J-couplings = {len(distance_tups_unique)}")
 
 
+
+
+
+
+def save_grapes(J=get_J_1P_2P(48), A=get_A_1P_2P(48), tN=5000*unit.ns, N=5000, idxs = np.linspace(0,47,48).astype(int), max_time=60, lam=1e8):
+
+    for i in idxs:
+        grape = GrapeESR_AJ_Modulation(J[i], A[i], tN, N, Bz=0, target=CNOT_targets(1,2), max_time=max_time, lam=lam)
+        grape.run()
+        grape.save(f"grape_bunch/grape{i}")
+
+
+def test_sum(tN = 5000*unit.ns, N=5000, nS=2, max_time=15, div=1, lam=0, save_grapes=False):
+    save_data=False
+    nq=2
+    target_single = CNOT_targets(1, nq)
+    J = get_J_1P_2P(48)
+    A = get_A_1P_2P(48)
+
+    grapes = []
+
+    if save_grapes:
+        grape = GrapeESR_AJ_Modulation(J[0], A[0], tN, N, Bz=0, target=target_single, max_time=max_time, save_data=save_data, lam=lam)
+        grape.run()
+        grape.save("grape_bunch/grape0")
+        grape = GrapeESR_AJ_Modulation(J[1], A[1], tN, N, Bz=0, target=target_single, max_time=max_time, save_data=save_data, lam=lam)
+        grape.run()
+        grape.save("grape_bunch/grape1")
+    
+    grape0 = load_grape("grape_bunch/grape0", GrapeESR_AJ_Modulation)
+    grape0.print_result()
+    grape1 = load_grape("grape_bunch/grape1", GrapeESR_AJ_Modulation)
+    grapes=[grape0, grape1]
+
+    grape = sum_grapes(grapes)
+    grape.plot_result()
+
+    for i in range(48):
+        grape.J = J[i]/div
+        grape.A = A[i]
+        grape.H0=grape.get_H0()
+        #X_free = get_electron_X(grape.tN, grape.N, 0, grape.A, grape.J)
+        X_free = get_X_from_H(grape.H0, tN, N)
+        grape.propagate()
+
+
+        print(f"CX, free fids: {fidelity(grape.X[0,-1], gate.CX):.3f} {fidelity(grape.X[0,-1], X_free[0,-1]):.3f}")
+

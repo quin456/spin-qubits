@@ -1,10 +1,10 @@
 
 
 import torch as pt
-import matplotlib
+import matplotlib as mpl
 import numpy as np
 if not pt.cuda.is_available():
-    matplotlib.use('Qt5Agg')
+    mpl.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 
 
@@ -20,14 +20,25 @@ from data import get_A, get_J, gamma_n, gamma_e, B0, cplx_dtype, default_device
 from pdb import set_trace
 
 
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
-fig_width_double_long = 10
-fig_height_single_long = 2.8
+class FigureColours:
+    sites_colour = '#1DA4BF'
+
+
+blue = 'dodgerblue'
+darkblue = 'blue'
+grey='silver'
+yellow='orange'
+orange='red'
+red='darkred'
+
+fig_width_double_long = 8
+fig_height_single_long = 2.4
 fig_height_double_long = 4.5
 fig_width_single = 3.2*1.2
-fig_width_double = fig_width_single*2 #untested
+fig_width_double = fig_width_single*1.7 #untested
 fig_height_single = 2.4*1.2
 
 annotate=False
@@ -53,6 +64,8 @@ def spin_state_ket_label_getter(i, nq=2, states_to_label=None):
 def spin_state_ket_sq_label_getter(i, nq=2, states_to_label=None):
     return f"|{spin_state_ket_label_getter(i, nq=nq, states_to_label=states_to_label)}$|^2$"
 
+def alpha_sq_label_getter(i):
+    return f'$|α_{i}|^2$'
 
 def eigenstate_label_getter(i, states_to_label=None):
     if states_to_label is not None:
@@ -145,7 +158,7 @@ def plot_phases(psi, tN=None, T=None, ax=None, legend_loc='upper center'):
     for i in range(dim):
         phase[:,i] = pt.angle(psi)[:,i]#-pt.angle(psi)[:,0]
         ax.plot(T/unit.ns,phase[:,i], label = f'$\phi_{i}$')
-    ax.legend()
+    ax.legend(loc = legend_loc)
     ax.set_xlabel("time (ns)")
     print(f"Final phase = {phase[-1,:]}")
     return ax
@@ -235,14 +248,14 @@ def plot_multi_sys_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     for sys in E:
         for i in range(len(sys)):
-            ax.axhline(pt.real(sys[i]/unit.MHz), label=f'E{dim-1-i}', color=colors[i])
+            ax.axhline(pt.real(sys[i]/unit.MHz), label=f'E{dim-1-i}', color=color_cycle[i])
     ax.legend()
 
 def plot_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     dim = len(E)
     for i in range(dim):
-        ax.axhline(pt.real(E[i]/unit.MHz), label=f'E{dim-1-i}', color=colors[i%len(colors)])
+        ax.axhline(pt.real(E[i]/unit.MHz), label=f'E{dim-1-i}', color=color_cycle[i%len(color_cycle)])
 
 def plot_energy_spectrum_from_H0(H0):
     rf = get_resonant_frequencies(H0)
@@ -377,6 +390,7 @@ def plot_J(T, J, ax=None):
 
 
 
+
 def fidelity_bar_plot(fids, ax=None, f1=0.9999, f2=0.99, f3=0.98):
     '''
     Accepts nS length array of final fidelities for each system.
@@ -391,13 +405,91 @@ def fidelity_bar_plot(fids, ax=None, f1=0.9999, f2=0.99, f3=0.98):
         else:
             return 'darkred'
 
+    nbins=4
+    fids_binned = [[] for _ in range(nbins)]
+    sys_binned = [[] for _ in range(nbins)]
+    for j in range(len(fids)):
+        if fids[j]>f1:
+            i_bin = 0
+        elif fids[j]>f2:
+            i_bin = 1
+        elif fids[j]>f3:
+            i_bin = 2
+        elif fids[j]<f3:
+            i_bin = 3
+        fids_binned[i_bin].append(fids[j])
+        sys_binned[i_bin].append(j)
+    
+
+    colors = ['green', 'orange', 'red', 'darkred']
+    labels = [f'>{f1*100}%', f'>{f2*100}%', f'>{f3*100}%', f'<{f3*100}%']
+    for i in range(nbins):
+        ax.bar(sys_binned[i], fids_binned[i], color=colors[i], label=labels[i])
     color = [get_fid_color(fid) for fid in fids]
     if ax is None: ax = plt.subplot()
     nS=len(fids)
-    ax.bar(np.linspace(0,nS-1,nS), fids, np.ones(nS)*0.3, color = color)
+    #ax.bar(np.linspace(0,nS-1,nS), fids, np.ones(nS)*0.3, color = color)
+    ax.legend()
     
 
+def nuclear_spin_tag(ax, NucSpin, r_prop = 0.1, down_color = 'red', up_color = 'dodgerblue', loc = 'lower left', dx=0, dy=0, text=None):
+    width, height = ax.get_figure().get_size_inches()
+    ylim = ax.get_ylim()
+    xlim = ax.get_xlim()
+    x_mult = (xlim[1] - xlim[0])/width
+    y_mult = (ylim[1] - ylim[0])/height
+    radius = r_prop * (ylim[1]-ylim[0])
 
+    locy, locx = loc.split()
+    if locx == 'left': x0 = xlim[0]
+    elif locx == 'center': x0 = (xlim[1]+xlim[0])/2 - (3*len(NucSpin)-1.5)*(radius*x_mult)/2
+    elif locx == 'right': x0 = xlim[1] - (3*len(NucSpin)-1.5)*(radius*x_mult)
+    else: raise Exception("Invalid location")
+    if locy == 'upper': y0 = ylim[1]-radius*y_mult*4
+    elif locy == 'center': y0 = (ylim[1]+ylim[0])/2-radius*y_mult*2
+    elif locy == 'lower': y0 = ylim[0]
+    else: raise Exception("Invalid location")
+    pos = np.array([x0 + (2*radius+dx)*x_mult, y0 + (2*radius+dy)*y_mult])
+    color = [down_color if nspin else up_color for nspin in NucSpin]
+    for j,nspin in enumerate(NucSpin):
+        posj = pos+j*np.array([1.5*radius*x_mult, 0])
+        circ = mpl.patches.Ellipse(posj, radius*x_mult, radius*y_mult, facecolor = 'gray', edgecolor='black', linewidth=0.5)
+        if nspin:
+            farrow = mpl.patches.FancyArrow(*posj, 0, -1*radius*y_mult, width=0.1, head_length=0.05, head_width=0.2, color=color[j])
+        else:
+            farrow = mpl.patches.FancyArrow(*posj, 0, 1*radius*y_mult, width=0.1, head_length=0.05, head_width=0.2, color=color[j])
+        ax.add_patch(farrow)
+        ax.add_patch(circ)
+    if text is not None:
+        ax.annotate(text, (x0 + (1.5    *radius+dx)*x_mult, y0-radius*2.5*y_mult + (2*radius+dy)*y_mult))
+
+
+def color_bar(ax, colors, padding = 0, tick_labels=['V3', 'V2', 'V1', '0 V'], orientation='horizontal'):
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    Dx = xlim[1] - xlim[0]
+    Dy = ylim[1] - ylim[0]
+    n = len(colors)
+    width = Dx * (1 - 2*padding)
+    height = Dy * (1 - 2*padding)
+
+    xy0 = np.array([xlim[0]+padding*Dx, ylim[0]+padding*Dy])
+    ticks=[]
+    for i in range(n):  
+        if orientation == 'horizontal':
+            rectangle = mpl.patches.Rectangle(xy0+i*np.array([0,height/n]), width, height, color=colors[i])
+            ticks.append(xy0[1]+(i+1/2)*height/n)
+        else:
+            rectangle = mpl.patches.Rectangle(xy0+i*np.array([width/n,0]), width, height, color=colors[i])
+            ticks.append(xy0[0]+(i+1/2)*width/n)
+
+        ax.add_patch(rectangle)
+    if orientation=='horizontal':
+        ax.set_xticks([])
+        ax.set_yticks(ticks=ticks, labels=tick_labels)
+    else:
+        ax.set_yticks([])
+        ax.set_xticks(ticks=ticks, labels=tick_labels)
 
 if __name__=='__main__':
 
@@ -405,5 +497,14 @@ if __name__=='__main__':
     #plot_exchange_energy_diagram(J=pt.linspace(-100,100,100)*unit.MHz, A=get_A(100,2), Bz=0.02*unit.T)
     #plot_NE_alpha_beta(Bz = pt.linspace(0,5, 500)*unit.T)
     #plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.T)
-    fidelity_bar_plot(np.array([0.99, 0.95, 0.92, 0.99, 0.9999, 0.978]))
+    #fidelity_bar_plot(np.array([0.99, 0.95, 0.92, 0.99, 0.9999, 0.978]))
+
+    # fig,ax = plt.subplots()
+    # x = np.linspace(0,10,100)
+    # ax.plot(x, np.sin(x))
+    # nuclear_spin_tag(ax, [0,1,1], loc = 'center center', text='15x 1P-1P')
+    # plt.show()
+
+    ax = plt.subplot()
+    color_bar(ax, colors=['#0000cc', '#0080ff', '#99ccff','lightgray', 'orange', 'red'], tick_labels=['1','2','3','4','5','6'], orientation='vertical')
     plt.show()

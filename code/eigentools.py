@@ -20,7 +20,7 @@ from pulse_maker import pi_pulse_field_strength
 
 
 
-def get_allowed_transitions(H0=None, Hw_shape=None, S=None, E=None, device=default_device):
+def get_allowed_transitions(H0=None, Hw_shape=None, S=None, D=None, device=default_device):
 
     if S is None:
         if H0 is None: raise Exception("No Hamiltonian information provided.")
@@ -28,6 +28,8 @@ def get_allowed_transitions(H0=None, Hw_shape=None, S=None, E=None, device=defau
         E=eig.eigenvalues
         S = eig.eigenvectors
         S=S.to(device)
+    else:
+        E = pt.diag(D)
 
     S_T = pt.transpose(S,0,1)
     d = len(E)
@@ -50,15 +52,16 @@ def get_allowed_transitions(H0=None, Hw_shape=None, S=None, E=None, device=defau
 
     return allowed_transitions
 
-def get_resonant_frequencies(H0,Hw_shape=None, S=None,E=None, device=default_device, return_transitions=False):
+def get_resonant_frequencies(H0,Hw_shape=None, S=None,D=None, device=default_device, return_transitions=False):
     '''
     Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
     Useful for >2qubit systems where analytically determining frequencies becomes difficult. 
     '''
-    if E is None:
+    if D is None:
         eig = pt.linalg.eig(H0)
         E=eig.eigenvalues
-    allowed_transitions = get_allowed_transitions(H0, S=S, E=E, Hw_shape=Hw_shape, device=device)
+        D = pt.diag(E)
+    allowed_transitions = get_allowed_transitions(H0, S=S, D=D, Hw_shape=Hw_shape, device=device)
     transition_freqs = get_transition_freqs(allowed_transitions, E=E, device=device)
     if return_transitions:
         return transition_freqs, allowed_transitions
@@ -66,8 +69,9 @@ def get_resonant_frequencies(H0,Hw_shape=None, S=None,E=None, device=default_dev
 
 
 def get_rf_matrix(S, D, device=default_device, Hw_shape=None):
+    if len(S.shape) > 2: return get_multisys_rf_tensor(S, D, device=device, Hw_shape=Hw_shape)
     E = pt.diag(D)
-    allowed_transitions = get_allowed_transitions(S=S, E=E, Hw_shape=Hw_shape, device=device)
+    allowed_transitions = get_allowed_transitions(S=S, D=D, Hw_shape=Hw_shape, device=device)
     rf_mat = pt.zeros_like(S)
     for transition in allowed_transitions:
         rf_mat[transition] = pt.real(E[transition[0]]-E[transition[1]])

@@ -34,7 +34,7 @@ def grape_48S_fid_bars():
     fids = grape.fidelity()[0]
     fidelity_bar_plot(fids)
 
-def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, save_data=False, lam=0, prev_grape_fn=None, verbosity=2):
+def run_2P_1P_CNOTs(tN,N, nS=15, Bz=0, max_time = 24*3600, lam=0, prev_grape_fn=None, verbosity=2):
 
     nq = 2
     A = get_A_1P_2P(nS)
@@ -57,8 +57,8 @@ if __name__ == '__main__':
 
     lam=1e11
 
-    #run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=2, max_time = 60, lam=1e8, save_data=True, prev_grape_fn='fields-gadi/fields/g228_48S_2q_5000ns_10000step')
-    run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=48, max_time = 23.5*3600, lam=0)
+    #run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=2, max_time = 23.5*3600, lam=1e8, prev_grape_fn='fields/g233_48S_2q_5000ns_10000step')
+    run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=48, max_time = 10, lam=0)
     #grape_48S_fid_bars(); plt.show()
     
 

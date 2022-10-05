@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.pyplot import figure 
 import numpy as np 
 
-from GRAPE import GrapeESR, load_grape
+from GRAPE import GrapeESR, GrapeESR_AJ_Modulation, load_grape
 import gates as gate
 from utils import psi_from_polar, normalise, label_axis
 from eigentools import get_resonant_frequencies, lock_to_frequency
@@ -18,12 +18,12 @@ from visualisation import *
 from single_spin import show_single_spin_evolution
 from data import dir, cplx_dtype, gamma_e, gamma_n, J_100_14nm, J_100_18nm, get_A, get_J
 import atomic_units as unit
-from architecture_design import plot_cell_array, plot_annotated_cell, generate_CNOTs, numbered_qubits_cell, plot_single_cell
+from architecture_design import *
 from electrons import plot_free_electron_evolution, get_free_electron_evolution
 from transition_visualisation import visualise_E_transitions
 from single_NE import *
 from multi_NE import *
-from misc_calculations import plot_load_time_vs_J
+from misc_calculations import *
 from voltage_plot import plot_CNOTs
 from electrons import investigate_3E_resfreqs
 
@@ -40,6 +40,9 @@ Downarrow = '⇓'
 rangle = '⟩'
 
 max_time = 10
+
+xoff_half_long = -0.08 
+yoff_half_long = -0.15
 
 
 ################################################################################################################
@@ -116,7 +119,7 @@ def bloch_sphere_XZH(psi, fp=None):
     if fp is not None: plt.savefig(fp)
 
 
-def energy_level_picture(H0, state_labels=None, energy_labels=None, colors=colors, ax=None, fp=None, ax_label=None):
+def energy_level_picture(H0, state_labels=None, energy_labels=None, colors=color_cycle, ax=None, fp=None, ax_label=None):
 
     S,D = get_ordered_eigensystem(H0)
     energies = pt.real(pt.diagonal(D))
@@ -233,53 +236,105 @@ def show_2E_Hw(J,A, tN, N, fp=None):
     U0 = get_U0(H0, tN, N)
     visualise_Hw(S.T@dagger(U0)@Hw@U0@S, tN)
 
-def chapter_1():
+def intro_and_review():
     bloch_sphere_XZH(psi_from_polar(np.pi/4,0), fp = f'{plots_folder}Ch1-bloch-sphere.pdf')
     #show_single_spin_evolution(tN=100*unit.ns, fp = f"{plots_folder}Ch1-analytic-example.pdf")
     #two_electron_energy_level_picture(fp=f"{plots_folder}Ch1-2E-energy-levels.pdf")
 
 
-def chapter_2(chapter='Ch2-'):
-    #plot_cell_array(4,4, filename=f"{plots_folder}Ch2-cell_array.pdf")
-    generate_CNOTs(fp = f"{plots_folder}Ch2-CNOT-voltage-cells.pdf")
+def HHex(chapter='H-Hex-'):
+    def compare_symmetry(fp=None):
+        fig,ax = plt.subplots(1)
+        dist=18
+        sq_centre = np.array([dist,0])
+        diag_centre = np.ceil(np.array([dist/np.sqrt(2), dist/np.sqrt(2)]))
+        hex_centre = np.ceil(np.array([dist*np.sqrt(3)/2, dist*1/2]))
+        all_sites = get_all_sites([0,dist], [0,dist/np.sqrt(2)], padding=dist//5)
+        plot_spheres(all_sites, ax=ax, alpha=0.1)
+        sites_color='#1DA4BF'
+        alpha = 0.5
+        plot_9_sites(0, 0, ax=ax, neighbour_color=sites_color)
+        plot_9_sites(*sq_centre, ax=ax, round_func = np.ceil, neighbour_color=sites_color, alpha=alpha)
+        plot_9_sites(*diag_centre, ax=ax, round_func = np.ceil, neighbour_color=sites_color, alpha=alpha)
+        plot_9_sites(*hex_centre, ax=ax, round_func = np.ceil, neighbour_color=sites_color, alpha=alpha)
+
+        linecolor_15='black'
+        linecolor_25 = 'darkred'
+        linewidth = 1.5
+        fontsize = 13
+        ax.plot([1.5, sq_centre[0]-1.5], [0,sq_centre[1]], color=linecolor_15, linewidth=linewidth)
+        ax.plot([np.sqrt(2), diag_centre[0]-np.sqrt(2)], [np.sqrt(2),diag_centre[1]-np.sqrt(2)], color=linecolor_15, linewidth=linewidth)
+        ax.plot([1.5, hex_centre[0]-1.5], [np.sqrt(3)/2,hex_centre[1]-np.sqrt(3)/2], color=linecolor_25, linewidth=linewidth)
+
+        n=100
+        ang_adjust = np.arctan(hex_centre[1]/hex_centre[0])
+        theta1 = np.linspace(0,ang_adjust, n)
+        theta2 = np.linspace(0,np.pi/4, n)
+        r1 = 12
+        r2 = 7
+        ax.plot(r1*np.cos(theta1), r1*np.sin(theta1), color=linecolor_25)
+        ax.plot(r2*np.cos(theta2), r2*np.sin(theta2), color=linecolor_15)
+
+        ax.annotate('0°', sq_centre + [-3.5,0.45], fontsize=fontsize)
+        ax.annotate('45°', r2*diag_centre/dist + [-1.05,0.55], fontsize=fontsize)
+        ax.annotate('30°', r1*hex_centre/dist + [-0.95,0.6], fontsize=fontsize, color=linecolor_25)
+        if fp is not None:
+            plt.savefig(fp)
+        
+    #plot_cell_array(4,4, filename=f"{plots_folder}{chapter}cell_array.pdf")
+    #generate_CNOTs(fp = f"{plots_folder}{chapter}CNOT-voltage-cells.pdf")
+    generate_2_coupler_conditions(fp = f"{plots_folder}{chapter}coupler_V_configs.pdf")
     #plot_CNOTs(fp=f"{plots_folder}{chapter}CNOT-voltage-schedule.pdf")
-    #plot_annotated_cell(filename=f"{plots_folder}Ch2-single_cell.pdf")
+    #plot_annotated_cell(filename=f"{plots_folder}{chapter}single_cell.pdf")
     #numbered_qubits_cell()
-    #plot_single_cell()
+    compare_symmetry(fp = f"{plots_folder}{chapter}symmetry-comparison.pdf")
+
     plt.show()
 
 
 
-def chapter_3(chapter="Ch3-"):
+def pulse_design(chapter="Ch3-"):
 
-    def grape_1s2q(fp=None, fp1=None, fp2=None):
-        grape = GrapeESR(J=get_J(1,2), A=get_A(1,2),tN=100*unit.ns, N=500, max_time=None, verbosity=2); grape.run()
+    def grape_1s2q(fp=None, fp1=None, fp2=None, prev_grape_fp = None):
+        if prev_grape_fp is None:
+            grape = GrapeESR(J=get_J(1,2), A=get_A(1,2),tN=100*unit.ns, N=500, max_time=None, verbosity=2)
+            grape.run()
+            grape.save()
+        else:
+            grape = load_grape(prev_grape_fp)
         fig,ax = plt.subplots(1,2)
         fig1, ax1 = plt.subplots(1,2)
         fig2, ax2 = plt.subplots(1,2)
-        grape.plot_u(ax[0])
+        grape.plot_u(ax[0], legend_loc = 'center')
         grape.plot_cost_hist(ax[1])
         grape.plot_field_and_fidelity(fp1, fig=fig1, ax=ax1)
-        grape.plot_psi_with_phase(ax2)
+        grape.plot_psi_with_phase(ax2, phase_legend_loc='upper center')
+        # label_axis(ax[0], "(a)", x_offset=-0.08, y_offset=-0.15)
+        # label_axis(ax[1], "(b)", x_offset=-0.08, y_offset=-0.15)
+        # label_axis(ax1[0], "(a)", x_offset=-0.08, y_offset=-0.15)
+        # label_axis(ax1[1], "(b)", x_offset=-0.08, y_offset=-0.15)
+        # label_axis(ax2[0], "(a)", x_offset=-0.08, y_offset=-0.15)
+        # label_axis(ax2[1], "(b)", x_offset=-0.08, y_offset=-0.15)
         fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig1.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig2.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
         fig1.tight_layout()
         fig2.tight_layout()
-        label_axis(ax[0], "(a)", x_offset=-0.08, y_offset=-0.15)
-        label_axis(ax[1], "(b)", x_offset=-0.08, y_offset=-0.15)
-        label_axis(ax1[0], "(a)", x_offset=-0.08, y_offset=-0.15)
-        label_axis(ax1[1], "(b)", x_offset=-0.08, y_offset=-0.15)
-        label_axis(ax2[0], "(a)", x_offset=-0.08, y_offset=-0.15)
-        label_axis(ax2[1], "(b)", x_offset=-0.08, y_offset=-0.15)
+
         if fp is not None: fig.savefig(fp)
         if fp1 is not None: fig1.savefig(fp1)
         if fp2 is not None: fig2.savefig(fp2)
 
+    def grape_no_rf():
+        rf = pt.tensor([0], dtype=real_dtype, device=default_device)
+        grape = GrapeESR(J=get_J(15,2), A=get_A(15,2), tN=1000*unit.ns, N=2500, rf=rf, max_time=2745)
+        grape.run()
+        grape.plot_result()
+
     def grape_1s3q(fp1=None, grape_fp='fields/c864_1S_3q_200ns_2000step', lam=1e8, max_time=None):
         A = get_A(1, 3)
-        J = get_J(1, 3, J1=J_100_18nm, J2=J_100_14nm[8:])
+        J = J_1s3q
         
         if grape_fp is None:
             grape = GrapeESR(J, A, tN=200*unit.ns, N=2000, max_time=max_time, save_data=False, lam=0)
@@ -293,8 +348,8 @@ def chapter_3(chapter="Ch3-"):
 
     def NE_EN_CX(fp=f"{plots_folder}{chapter}NE_EN_CX.pdf"):
         fig,ax = plt.subplots(2,2)
-        show_NE_CX(get_A(1,1),2*unit.T, 100000, ax=ax[0])
-        show_EN_CX(get_A(1,1),2*unit.T, 40000 , ax=ax[1])
+        show_NE_CX(get_A(1,1),2*unit.T, 100000, ax=ax[0], legend_loc = 'center right')
+        show_EN_CX(get_A(1,1),2*unit.T, 40000 , ax=ax[1], legend_loc = 'center right')
         fig.set_size_inches(fig_width_double_long, fig_height_double_long)
         fig.tight_layout()
         y_offset=-0.3
@@ -315,41 +370,42 @@ def chapter_3(chapter="Ch3-"):
         B_n = 1
         t0=0
 
-        tn_CX = 10760.332
-        tn_wait = 171.237
-        te_CX = 34.188
-        te_wait = 59.790
+        div=1e3
+        tn_CX = 10760.332 /div
+        tn_wait = 171.237 /div
+        te_CX = 34.188 /div
+        te_wait = 59.790 /div
 
-    
+        ndigits=2
+        ndigits1=2
 
         t0_tick = '0'
-        t1_tick=str(int(te_CX))
-        t2_tick = str(int(te_CX+te_wait))
-        t3_tick = str(int(te_CX+te_wait+tn_CX))
-        t4_tick = str(int(te_CX+te_wait+tn_CX+tn_wait))
-        t5_tick = str(int(te_CX+te_wait+tn_CX+tn_wait+te_CX))
-        t6_tick = str(int(te_CX+te_wait+tn_CX+tn_wait+te_CX+te_wait))
+        t1_tick=str(round(te_CX,ndigits))
+        t2_tick = str(round(te_CX+te_wait, ndigits))
+        t3_tick = str(round(te_CX+te_wait+tn_CX, ndigits1))
+        t4_tick = str(round(te_CX+te_wait+tn_CX+tn_wait, ndigits1))
+        t5_tick = str(round(te_CX+te_wait+tn_CX+tn_wait+te_CX, ndigits1))
+        t6_tick = str(round(te_CX+te_wait+tn_CX+tn_wait+te_CX+te_wait, ndigits1))
         ticks = [t0_tick,t1_tick,t2_tick,t3_tick,t4_tick,t5_tick,t6_tick]
 
 
-        xn_CX = tn_CX/60
-        xn_wait = tn_wait/1.5
+        xn_CX = tn_CX/70
+        xn_wait = tn_wait/1.9
 
         x0 = 0
-        x1 = int(te_CX)
-        x2 = int(te_CX+te_wait)
-        x3 = int(te_CX+te_wait+xn_CX)
-        x4 = int(te_CX+te_wait+xn_CX+xn_wait)
-        x5 = int(te_CX+te_wait+xn_CX+xn_wait+te_CX)
-        x6 = int(te_CX+te_wait+xn_CX+xn_wait+te_CX+te_wait)
+        x1 = te_CX
+        x2 = te_CX+te_wait
+        x3 = te_CX+te_wait+xn_CX
+        x4 = te_CX+te_wait+xn_CX+xn_wait
+        x5 = te_CX+te_wait+xn_CX+xn_wait+te_CX
+        x6 = te_CX+te_wait+xn_CX+xn_wait+te_CX+te_wait
 
-        x = [x0, x1, x2, x3, x4, x5, x6]
-
+        x = np.array([x0, x1, x2, x3, x4, x5, x6])
         B = [0,B_e,B_e,0, 0, B_n,B_n,0, 0, B_e, B_e, 0, 0]
         T = [x[0], x[0], x[1], x[1],x[2],x[2], x[3], x[3],x[4],x[4],  x[5],  x[5],x[6]]
         ax.plot(T,B, color=color)
         ax.set_xticks(x, ticks)
-        ax.set_xlabel("time (ns)")
+        ax.set_xlabel("time (µs)")
         ax.set_ylabel("$B_{ac}$ (mT)", color=color)
         ax.set_yticks([0,B_e,B_n], [0,B_e, B_n])
 
@@ -358,12 +414,12 @@ def chapter_3(chapter="Ch3-"):
         w_e = 55990
         y1=0.2
         y2=0.8
-        ax2.set_ylabel('$\omega$ (MHz)', color=color2)
+        ax2.set_ylabel('$\omega/2\pi$ (MHz)', color=color2)
         ax2.set_yticks([y1,y2], [w_n, w_e])
         ax.set_ylim([-0.3,1.3])
-        ax2.plot([x0,x1], [y2,y2], color=color2)
-        ax2.plot([x2,x3], [y1,y1], color=color2)
-        ax2.plot([x4,x5], [y2,y2], color=color2)
+        ax2.plot([x[0],x[1]], [y2,y2], color=color2)
+        ax2.plot([x[2],x[3]], [y1,y1], color=color2)
+        ax2.plot([x[4],x[5]], [y2,y2], color=color2)
 
 
         fig.set_size_inches(fig_width_double_long, fig_height_single_long)
@@ -385,17 +441,19 @@ def chapter_3(chapter="Ch3-"):
 
         if fp is not None: fig.savefig(fp)
 
-    def all_15_2q_CNOTs(fp1 = None,tN=1000*unit.ns, N=2500, prev_grape_fp=None, max_time=1800, lam=1e7):
+    def all_15_2q_CNOTs(fp1 = None,tN=2000*unit.ns, N=2500, max_time=1800, lam=1e7, prev_grape_fp=None):
 
+        old_big_field_prev_grape_fp = 'fields/c877_15S_2q_200ns_500step'
         nS = 15; nq = 2
         A = get_A(nS, nq)
         J = get_J(nS, nq)
         if prev_grape_fp is None:
-            grape = GrapeESR(J, A, tN, N, max_time=max_time, lam=lam)
+            grape = GrapeESR(J, A, tN, N, max_time=max_time, lam=0)
             grape.run()
             grape.save()
         else:
             grape = load_grape(prev_grape_fp, max_time=max_time, lam=lam)
+            grape.print_result()
 
         #grape.plot_result()
 
@@ -409,8 +467,9 @@ def chapter_3(chapter="Ch3-"):
     #free_2E_evolution(fp = f"{plots_folder}Ch3-2E-free-evolution.pdf")
 
 
-    #grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-fidelity.pdf", fp2 = f"{plots_folder}Ch3-psi-evolution.pdf")
-    #grape_1s3q(fp1 = f"{plots_folder}Ch3-3E-field-and-fidelity.pdf")
+    grape_1s2q(fp = f"{plots_folder}Ch3-2E-u-and-cost.pdf", fp1 = f"{plots_folder}Ch3-2E-field-and-fidelity.pdf", fp2 = f"{plots_folder}Ch3-psi-evolution.pdf", prev_grape_fp='fields/c878_1S_2q_100ns_500step')
+    #grape_no_rf()
+    #grape_1s3q(fp1 = f"{plots_folder}Ch3-3E-field-and-fidelity.pdf", )
     #grape = GrapeESR(get_J(1,3), get_A(1,3), tN=100*unit.ns, N=500, max_time=max_time); grape.run(); grape.plot_field_and_fidelity(f"{plots_folder}Ch3-3E-field-and-evolution.pdf")
 
     #show_2E_Hw(get_J(1,2),get_A(1,2),30*unit.ns,500, "Ch3-2E-Hw.pdf")
@@ -422,8 +481,10 @@ def chapter_3(chapter="Ch3-"):
 
     #NE_EN_CX()
     #show_NE_swap(get_A(1,1),2*unit.T, 100000, 40000, fp=f"{plots_folder}{chapter}NE_swap.pdf")
-    plot_swap_schedule()
-    #all_15_2q_CNOTs(fp1=f"{plots_folder}Ch3-15-2E-field-and-fidelity.pdf", prev_grape_fp='fields/c877_15S_2q_200ns_500step', max_time=None)
+    #plot_swap_schedule()
+
+    prev='fields/g235_15S_2q_2000ns_5000step'
+    #all_15_2q_CNOTs(fp1=f"{plots_folder}Ch3-15-2E-field-and-fidelity.pdf", prev_grape_fp=None, max_time=None)
 
 def no_coupler():
     def plot_exchange_switch(A=get_A(1,3), J=get_J(1,3), fp=None):
@@ -548,11 +609,172 @@ def no_coupler():
     #plot_load_time_vs_J(fid_min=0.99, Jmin=0.5*unit.MHz, Jmax=20*unit.MHz, tN_max=100*unit.ns, A=get_A(1,3), n=100, fp=f"{plots_folder}NC-J-vs-max-load-time-99.pdf")
 
 
+def HSquare(chapter = 'HS-'):
+
+    def plot_lattice_sites(fp=None):
+        fig,ax = plt.subplots(1,1)
+        dist=51
+        x0=0; x1=dist
+        y0 = -1; y1=6
+        padding=1
+        all_sites = get_all_sites([-1,dist], [-1,6], padding=padding)
+        plot_spheres(all_sites, ax=ax, alpha=0.1)
+        ax.set_xlim([x0-padding-0.5,dist+padding+0.5])
+        ax.set_ylim([y0-padding-0.5, y1+padding+0.5])
+        ax.set_aspect('equal')
+        sites_color='#1DA4BF'
+        alpha = 0.5
+        #plot_9_sites(0, 0, ax=ax, neighbour_color=sites_color)
+        
+        linewidth = 1.5
+        fontsize = 13
+
+        d=1 
+        delta_x=dist-4
+        delta_y=0
+        separation_2P=4
+        alpha = 0.5
+
+        sites_colour = FigureColours.sites_colour
+        sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites_1P_2P(delta_x, delta_y, d=d, separation_2P=separation_2P)
+        plot_spheres(sites_2P_lower, color=sites_colour, alpha=alpha, ax=ax)
+        plot_spheres(sites_2P_upper, color=sites_colour, alpha=alpha, ax=ax)
+        plot_spheres(sites_1P, color=sites_colour, alpha=alpha, ax=ax)
+
+        s2L = sites_2P_lower[5]
+        s2U = sites_2P_upper[3]
+        s1 = sites_1P[0]
+
+        ax.plot([s2L[0], s2U[0]], [s2L[1], s2U[1]], color='black', linestyle='dotted', label='Hyperfine separation')
+        ax.plot([(s2L[0]+s2U[0])/2, s1[0]], [(s2L[1]+s2U[1])/2, s1[1]], color='black', linestyle='dashed', label='Exchange separation')
+
+        plot_spheres([s2U], color='red', ax=ax, zorder=3)
+        plot_spheres([s2L], color='red', ax=ax, zorder=3)
+        plot_spheres([s1], color='red', ax=ax, zorder=3)
+
+
+        #ax.plot([10,10], [5,6])
+        ax_length=3
+        ax_origin = np.array([7,-1])
+        ax.arrow(*ax_origin, 0, ax_length, shape='full', lw=1, length_includes_head=True, head_width=0.2)
+        ax.arrow(*ax_origin, ax_length, 0, shape='full', lw=1, length_includes_head=True, head_width=0.2)
+        ax.annotate('[1,-1,0]', ax_origin + np.array([-0,-1.3]))
+        ax.annotate('[1,1,0]', ax_origin + np.array([-1.6,-0.5]), rotation=90)
+        
+        ax.legend(loc='upper center')
+        ax.axis('off')
+        fig.set_size_inches(fig_width_double, 0.6*fig_height_single)
+        if fp is not None:
+            plt.savefig(fp)
+
+    def voltage_scale(fp=f'{plots_folder}{chapter}voltage-scale.pdf'):
+        fig,ax=plt.subplots(1,1)
+        padding=0.04
+        color_bar(ax, [blue, grey, yellow, orange, red], tick_labels=[], orientation='vertical', padding=padding)
+        ax.axis('off')
+        xlim = ax.get_xlim(); ylim=ax.get_ylim()
+        ax.annotate('+V', [xlim[1], ylim[0]], fontsize=30)
+        ax.annotate('–V', [xlim[0], ylim[0]], fontsize=30)
+        fig.set_size_inches(20,0.4)
+        fig.savefig(f'{plots_folder}{chapter}voltage-scale.pdf')
+
+
+    def compare_symmetry(fp=None):
+        fig,ax = plt.subplots(1)
+        dist=18
+        sq_centre = np.array([dist,0])
+        diag_centre = np.ceil(np.array([dist/np.sqrt(2), dist/np.sqrt(2)]))
+        hex_centre = np.ceil(np.array([dist*np.sqrt(3)/2, dist*1/2]))
+        all_sites = get_all_sites([0,dist], [0,dist/np.sqrt(2)], padding=dist//5)
+        plot_spheres(all_sites, ax=ax, alpha=0.1)
+        sites_color='#1DA4BF'
+        alpha = 0.5
+        plot_9_sites(0, 0, ax=ax, neighbour_color=sites_color)
+        plot_9_sites(*sq_centre, ax=ax, round_func = np.ceil, neighbour_color=sites_color, alpha=alpha)
+        plot_9_sites(*diag_centre, ax=ax, round_func = np.ceil, neighbour_color=sites_color, alpha=alpha)
+        plot_9_sites(*hex_centre, ax=ax, round_func = np.ceil, neighbour_color=sites_color, alpha=alpha)
+
+        linecolor_15='black'
+        linecolor_25 = 'darkred'
+        linewidth = 1.5
+        fontsize = 13
+        n=100
+        ang_adjust = np.arctan(hex_centre[1]/hex_centre[0])
+        theta1 = np.linspace(0,ang_adjust, n)
+        theta2 = np.linspace(0,np.pi/4, n)
+        r1 = 12
+        r2 = 7
+        if fp is not None:
+            plt.savefig(fp)
+
+    def all_48_1P_2P_CNOTs(grape_fp='fields-gadi/fields/g228_48S_2q_5000ns_10000step', fp=None):
+        grape=load_grape(grape_fp, Grape=GrapeESR_AJ_Modulation)
+        #grape.plot_result()    
+        xcol=color_cycle[0]
+        ycol = color_cycle[1]
+
+        fig, ax = plt.subplots(2,1)
+        ax2=ax[0].twinx()
+        ax[0].set_ylabel("$B_x$ (mT)", color=xcol)
+        ax2.set_ylabel("$B_y$ (mT)", color=ycol)
+        ax[0].set_yticks([-1,0,1], color=xcol)
+        ax2.set_yticks([-1,0,1])
+        grape.plot_XY_fields(ax[0], legend_loc = False, twinx=ax2, xcol=xcol, ycol=ycol)
+        fidelity_bar_plot(grape.fidelity()[0], ax=ax[1])
+        ax[0].set_ylim([-1,2])
+        ax2.set_ylim([-2,1])
+        fig.set_size_inches(fig_width_double, fig_height_double_long)
+        fig.tight_layout()
+        if fp is not None: fig.savefig(fp)
+
+    def draw_HS_architecture(fp=None, fp2=None, orientation='hori'):
+        if orientation=='hori':
+            fig1,ax = plt.subplots(1,2)
+        else:
+            #fig1,ax = plt.subplot_mosaic([['left','upper right'], ['left', 'lower right']], figsize=(7.5,3.5),layout="constrained", gridspec_kw={'width_ratios': [3,  1.2]})
+            
+            fig1,ax = plt.subplots(2,1, gridspec_kw={'height_ratios': [0.95,  1.2]})
+        make_stab_unit_cell(ax[0], fontsize=15)
+        HS_side_view(ax[1])
+        #make_HS_array(ax['left'], 5)
+        #ax[1].set_aspect('equal')
+        #fig.set_size_inches(fig_width_double, fig_height_single)
+        if orientation=='hori':
+            fig1.set_size_inches(1.3*fig_width_double, 1.3*fig_height_single)
+        else:
+            fig1.set_size_inches(1.2*fig_width_single, 2.4*fig_height_single)
+
+        fig1.tight_layout()
+        #fig2.set_size_inches(fig_width_single, fig_width_single*1.1)
+        if fp is not None:
+             fig1.savefig(fp)
+        # if fp2 is not None:
+        #      fig2.savefig(fp2)
+    def save_HS_array(fp=None):
+        fig,ax=plt.subplots(1,1)
+        make_HS_array(ax, 5)
+        fig.set_size_inches(7,7)
+        if fp is not None: fig.savefig(fp)
+
+   # plot_lattice_sites(fp = f'{plots_folder}{chapter}1P-2P-lattice-placement.pdf')
+    #all_48_1P_2P_CNOTs(fp = f'{plots_folder}{chapter}all-48-1P-2P-pulse-and-fidelity-bars.pdf')
+    #compare_symmetry()
+    #draw_HS_architecture(fp = f'{plots_folder}{chapter}architecture_layout.pdf', fp2=f'{plots_folder}{chapter}architecture-layout-sideon.pdf', orientation='stoopy')
+    #illustrative_configs(3, fp=f'{plots_folder}{chapter}illustrative-configs.pdf')
+    #voltage_scale()
+    #save_HS_array(fp=f'{plots_folder}{chapter}array.pdf')
+    #stabilizer_activations(fp=f'{plots_folder}{chapter}stabilizer-activations.pdf')
+    readout(fp=f'{plots_folder}{chapter}readout-configs.pdf')
+
+
+
 if __name__=='__main__':
-    #chapter_1()
-    #chapter_2()
-    chapter_3()
+    # intro_and_review()
+    #HHex()
+    # pulse_design()
+    HSquare()
 
     #no_coupler()
+
 
     plt.show()

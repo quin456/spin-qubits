@@ -41,7 +41,7 @@ def plot_energy_spectrum(E, ax=None):
     if ax is None: ax=plt.subplot()
     for sys in E:
         for i in range(len(sys)):
-            ax.axhline(pt.real(sys[i]/unit.MHz), label=f'E{dim-1-i}', color=colors[i])
+            ax.axhline(pt.real(sys[i]/unit.MHz), label=f'E{dim-1-i}', color=color_cycle[i])
     ax.legend()
     
 def get_lowest_energy_indices(D):
@@ -344,11 +344,11 @@ def drive_electron_transition(S, D, transition, tN=100*unit.ns, N=10000, ax=None
 def investigate_3E_resfreqs(tN=1000*unit.ns, N=50000, fp=None):
     nq=3
     H0 = get_H0(get_A(1,nq), get_J(1,nq, J1=J_100_18nm, J2=J_100_14nm))
-    S,D = get_ordered_eigensystem(H0); E=pt.diag(D)
+    S,D = get_ordered_eigensystem(H0)
 
     fig,ax=plt.subplots(5,3)
 
-    allowed_transitions = get_allowed_transitions(H0, S=S, E=E)
+    allowed_transitions = get_allowed_transitions(H0, S=S, D=D)
 
     for j,transition in enumerate(allowed_transitions):
         #if j+1 in [5,6,7,8,9,10]:
@@ -394,7 +394,7 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*unit.ns, N=1000):
     visualise_Hw(Hw_eig_IP,tN)
 
 
-def examine_electron_eigensystem(Bz = B0, NucSpin=[1,0], A_mags=[A_mag, A_2P_mag], n=500, dim=4):
+def examine_electron_eigensystem(Bz = B0, NucSpin=[1,0], A_mags=[A_P, A_2P], n=500, dim=4):
 
     A = get_A(n,2, NucSpin, A_mags)
     J = pt.linspace(0.1, 145, n) * unit.MHz

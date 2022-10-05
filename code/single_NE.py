@@ -111,10 +111,11 @@ def NE_CX_pulse(tN,N,A,Bz, ax=None):
 
     couplings = NE_couplings(H0)
     c = couplings[2,3]
-    w_eigenres = D[2,2]-D[3,3]
+    w_res = D[2,2]-D[3,3]
     if tN is None:
+        Omega = np.sqrt(16*A**2 + 0.25*gamma_e**2*0.5227**2*unit.mT**2) / 4
         tN = lock_to_frequency(A,get_pi_pulse_tN_from_field_strength(B_mag, c))
-    Bx,By = pi_pulse_square(w_eigenres, c, tN, N, phase)
+    Bx,By = pi_pulse_square(w_res, c, tN, N, phase)
 
     #Bx,By = pi_rot_pulse(w_res, gamma_e/2, tN, N, phase)
     if ax is not None:
@@ -192,19 +193,18 @@ def print_specs(A, Bz, tN, N, gamma):
     print(f"Timesteps N={N}")
     H0 = get_NE_H0(A,Bz)
     max_coupling = get_max_allowed_coupling(H0)
-    print(f"Max allowed coupling = {max_coupling/unit.MHz} MHz, corresponding to field strength B={max_coupling/(0.5*gamma) / mT} mT")
+    print(f"Max allowed coupling = {max_coupling/unit.MHz} MHz, corresponding to field strength B={max_coupling/(0.5*gamma) / unit.mT} mT")
 
-def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=None, ax=None, fig=None): 
+def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=None, ax=None, fig=None, legend_loc='best'): 
     print("Performing NE_CX, which flips electron spin conditionally on nuclear spin being down.")
     print_specs(A, Bz, tN, N, gamma=gamma_e)
     if ax is None:
-        fig,ax = plt.subplots(1,3)
+        fig,ax = plt.subplots(2,1)
     Bx,By,T = NE_CX_pulse(tN,N,A,Bz)
     X = get_NE_X(N, Bz, A, Bx, By, T=T)
     show_fidelity(X, T=T, target=gate.CX, ax=ax[0])
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,tN=tN, T=T, ax=ax[1], label_getter = NE_label_getter)
-
+    plot_psi(psi,tN=tN, T=T, ax=ax[1], label_getter = NE_label_getter, legend_loc=legend_loc)
     if fig is not None:
         fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
@@ -282,7 +282,7 @@ def correct_phase(Bx_CX, By_CX, T_CX, N, Bz, A, target):
     print(f"Phase correction finished. Pulse now runs from {T[0]/unit.ns} ns to {T[-1]/unit.ns} ns")
     return Bx, By, T
 
-def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), target = gate.CXr, fp=None, ax=None, fig=None):
+def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), target = gate.CXr, fp=None, ax=None, fig=None, legend_loc = 'best'):
     print("Performing EN_CX, which flips nuclear spin conditionally on electron spin being down.")
     print_specs(A, Bz, tN, N, gamma_n)
 
@@ -296,7 +296,7 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), tar
     fids=show_fidelity(X, T=T, target=target, ax=ax[0])
 
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,T=T, ax=ax[1], label_getter=NE_label_getter)
+    plot_psi(psi,T=T, ax=ax[1], label_getter=NE_label_getter, legend_loc = legend_loc)
     #plot_phases(psi,T=T, ax=ax[1])
 
     if fig is not None:
@@ -446,11 +446,12 @@ if __name__ == '__main__':
 
     #tN = lock_to_frequency(get_A(1,1),100*unit.ns)
 
-    #show_NE_CX(get_A(1,1), 2*unit.T,  100000); plt.show()
+    show_NE_CX(get_A(1,1), 2*unit.T,  100000, psi0 = (gate.spin_00)); plt.show()
 
     #show_EN_CX(get_A(1,1), Bz=2*unit.T, N=40000); plt.show()
 
-    show_NE_swap(get_A(1,1), 2*unit.T, 100000, 40000)
+    #show_NE_swap(get_A(1,1), 2*unit.T, 100000, 40000)
+
 
     plt.show()
 

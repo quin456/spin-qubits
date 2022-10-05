@@ -24,7 +24,7 @@ from pulse_maker import pi_pulse_square
 from pdb import set_trace
 
 
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 
 
@@ -111,7 +111,7 @@ def get_nuclear_spin_ordered_eigensystem(Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3)
     H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
     H0_order = get_3NE_H0_for_ordering(Bz, A, J)
 
-    S,D = get_ordered_eigensystem(H0, H0_order)
+    S,D = get_ordered_eigensystem(H0, H0_order, ascending=True)
 
     return S,D
 
@@ -171,26 +171,26 @@ def map_3NE_transitions():
 
 
 
-    H0 = multi_NE_H0(J=get_J(1,3))
+    H0 = multi_NE_H0(J=J_1s3q)
 
-    S,D = get_ordered_eigensystem(H0)  
+    S,D = get_ordered_eigensystem(H0, ascending = True)  
     E=pt.diag(D)
     nucspin_indices = group_eigenstate_indices_by_nuclear_spins(S)
     idxs_100 = nucspin_indices[4]
     idxs_101 = nucspin_indices[5]
 
-    trans = get_allowed_transitions(H0, S=S, E=E)
+    trans = get_allowed_transitions(S=S, D=D)
 
 
 
-    analyse_3NE_eigensystem(S)
+    analyse_3NE_eigensystem(S, D)
     C = get_triple_NE_couplings(S)
 
     print("Printing out 100 <--> 101 transitions")
     for i in idxs_100:
         for j in idxs_101:
             if (i,j) in trans:
-                print(f"{i}<-->{j} == {psi_to_string(S[:,i])} <--> {psi_to_string(S[:,j])} transition frequency = {pt.real(E[i]-E[j])/unit.MHz} MHz, coupling = {pt.real(C[i,j])}")
+                print(f"{i}<-->{j} == {psi_to_string(S[:,i])} <--> {psi_to_string(S[:,j])} transition frequency = {pt.real(E[i]-E[j])/unit.MHz} MHz, coupling = {pt.real(C[i,j] * unit.T/unit.MHz)} MHz/T")
             else:
                 print(f"{i}<-->{j} transition not allowed")
     #visualise_triple_donor_NE_transitions(H0, nucspin_indices)
@@ -231,13 +231,11 @@ def all_triple_NE_basis_transitions(tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get
         triple_NE_estate_transition(i, tN, N, Bz, A, J, ax[i//2,i%2])
 
 
-def get_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):
-    H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
-    S,D = get_ordered_eigensystem(H0, ascending=True) 
+def get_NE_estate_transition(S, D, i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, ax=None):
     couplings = get_triple_NE_couplings(S)
     E = pt.diag(D)
 
-    allowed_transitions = get_allowed_transitions(H0,S=S, E=E)
+    allowed_transitions = get_allowed_transitions(S=S, D=D)
     if (i_psi0,i_psi1) in allowed_transitions:
         omega = E[i_psi0] - E[i_psi1]
     elif (i_psi1,i_psi0) in allowed_transitions:
@@ -251,40 +249,31 @@ def get_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=10000, Bz=
     Bx,By = pi_pulse_square(omega, coupling, tN, N)
     return Bx,By
 
-def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=1000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), ax=None):
 
+def triple_NE_estate_transition(i_psi0=27, i_psi1=28, tN=14000*unit.ns, N=4000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3,J2=J_1s3q), ax=None):
     H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
     S,D = get_ordered_eigensystem(H0, ascending=True) 
-    E = pt.diag(D)
 
 
     nucspin_indices = group_eigenstate_indices_by_nuclear_spins(S)
     idxs_100 = nucspin_indices[4]
     idxs_101 = nucspin_indices[5]
-    allowed_transitions = get_allowed_transitions(H0)
 
 
-    Bx, By = get_NE_estate_transition(i_psi0=i_psi0, i_psi1=i_psi1, tN=tN, N=N, Bz=Bz, A=A, J=J, ax=ax)
+    Bx, By = get_NE_estate_transition(S, D, i_psi0=i_psi0, i_psi1=i_psi1, tN=tN, N=N, ax=ax)
+    #Bx = None; By = None
+    # Hw = multi_NE_Hw(Bx, By, 3)
+    # H = sum_H0_Hw(H0, Hw)
+    # X = get_X_from_H(H, tN, N)
 
-
-    Hw = multi_NE_Hw(Bx, By, 3)
-    
-
-
-
-    
-    H = sum_H0_Hw(H0, Hw)
-    X = get_X_from_H(H, tN, N)
-
+    X = get_multi_NE_X(tN, N, Bz=Bz, A=A, J=J, Bx=Bx, By=By)
 
     print(f"psi0 = |{i_psi0}>")
     
-
-    basis = [0,12,25,28]
+    basis = [0,26,27,28]
     def label_getter(i):
         if i in basis: return f"|E{i}>"
     
-
     psi0 = S[:,i_psi0]
     print(f"psi0 = {psi_to_string(psi0)}")
     psi = X@psi0 
@@ -300,7 +289,7 @@ def triple_NE_estate_transition(i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=1000, B
 
 def triple_NE_free_evolution(tN=50*unit.ns, N=500, A=get_A(1,1), J=get_J(1,3)):
     H0 = multi_NE_H0(J=J, A=A)
-    S,D = get_ordered_eigensystem(H0) 
+    S,D = get_ordered_eigensystem(H0, ascending=True) 
 
     psi0 = S[:,53]
 
@@ -333,8 +322,6 @@ def get_multi_NE_X(tN, N, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), Bx=None, By=N
     if By is None:
         By = pt.zeros(N)
 
-    dim = H0.shape[-1]
-    nspins = get_nq_from_dim(dim)
 
     Hw = multi_NE_Hw(Bx, By, 3)
     H0 = multi_NE_H0(Bz=Bz, A=A, J=J)
@@ -463,8 +450,7 @@ if __name__ == '__main__':
 
 
 
-    #analyse_3NE_eigensystem()
-    #map_3NE_transitions()
+    map_3NE_transitions()
     
     
     triple_NE_estate_transition()

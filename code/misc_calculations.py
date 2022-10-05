@@ -12,18 +12,26 @@ import networkx as nx
 
 
 
-from hamiltonians import get_X_from_H, get_U0, get_1S_HA, get_1S_HJ, multi_NE_H0, get_H0
+from hamiltonians import *
 from data import *
 from utils import dagger, fidelity, wf_fidelity, get_rec_min_N
 from eigentools import get_resonant_frequencies
 import gates as gate
 from gates import spin_101, spin_10
 from eigentools import *
+from single_NE import NE_couplings
+from pulse_maker import *
 
 from pdb import set_trace
 
+uparrow = u'\u2191'
+downarrow = u'\u2193'
+Uparrow = '⇑'
+Downarrow = '⇓'
 
 atom_spacing = 0.384
+
+pt.manual_seed(0)
 
 def get_t_fidelity(J,A, tN, N, fid_min):
     nq = len(A)
@@ -188,6 +196,10 @@ def draw_square(x, y, L, ax, color='black'):
     ax.plot([x-L/2, x-L/2], [y+L/2, y-L/2], color=color)
     
 
+def plot_spheres(sites, color = 'blue', radius = 0.4, ax=None, alpha=1, zorder=0):
+    for site in sites:
+        circle = plt.Circle(site, radius=radius, color=color, alpha=alpha, zorder=zorder)
+        ax.add_patch(circle)
 def plot_squares(sites, color='gray', L=1, ax=None):
     if ax is None: ax=plt.subplot()
     n = len(sites)
@@ -197,12 +209,39 @@ def plot_squares(sites, color='gray', L=1, ax=None):
         draw_square(*sites[i], L, ax)
 
 def plot_sites(sites, ax, color='red'):
-    x = [] 
-    y = []
     for site in sites:
-        x.append(site[0])
-        y.append(site[1])
-    ax.scatter(x, y, color=color)
+        circle = plt.Circle(site, radius=0.1, color=color)
+        ax.add_patch(circle)
+
+def get_all_sites(x_range, y_range, padding):
+    X = np.linspace(x_range[0]-padding, x_range[1]+padding, int(x_range[1]-x_range[0]+2*padding+1))
+    Y = np.linspace(y_range[0]-padding, np.ceil(y_range[1])+padding, int(np.ceil(y_range[1]-y_range[0]+2*padding+1)))
+    all_sites = []
+    for x in X:
+        for y in Y:
+            all_sites.append(np.array([x,y]))
+    return all_sites 
+
+
+def plot_9_sites(x_target, y_target, ax=None, round_func=None, neighbour_color = 'lightblue', alpha=0.5):
+    if round_func is not None:
+        x_target = round_func(x_target)
+        y_target = round_func(y_target)
+    sites_x = np.linspace(-1,1,3)
+    sites_y = np.linspace(-1,1,3)
+    sites= []
+
+
+    for x in sites_x:
+        for y in sites_y:
+            sites.append((x + x_target, y + y_target))
+
+            
+    if ax is None: ax = plt.subplot()
+    plot_spheres(sites, ax=ax, alpha=alpha, color=neighbour_color)
+    #plot_spheres([(x_target, y_target)], ax=ax, color='black', alpha=1)
+    ax.set_aspect('equal')
+    ax.axis('off')
 
 def plot_donor_placement(sites_2P_upper, sites_2P_lower, sites_1P, delta_x, delta_y, d=1, i=3, j=1, k=4):
 
@@ -229,7 +268,7 @@ def plot_donor_placement(sites_2P_upper, sites_2P_lower, sites_1P, delta_x, delt
 
 def plot_select_donor_placement(delta_x = 10, delta_y = 0):
 
-    sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites(delta_x, delta_y)
+    sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites_1P_2P(delta_x, delta_y)
     plot_donor_placement(sites_2P_upper, sites_2P_lower, sites_1P, delta_x, delta_y)
 
 def classify_2P_pairs(donor_2P_pairs):
@@ -296,7 +335,7 @@ def get_AJ_distances(d_pairs):
     return d_A, d_J
 
 
-def get_donor_sites(delta_x, delta_y, d=1, separation_2P = 2):
+def get_donor_sites_1P_2P(delta_x, delta_y, d=1, separation_2P = 2):
 
     delta_x*=d; delta_y*=d
 
@@ -321,13 +360,14 @@ def get_donor_sites(delta_x, delta_y, d=1, separation_2P = 2):
     return sites_2P_upper, sites_2P_lower, sites_1P
 
 
-def placement_symmetries(delta_x=50, delta_y=0, separation_2P = 2, verbose=False, save=False):
+def placement_symmetries_1P_2P(delta_x=50, delta_y=0, separation_2P = 2, verbose=False, save=False):
 
     d = 1
-    J_2P_1P_fab = pt.cat((J_100_18nm, J_110_18nm[:-3]))/5
+    J_rand = minreal(J_100_18nm) + pt.rand(100) * (maxreal(J_100_18nm)-minreal(J_100_18nm))
+    J_2P_1P_fab = pt.cat((J_100_18nm, J_110_18nm, J_rand))/5
     A_2P_fab = pt.tensor([87.3, 90.2, 87.0, 88.9, 74.7, 78.5,  69.2, 69.1, 63.3], dtype=cplx_dtype) * unit.MHz 
 
-    sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites(delta_x, delta_y, d=d, separation_2P=separation_2P)
+    sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites_1P_2P(delta_x, delta_y, d=d, separation_2P=separation_2P)
 
     print(f"dx = {delta_x}, dy = {delta_y}")
 
@@ -339,10 +379,10 @@ def placement_symmetries(delta_x=50, delta_y=0, separation_2P = 2, verbose=False
 
 
     J_map = {}; A_map = {}
-
-    for i in range(len(J_2P_1P_fab)):
+    set_trace()
+    for i in range(len(d_J)):
         J_map[d_J[i]] = J_2P_1P_fab[i]
-    for i in range(len(A_2P_fab)):
+    for i in range(len(d_A)):
         A_map[d_A[i]] = A_2P_fab[i]
 
 
@@ -352,8 +392,8 @@ def placement_symmetries(delta_x=50, delta_y=0, separation_2P = 2, verbose=False
     J = pt.zeros(nS, dtype=real_dtype, device=default_device)
     for q in range(nS):
         A_2P[q] = A_map[d_pairs[q][0]]
-        A_1P_2P[q,0] = A_mag; A_1P_2P[q,1] = A_2P[q]
-        A_2P_1P[q,0] = A_2P[q]; A_2P_1P[q,1] = A_mag
+        A_1P_2P[q,0] = A_P; A_1P_2P[q,1] = A_2P[q]
+        A_2P_1P[q,0] = A_2P[q]; A_2P_1P[q,1] = A_P
         J[q] = J_map[d_pairs[q][1]]
 
 
@@ -391,11 +431,30 @@ def get_rabi_prob(w_ac, w_res, B_ac, c):
     W = c*B_ac/2
     dw = w_ac - w_res
     Omega = np.sqrt(dw**2 + W**2)
-    Pr = pt.real(W**2 / Omega**2)
+    Pr = np.abs(W**2 / Omega**2)
     return Pr
 
-def compare_frequency_pair(w_ac, w_res, B_ac, c, maxp=0.01):
-    if get_rabi_prob(w_ac, w_res, B_ac, c) > maxp:
+
+def HS_SQR_rabi_probs():
+    '''
+    Calculates the rabi probs for single qubit rotations on 1P. 2P and As.
+    '''
+    w_res = [2*A_P, 2*A_2P, 2*A_As]
+    names = ['P', '2P', 'As']
+    c = gamma_e 
+    B_ac = 0.1*unit.mT
+    for i in range(len(w_res)):
+        for j in range(i+1,len(w_res)):
+            print(f"{names[i]}, {names[j]}: Pr(|{uparrow}> <-> |{downarrow}> = {get_rabi_prob(w_res[i], w_res[j], B_ac, c)}, duration = {pi_pulse_duration(c, B_ac)/unit.ns} ns")
+
+
+
+def similar_frequencies(w_ac, w_res, B_ac, c, maxp=0.01, print_info = True):
+    p=get_rabi_prob(w_ac, w_res, B_ac, c)
+    if print_info:
+        print(f"Field B_ac = {B_ac/unit.mT} mT, w_ac = {pt.real(w_ac/unit.MHz):.1f} MHz has probability p={p:.4f} of exciting transition with w_res = {pt.real(w_res/unit.MHz):.1f} MHz, coupling = {pt.real(c*unit.T/unit.MHz):.1f} MHz/T")
+
+    if p > maxp:
         return False 
     return True
 
@@ -433,21 +492,50 @@ def graph_system_similarity(RF, B_ac, C, pmax=0.01, ax=None):
     G = nx.Graph(name="transitions")
     G.add_nodes_from(np.linspace(0,nS-1,nS))
     G.add_edges_from(edges)
-    nx.draw(G)
     #G = nx.Graph(edges)
     #nx.draw_networkx_nodes(G, node_color='red')
     nx.draw(G, ax=ax)
 
-def compare_1P_2P_frequencies():
-    
-    J = get_J_1P_2P(48)
-    A = get_A_1P_2P(48)
 
-    H0 = get_H0(A,J)
+
+
+def graph_frequency_similarity(rf_mat, C, B_ac=1*unit.T, pmax=0.01):
+    edges=[]
+    rf = flatten_rf_mat(rf_mat)
+    C_vec = flatten_rf_mat(C)
+    for i in range(len(rf)):
+        for j in range(0,len(rf)):
+            if similar_frequencies(rf[i], rf[j], B_ac, C_vec[j]) or similar_frequencies(rf[j], rf[i], B_ac, C_vec[i], maxp=pmax):
+                edges.append((i,j))
+    G = nx.Graph()  # or DiGraph, MultiGraph, MultiDiGraph, etc
+    G = nx.Graph(name="transitions")
+    G.add_nodes_from(np.linspace(0,len(rf)-1,len(rf)))
+    G.add_edges_from(edges)
+    nx.draw(G)
+
+def flatten_rf_mat(M):
+    m,n = M.shape
+    vec = []
+    for i in range(m):
+        for j in range(i+1,n):
+            if pt.abs(M[i,j])/pt.max(pt.abs(M[i,j])) > 1e-10:
+                vec.append(M[i,j])
+    return pt.tensor(vec, dtype=M.dtype, device=M.device)
+            
+
+
+def check_frequency_overlap(H0, B_ac=1*unit.mT, pmax=0.01, Hw_mag=None):
 
     S,D = get_ordered_eigensystem(H0)
-    RF = get_multisys_rf_tensor(S, D)
-    C = get_multi_system_couplings(S)
+    RF = get_rf_matrix(S, D)
+    C = get_couplings(S, Hw_mag=Hw_mag)
+    graph_frequency_similarity(RF, C, B_ac=B_ac)
+
+def check_system_overlap(H0, B_ac=1*unit.mT, pmax=0.01):
+
+    S,D = get_ordered_eigensystem(H0)
+    RF = get_rf_matrix(S, D)
+    C = get_couplings(S)
 
     sys1=1
     sys2=3
@@ -461,7 +549,17 @@ def compare_1P_2P_frequencies():
 
     #Pmax = system_comparison(RF[sys1], RF[sys2], B_ac, C[0])
     
-    graph_system_similarity(RF, B_ac, C)
+    graph_system_similarity(RF, B_ac, C, pmax=pmax)
+
+
+def compare_1P_2P_frequencies():
+    
+    J = get_J_1P_2P(48)
+    A = get_A_1P_2P(48)
+
+    H0 = get_H0(A,J)
+    check_system_overlap(H0)
+
 
 # Question 1: How low does J have to be?
 
@@ -472,6 +570,10 @@ def compare_1P_2P_frequencies():
 
 
 # Question 3: How much does this improve GRAPE optimisation?
+def check_NE_frequency_overlap():
+    H0 = get_NE_H0(get_A(1,1), 2*unit.T)
+    Hw_mag = -gamma_n*gate.XI + gamma_e*gate.IX
+    check_frequency_overlap(H0, Hw_mag=Hw_mag)
 
 
 
@@ -485,7 +587,12 @@ if __name__ == '__main__':
 
     #approximate_full_NE_optimisation_time()
 
-    #placement_symmetries(delta_x = 52, delta_y = 0, save=True)
+    placement_symmetries_1P_2P(delta_x = 52, delta_y = 10, save=True)
 
-    compare_1P_2P_frequencies()
+    #compare_1P_2P_frequencies()
+
+    #check_NE_frequency_overlap()
+
+    #HS_SQR_rabi_probs()
+
     plt.show()

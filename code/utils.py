@@ -19,7 +19,7 @@ import atomic_units as unit
 
 from pdb import set_trace
 
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 def zeros_like_reshape(tensor, shape):
     '''
@@ -279,7 +279,7 @@ def print_rank2_tensor(T):
         else:
             print("|")
 
-def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, projection='2D', z_offset=0):
+def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, projection='2D', z_offset=0, fontsize=16):
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     dx = xlim[1]-xlim[0]
@@ -295,9 +295,9 @@ def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, projection='2D', z_off
         zlim = ax.get_ylim()
         dz = zlim[1]-zlim[0]
         z = zlim[0]+z_offset*dz 
-        ax.text(x, y, z, label, fontsize=16, fontweight="bold", va="bottom", ha="left")
+        ax.text(x, y, z, label, fontsize=fontsize, fontweight="bold", va="bottom", ha="left")
     else:    
-        ax.text(x, y, label, fontsize=16, fontweight="bold", va="bottom", ha="left")
+        ax.text(x, y, label, fontsize=fontsize, fontweight="bold", va="bottom", ha="left")
 
 
 
@@ -332,6 +332,17 @@ def get_dT(T):
 def linspace(start, end, N, dtype=cplx_dtype, device=default_device):
     return pt.linspace(start+(end-start)/N, end, N, dtype=dtype, device=device)
 
+def maxreal(T):
+    return pt.max(pt.real(T))
+
+def minreal(T):
+    return pt.min(pt.real(T))
+
 def rise_ones_fall(N, rise_prop):
     N_rise = int((N*rise_prop)//1)
     return pt.cat((linspace(0, 1, N_rise, device=default_device), pt.ones(N-2*N_rise, device=default_device), linspace(1, 0, N_rise, device=default_device)))
+
+
+
+if __name__ == '__main__':
+    set_trace()
