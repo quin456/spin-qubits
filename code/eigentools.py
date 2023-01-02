@@ -145,9 +145,11 @@ def get_all_low_J_rf_u0(S, D, tN, N, device=default_device):
 
 
 def get_multi_system_resonant_frequencies(H0s, device=default_device):
-    rf = pt.tensor([], dtype = real_dtype, device=device)
     nS = len(H0s); nq = get_nq_from_dim(H0s.shape[-1])
     Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq)) / np.sqrt(2)
+    if len(H0s.shape)==2:
+        return get_resonant_frequencies(H0s, Hw_shape)
+    rf = pt.tensor([], dtype = real_dtype, device=device)
     for q in range(nS):
         rf_q=get_resonant_frequencies(H0s[q], Hw_shape)
         rf=pt.cat((rf,rf_q))

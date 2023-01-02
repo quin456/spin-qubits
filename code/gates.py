@@ -4,6 +4,7 @@ import numpy as np
 from torch import kron
 
 from data import cplx_dtype, real_dtype
+from utils import print_rank2_tensor, sqrtm, dagger
 
 ngpus = pt.cuda.device_count()
 default_device = 'cuda:0' if ngpus>0 else 'cpu'
@@ -19,6 +20,11 @@ def kron4(A,B,C,D):
 
 def kron6(A,B,C,D,E,F):
     return kron(kron3(A,B,C),kron3(D,E,F))
+
+def UJ(t, J):
+    return pt.diag(pt.tensor([np.exp(-1j*np.pi*J*t/2), np.exp(1j*np.pi*J*t/2), np.exp(1j*np.pi*J*t/2), np.exp(-1j*np.pi*J*t/2)], dtype=cplx_dtype))
+
+
     
 spin_up = pt.tensor([1,0], dtype=cplx_dtype, device=default_device)
 spin_down = pt.tensor([0,1], dtype=cplx_dtype, device=default_device)
@@ -88,7 +94,10 @@ H = pt.tensor([
     [1,1],
     [1,-1]], dtype=cplx_dtype, device=default_device)/np.sqrt(2)
 X1=X; Y1=Y; Z1=Z
-SX=pt.tensor([[1+1j, 1-1j],[1-1j,1+1j]], dtype=cplx_dtype, device=default_device)/2
+
+SX = pt.tensor([[1+1j, 1-1j],[1-1j,1+1j]], dtype=cplx_dtype, device=default_device)/2
+SY = pt.sqrt(Y)
+
 CX = pt.tensor([
     [1,0,0,0],
     [0,1,0,0],
@@ -124,6 +133,7 @@ CX3q = pt.tensor([
     [0,0,0,0,0,0,0,1],
     [0,0,0,0,0,0,1,0]], dtype=cplx_dtype, device=default_device)
 
+
 sigDotSig = pt.tensor([
     [1,0,0,0],
     [0,-1,2,0],
@@ -141,6 +151,10 @@ root_swap = pt.tensor([
     [0,(1+1j)/2,(1-1j)/2,0],
     [0,(1-1j)/2,(1+1j)/2,0],
     [0,0,0,1]],dtype = cplx_dtype, device=default_device)
+
+
+
+
 
 II = kron(Id,Id)
 XI = kron(X,Id)
@@ -192,6 +206,12 @@ IIXIII = kron(IIXI,II)
 IIIXII = kron(II,IXII)
 IIIIXI = kron(II,IIXI)
 IIIIIX = kron(II,IIIX)
+
+
+sw2_12 = kron(swap, II)
+sw2_23 = kron3(Id, swap, Id)
+sw2_34 = kron(II, swap)
+NE_swap_2q = sw2_23 @ sw2_34 @ sw2_12 @ sw2_23
 
 
 def get_Iz_sum(nq):
@@ -261,6 +281,7 @@ Z6 = ZIIIII + IZIIII + IIZIII + IIIZII + IIIIZI + IIIIIZ
 o2 = pt.kron(X,X) + pt.kron(Y,Y) + pt.kron(Z,Z)
 o12 = kron3(X,X,Id)+kron3(Y,Y,Id)+kron3(Z,Z,Id)
 o23 = kron3(Id,X,X)+kron3(Id,Y,Y)+kron3(Id,Z,Z)
+o13 = kron3(X,Id,X)+kron3(Y,Id,Y)+kron3(Z,Id,Z)
 
 o4_13 = kron4(X,Id,X,Id)+kron4(Y,Id,Y,Id)+kron4(Z,Id,Z,Id)
 o4_24 = kron4(Id,X,Id,X)+kron4(Id,Y,Id,Y)+kron4(Id,Z,Id,Z)

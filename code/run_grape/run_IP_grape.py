@@ -60,7 +60,7 @@ if __name__ == '__main__':
     lam=1e11
 
     #run_CNOTs(tN = 100.0*unit.ns, N = 500, nq = 2, nS = 1, max_time = 18000, save_data = True, lam=1e8, prev_grape_fn=None)
-    run_IP_CNOTs(tN = 200.0*unit.ns, N = 500, nq = 2, nS = 2, max_time = 10, save_data = True, lam=0, alpha=0, prev_grape_fn=None)
+    run_IP_CNOTs(tN = 200.0*unit.ns, N = 500, nq = 3, nS = 2, max_time = 10, save_data = True, lam=0, alpha=0, prev_grape_fn=None)
     plt.show()
     
     

@@ -5,7 +5,7 @@ import torch as pt
 import gates as gate
 import atomic_units as unit
 from data import cplx_dtype, default_device, gamma_e, gamma_n, get_A, get_J
-from utils import dagger, forward_prop, get_nS_nq_from_A, linspace
+from utils import *
 
 #####################################################################################
 ###########        Single electron        ###########################################
@@ -162,6 +162,8 @@ def multi_NE_H0(Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3), deactivate_exchange=Fal
     return H0
 
 
+def get_NE_Hw(Bx,By, I = 0.5*pt.stack((gate.XI, gate.YI, gate.ZI)), S = 0.5*pt.stack((gate.IX, gate.IY, gate.IZ))):
+    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*I[0], 2*I[1]) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*S[0], 2*S[1])
 
 #####################################################################################
 ###########       Tools        ######################################################
@@ -207,9 +209,16 @@ def get_U0(H0, N, T=None, tN=None):
     U0 = pt.matrix_exp(-1j*H0T)
     return U0
 
-def get_X_from_H(H, tN, N, H0_IP=None):
+def get_X_from_H(H, tN=None, N=None, T=None, H0_IP=None):
     
-    U = pt.matrix_exp(-1j*H*tN/N)
+    if T is None:
+        U = pt.matrix_exp(-1j*H*tN/N)
+    else:
+        N=len(T)
+        dT = get_dT(T)
+        Ht = pt.einsum('jab,j->jab', H, dT)
+        U = pt.matrix_exp(-1j*Ht)
+
     X = forward_prop(U)
     if H0_IP is not None:
         U0 = get_U0(H0_IP,tN,N)

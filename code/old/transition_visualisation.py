@@ -91,11 +91,11 @@ def label_transitions(transitions,nq):
 
 
 
-def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=None):
+def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=2*unit.T, ax=None, label=None):
     _nS,nq = get_nS_nq_from_A(A)
     H0 = get_H0(A, J, Bz=Bz)
 
-    S,D = get_ordered_eigensystem(get_H0(A=A,J=J,Bz=Bz))
+    S,D = get_ordered_eigensystem(get_H0(A=A,J=J,Bz=Bz), ascending=True)
     d = len(D) #dimension, number of states / nodes
     print_rank2_tensor(S)
     print_rank2_tensor(D/unit.MHz)
@@ -103,13 +103,12 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
 
     nlabels = [get_node_label(i,nq) for i in range(d)]
 
-    transitions = get_allowed_transitions(H0, S=S, E=pt.diag(D))
+    transitions = get_allowed_transitions(H0, S=S, D=D)
     labelled_transitions = label_transitions(transitions, nq)
 
     H0_e100 = get_H0(A=get_A(1,3,NucSpin=[0,0,0]), J=J, Bz=2*unit.T)
     allowed_transitions = get_allowed_transitions(H0_e100)
     
-    set_trace()
 
     G = nx.Graph()  # or DiGraph, MultiGraph, MultiDiGraph, etc
     G = nx.Graph(name="transitions")
@@ -120,14 +119,14 @@ def visualise_E_transitions(A=get_A(1,3), J=get_J(1,3), Bz=0, ax=None, label=Non
 
 
     if nq==3:
-        G.nodes[nlabels[0]]['pos'] = (-1,10)
-        G.nodes[nlabels[7]]['pos'] = (1,-10)
-        G.nodes[nlabels[1]]['pos'] = (-6,4)
-        G.nodes[nlabels[2]]['pos'] = (-1,4)
-        G.nodes[nlabels[3]]['pos'] = (4,4)
-        G.nodes[nlabels[4]]['pos'] = (-4,-4)
-        G.nodes[nlabels[5]]['pos'] = (1,-4)
-        G.nodes[nlabels[6]]['pos'] = (6,-4)
+        G.nodes[nlabels[7]]['pos'] = (-1,10)
+        G.nodes[nlabels[0]]['pos'] = (1,-10)
+        G.nodes[nlabels[6]]['pos'] = (-6,4)
+        G.nodes[nlabels[5]]['pos'] = (-1,4)
+        G.nodes[nlabels[4]]['pos'] = (4,4)
+        G.nodes[nlabels[3]]['pos'] = (-4,-4)
+        G.nodes[nlabels[2]]['pos'] = (1,-4)
+        G.nodes[nlabels[1]]['pos'] = (6,-4)
     elif nq==2:
         G.nodes[nlabels[0]]['pos'] = (0,10)
         G.nodes[nlabels[1]]['pos'] = (3,1)

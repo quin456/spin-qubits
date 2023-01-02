@@ -10,13 +10,12 @@ from utils import label_axis
 from visualisation import *
 
 distorted = False
-couplers = 0
 
 # all distance values are in nm
 
 n_qubit_types_HH = 4
 n_qubit_types_HS = 3
-
+couplers=True
 
 # distance between lattice sites
 a_lattice = 0.543
@@ -34,9 +33,9 @@ y_hat = np.array([0,1])
 SET_colour = 'gray'
 q_meas_colour = 'black'
 q_flag_colour = 'purple'
-q_coup_colour = 'pink'
+q_coup_colour = 'grey'
 q_data_colour = 'orange'
-q_colours = [q_meas_colour, q_flag_colour, q_data_colour, q_meas_colour, q_meas_colour, q_meas_colour]
+q_colours = [q_meas_colour, q_flag_colour, q_data_colour, q_coup_colour]
 V_colours = ['lightgray', 'orange', 'red', 'black', 'blue', 'lightblue']
 V_colours = ['lightgray', 'orange', 'red', '#0000cc', '#0080ff', '#99ccff']
 #V_colours = [np.array([224,224,224,256])/256, 'orange', 'red', [0,0,204/256,1], [0,128/256,255/256,1], [153/256,204/256,255/256,1]]
@@ -122,7 +121,8 @@ else:
 
 
 q_locs_HH = [q_meas_loc, q_flag_loc, q_data_loc, q_coup_loc]
-q_radius = 6.5*a_lattice
+q_radius = 8.5*a_lattice
+q_coup_radius=5.5*a_lattice
 
 
 
@@ -184,7 +184,7 @@ def place_SET(ax, location, slant=0):
     end = location + 2*R_SET*np.array([np.cos(slant),np.sin(slant)])
     stadium(ax,start,end,R_SET)
 
-def place_wire(ax,loc,colour,orientation, lim, wire_opacity, thickness):
+def place_wire(ax,loc,colour,orientation, lim, wire_opacity, thickness=5):
     length = lim[1]-lim[0]
     outline=0.07
     if orientation == 'vert':
@@ -247,11 +247,16 @@ def place_HH_cell_SETs(ax,r0):
     #         rect_SET(ax,SET_loc[i],SET_length[i],SET_width[i],SET_angle[i])
     #         #place_SET(ax,np.array(r0+SET_loc[i]), SET_angle[i])
 
-def place_qubit(ax,loc,color, q_radius=q_radius, text=None, textcolor='black', fontsize=17):
+def place_qubit(ax,loc,color, q_radius=q_radius, text=None, textcolor='black', fontsize=17, couplers=couplers):
     if color == q_coup_colour and not couplers:
+        
+        set_trace()
         return
-    ax.add_patch(plt.Circle(loc, q_radius, color = color))
-    ax.add_patch(plt.Circle(loc, q_radius, color = 'black', linewidth=1, fill=False))
+    if color==q_coup_colour:
+        q_radius=q_coup_radius
+    
+    ax.add_patch(plt.Circle(loc, q_radius, color = color, zorder=3))
+    ax.add_patch(plt.Circle(loc, q_radius, color = 'black', linewidth=1, fill=False, zorder=3))
     if ax is not None: ax.annotate(text,loc-q_radius*(x_hat+y_hat)*0.5, fontsize=fontsize, color=textcolor)
 
 def make_HH_unit_cell(ax,r0=np.array([0,0]),xlim=[-150,150],ylim=[-90,90]):
@@ -270,7 +275,7 @@ def make_HH_unit_cell(ax,r0=np.array([0,0]),xlim=[-150,150],ylim=[-90,90]):
     # place qubits
     for i in range(n_qubit_types_HH):
         for q_loc in q_locs_HH[i]:
-            place_qubit(ax,q_loc+r0, q_colours[i])
+            place_qubit(ax,q_loc+r0, q_colours[i], couplers=True)
 
 
     # place wires 
@@ -299,6 +304,10 @@ def place_all_wires(ax, m,n,wire_colours = None, wire_opacity=default_wire_opaci
     nwires = len(wire_positions)
     for n in range(nwires):
         place_wire(ax,wire_positions[n], wire_colours[n], wire_orientations[n], lims[n], wire_opacity)
+
+    place_wire(ax, wire_hori_y[1]+4*cell_height, 'purple','hori',  lims[0], wire_opacity)
+    place_wire(ax, wire_hori_y[0]-cell_height, 'green','hori',  lims[0], wire_opacity)
+    place_wire(ax, wire_vert_x[0]+4*cell_length, 'red','vert',  lims[-1], wire_opacity)
 
 def plot_single_cell(ax=None,wire_colours=None, wire_opacity = default_wire_opacity):
     r0=np.array([0,0])
@@ -374,8 +383,8 @@ def place_hori_qubits(ax,r0):
     place_qubit(ax,q_meas_loc[0]+r0, q_colours[0])
     place_qubit(ax,q_flag_loc[0]+r0, q_colours[1])
     place_qubit(ax,q_flag_loc[1]+r0, q_colours[1])
-    place_qubit(ax,q_coup_loc[0]+r0, q_colours[2])
-    place_qubit(ax,q_coup_loc[1]+r0, q_colours[2])
+    place_qubit(ax,q_coup_loc[0]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[1]+r0, q_colours[3])
     grid_color='gray'
     grid_zorder=0.25
     grid_opacity=1
@@ -388,11 +397,11 @@ def place_hori_qubits(ax,r0):
 
 def place_top_qubits(ax,r0):
     
-    place_qubit(ax,q_coup_loc[4]+r0, q_colours[2])
-    place_qubit(ax,q_coup_loc[5]+r0, q_colours[2])
-    place_qubit(ax,q_data_loc[1]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[4]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[5]+r0, q_colours[3])
+    place_qubit(ax,q_data_loc[1]+r0, q_colours[2])
     if couplers:
-        place_qubit(ax,q_data_loc[3]+r0, q_colours[3])
+        place_qubit(ax,q_data_loc[3]+r0, q_colours[2])
     place_hori_qubits(ax,r0)
     
     x0,y0=r0
@@ -411,11 +420,10 @@ def place_top_qubits(ax,r0):
     ax.plot(grid_xLR+x0,grid_yLR+y0, color=grid_color,zorder=grid_zorder, alpha=grid_opacity)
 
 def place_bottom_qubits(ax,r0):
-    
-    place_qubit(ax,q_coup_loc[3]+r0, q_colours[2])
-    place_qubit(ax,q_coup_loc[2]+r0, q_colours[2])
-    place_qubit(ax,q_data_loc[0]+r0, q_colours[3])
-    place_qubit(ax,q_data_loc[2]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[3]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[2]+r0, q_colours[3])
+    place_qubit(ax,q_data_loc[0]+r0, q_colours[2])
+    place_qubit(ax,q_data_loc[2]+r0, q_colours[2])
     place_hori_qubits(ax,r0)
     x0,y0=r0
     grid_color='gray'
@@ -434,8 +442,8 @@ def place_bottom_qubits(ax,r0):
 
 def place_left_qubits(ax,r0):
     place_qubit(ax,q_flag_loc[1]+r0, q_colours[1])
-    place_qubit(ax,q_coup_loc[2]+r0, q_colours[2])
-    place_qubit(ax,q_coup_loc[5]+r0, q_colours[2])
+    place_qubit(ax,q_coup_loc[2]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[5]+r0, q_colours[3])
 
     x0,y0=r0
     grid_color='gray'
@@ -455,8 +463,8 @@ def place_left_qubits(ax,r0):
 
 def place_right_qubits(ax,r0):
     place_qubit(ax,q_flag_loc[0]+r0, q_colours[1])
-    place_qubit(ax,q_coup_loc[3]+r0, q_colours[2])
-    place_qubit(ax,q_coup_loc[4]+r0, q_colours[2])
+    place_qubit(ax,q_coup_loc[3]+r0, q_colours[3])
+    place_qubit(ax,q_coup_loc[4]+r0, q_colours[3])
 
     x0,y0=r0
     grid_color='gray'
@@ -508,9 +516,12 @@ def plot_cell_array(m,n, filename=None):
 
     place_all_wires(ax,m,n)
 
-    ax.set_xlabel('x (nm)')
-    ax.set_ylabel('y (nm)')
+    ax.set_xlabel('[100] (nm)')
+    ax.set_ylabel('[010] (nm)')
     ax.set_aspect('equal')
+    #ax.axis('off')
+    fig.set_size_inches(1.2*fig_width_single, 1.2*fig_height_single)
+    fig.tight_layout()
     if filename is not None:
         fig.savefig(filename)
         
@@ -610,13 +621,34 @@ def plot_HS_grid(ax, r0, left_link=False, down_link=False):
     if down_link: Y[2]*=2
     ax.plot(r0[0]+np.array(X), r0[1]+np.array(Y), color='black', zorder=0)
     
+if __name__ == '__main__':
+    ''' HEAVY HEXAGON '''
+    couplers=True
+    #plot_cell_array(4,4, filename="cell_array")
+    #generate_CNOTs()
+    #generate_2_coupler_conditions()
+    #plot_annotated_cell(filename="single_cell")
+    #numbered_qubits_cell()
+    #plot_single_cell()
+
+
+
+
+
+
+
+
+
+
+
 
 ############################################################################################################
 #                HEAVY SQUARE
 ############################################################################################################
+q_colours_HS = [q_meas_colour, q_flag_colour, q_data_colour, q_meas_colour, q_meas_colour, q_meas_colour]
 d_HS = 18#47*d_lattice
 q_radius=0.2*d_HS
-q_coup_radius = 0.1*d_HS
+#q_coup_radius = 0.1*d_HS
 q_radii = [q_radius,q_radius,q_radius,q_coup_radius]
 q_locs_HS = np.array([[[-d_HS,0]], [[0,0]], [[0,-d_HS]], [[-3*d_HS/2,0], [-d_HS/2,0], [0,-d_HS/2], [0,d_HS/2]]])
 HS_cell_size = 2*d_HS
@@ -628,10 +660,10 @@ SET_flag_2e_color = 'blue'
 SET_no_Sb_color = 'gold'
 SET_size=13
 tile_pad=0
-tile_alpha=0.4
+tile_alpha=0
 Xstab_tile_color='orange'
 Zstab_tile_color='lightblue'
-
+read_radius=1.8*q_radius
 
 
 
@@ -647,8 +679,8 @@ def place_HS_cell_SET(ax, r0, color='silver'):
     ax.add_patch(SET)
     ax.add_patch(SET_outline)
 
-def make_HS_unit_cell(ax,r0=np.array([0,0]), left_link=False, down_link=False, place_SET=True, q_colours=q_colours, i=0,j=0, q_radius=q_radius):
-
+def make_HS_unit_cell(ax,r0=np.array([0,0]), left_link=False, down_link=False, place_SET=True, q_colours=q_colours_HS, i=0,j=0, q_radius=q_radius):
+    
     plot_HS_grid(ax, r0, left_link=left_link, down_link=down_link)
 
     
@@ -666,7 +698,7 @@ def make_HS_unit_cell(ax,r0=np.array([0,0]), left_link=False, down_link=False, p
                 else:
                     if j%2==0:
                         color = q_colours[5]
-            place_qubit(ax,q_loc+r0, color, q_radius)
+            place_qubit(ax,q_loc+r0, color, q_radius, couplers=True)
 
 
 def make_stab_unit_cell(ax=None, r0=np.array([d_HS,0]), fontsize=17):
@@ -827,7 +859,8 @@ def place_HS_wires(ax, distance, colors):
         break
 
 
-def make_HS_array(ax, distance, SET_colors = [grey, grey], wire_colors=[grey, grey, yellow, yellow, yellow, yellow], q_colours = [q_meas_colour, q_flag_colour, q_data_colour,q_meas_colour,q_meas_colour,q_meas_colour]):
+
+def make_HS_qubit_array(ax, distance, SET_colors = [grey, grey], wire_colors=[grey, grey, yellow, yellow, yellow, yellow], q_colours = [q_meas_colour, q_flag_colour, q_data_colour,q_meas_colour,q_meas_colour,q_meas_colour]):
     '''
     wire_colours =? [SET1, SET2, hgate1, hgate2, vgate1, vgate2] 
 
@@ -844,14 +877,18 @@ def make_HS_array(ax, distance, SET_colors = [grey, grey], wire_colors=[grey, gr
             ax.add_patch(stab_tile)
     place_qubit(ax, np.array([-HS_cell_size,-d_HS]), q_colours[2], q_radii[0])
     ax.plot([-HS_cell_size, -HS_cell_size], [-HS_cell_size,(2*distance-3)*d_HS], color='black', zorder=0)
-    place_HS_SETs(ax, distance, colors=SET_colors)
-    place_HS_wires(ax, distance, colors=wire_colors)
 
     pad = 10
     ax.set_xlim([-2*HS_cell_size-pad, (distance-1.5)*HS_cell_size+pad])
     ax.set_ylim([-HS_cell_size-pad, (distance-0.5)*HS_cell_size+pad])
     ax.set_aspect('equal')
     ax.axis('off')
+
+def make_HS_array(ax, distance, SET_colors = [grey, grey], wire_colors=[grey, grey, yellow, yellow, yellow, yellow], q_colours = [q_meas_colour, q_flag_colour, q_data_colour,q_meas_colour,q_meas_colour,q_meas_colour]):
+    make_HS_qubit_array(ax, distance, SET_colors = SET_colors, wire_colors=wire_colors, q_colours = q_colours)
+    place_HS_SETs(ax, distance, colors=SET_colors)
+    place_HS_wires(ax, distance, colors=wire_colors)
+
 
 def logical_operators():
     pass
@@ -885,15 +922,15 @@ def flag_readout_1(ax, distance=5):
     make_HS_array(ax, distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow,grey, blue,grey, orange, red], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
     for j in range(distance//2+1):
         for i in range(distance//2):
-            place_qubit(ax, np.array([4*i,4*j])*d_HS, read_color)
+            place_qubit(ax, np.array([4*i,4*j])*d_HS, read_color, q_radius=read_radius)
 
 def flag_readout_2(ax, distance=5):
-    make_HS_array(ax, distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow,grey, grey,grey, red, orange], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
+    make_HS_array(ax, distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow,grey, grey,grey, red, red], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
     for j in range(distance//2+1):
         for i in range(distance//2+1):
             place_qubit(ax, np.array([4*i,4*j])*d_HS, grey)
             if i==0 and j==distance//2: continue
-            place_qubit(ax, np.array([-2*d_HS,0])+np.array([4*i,4*j])*d_HS, read_color)
+            place_qubit(ax, np.array([-2*d_HS,0])+np.array([4*i,4*j])*d_HS, read_color, q_radius=read_radius)
 
 def flag_readout_3(ax, distance=5):
     make_HS_array(ax, distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow,grey, grey,blue, red, orange], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
@@ -901,7 +938,7 @@ def flag_readout_3(ax, distance=5):
         for i in range(distance//2+1):
             place_qubit(ax, np.array([4*i,4*j])*d_HS, grey)
             if j!=0 or i!=distance//2:
-                place_qubit(ax, np.array([-2*d_HS,-2*d_HS])+np.array([4*i,4*j])*d_HS, read_color)
+                place_qubit(ax, np.array([-2*d_HS,-2*d_HS])+np.array([4*i,4*j])*d_HS, read_color, q_radius=read_radius)
             if i==0 and j==distance//2: continue
             place_qubit(ax, np.array([-2*d_HS,0])+np.array([4*i,4*j])*d_HS, grey)
 
@@ -914,10 +951,10 @@ def flag_readout_4(ax, distance=5):
                 place_qubit(ax, np.array([0-2*d_HS,0])+np.array([4*i,4*j])*d_HS, grey)
             if j!=0 or i!=distance//2:
                 place_qubit(ax, np.array([-2*d_HS,-2*d_HS])+np.array([4*i,4*j])*d_HS, grey)
-            place_qubit(ax, np.array([0,-2*d_HS])+np.array([4*i,4*j])*d_HS, read_color)
+            place_qubit(ax, np.array([0,-2*d_HS])+np.array([4*i,4*j])*d_HS, read_color, q_radius=read_radius)
 
-def flag_measure(ax, distance=5):
-    make_HS_array(ax, distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow,grey, grey, red, grey, grey], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
+def measure_readout(ax, distance=5):
+    make_HS_array(ax, distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow,grey, grey, red, red,red], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
     for j in range(distance//2+1):
         for i in range(distance//2+1):
             place_qubit(ax, np.array([4*i,4*j])*d_HS, grey)
@@ -926,18 +963,29 @@ def flag_measure(ax, distance=5):
                 place_qubit(ax, np.array([-2*d_HS,-2*d_HS])+np.array([4*i,4*j])*d_HS, grey)
             if i!=0 or j!=distance//2: 
                 place_qubit(ax, np.array([-2*d_HS,0])+np.array([4*i,4*j])*d_HS, grey)
-        place_qubit(ax, np.array([1,4*j])*d_HS, read_color)
+        place_qubit(ax, np.array([1,4*j])*d_HS, read_color, q_radius=read_radius)
+        place_qubit(ax, np.array([5,4*j])*d_HS, read_color, q_radius=read_radius)
 
-def readout(distance=3, fp=None):
-    fig,ax = plt.subplots(2,3)
+def readout(distance=5, fp=None):
+    fig,ax = plt.subplots(2,2)
     make_HS_array(ax[0,0], distance=distance, SET_colors=[yellow, grey], wire_colors=[yellow, grey, blue,'silver', orange, orange], q_colours=[grey,q_flag_colour,q_data_colour,q_meas_colour, grey, grey])
     flag_readout_1(ax[0,1], distance)
-    flag_readout_2(ax[0,2], distance)
-    flag_readout_3(ax[1,0], distance)
-    flag_readout_4(ax[1,1], distance)
-    flag_measure(ax[1,2], distance)
-    if fp is not None: fig.savefig(fp)
+    flag_readout_2(ax[1,0], distance)
+    #flag_readout_3(ax[1,0], distance)
+    #flag_readout_4(ax[1,1], distance)
+    measure_readout(ax[1,1], distance)
+    x_offset=0.08
+    y_offset=-0.12
+    fontsize=16
+    label_axis(ax[0,0], 'CNOTs', x_offset=x_offset, y_offset=y_offset, fontsize=fontsize)
+    label_axis(ax[0,1], 'read flag 1', x_offset=x_offset, y_offset=y_offset, fontsize=fontsize)
+    label_axis(ax[1,0], 'read flag 2', x_offset=x_offset, y_offset=y_offset, fontsize=fontsize)
+    #label_axis(ax[1,0], 'read flag 3', x_offset=x_offset, y_offset=y_offset, fontsize=fontsize)
+    #label_axis(ax[1,1], 'read flag 4', x_offset=x_offset, y_offset=y_offset, fontsize=fontsize)
+    label_axis(ax[1,1], 'read measure', x_offset=x_offset, y_offset=y_offset, fontsize=fontsize)
 
+    fig.set_size_inches(fig_width_double, 1.05*fig_width_double)
+    if fp is not None: fig.savefig(fp)
 
 
 
@@ -1026,28 +1074,61 @@ def HS_side_view(ax=None, r0=np.array([-2*d_HS,0])):
     ax.get_figure().tight_layout()
 
 
+
+def make_conventional_square_array(distance=4):
+    global d_HS
+    fucku = 1*d_HS
+    #set_trace()
+    del d_HS
+    d_HS=1.5*fucku
+    fig,ax = plt.subplots(1,1)
+    for i in range(distance):
+        
+        loc_d1 = np.array([2*i+1,-1])*d_HS
+        #loc_a1 = loc_d1 + np.array([1,0])*d_HS
+        loc_d2 = np.array([-1,2*i+1])*d_HS
+        #loc_a2 = loc_d1 + np.array([0,1])*d_HS
+        place_qubit(ax, loc_d1, 'orange')
+        #place_qubit(ax, loc_a1, 'black')
+        place_qubit(ax, loc_d2, 'orange')
+        #place_qubit(ax, loc_a2, 'black')
+        ax.axhline(2*i*d_HS, color='black')
+        ax.axvline(2*i*d_HS, color='black')
+        ax.axhline((2*i+1)*d_HS, color='black')
+        ax.axvline((2*i+1)*d_HS, color='black')
+        for j in range(distance):
+            loc_d1 = np.array([i,j])*2*d_HS
+            loc_a1 = loc_d1 + np.array([1,0])*d_HS
+            loc_d2 = loc_d1 + np.array([1,1])*d_HS
+            loc_a2 = loc_d1 + np.array([0,1])*d_HS
+            place_qubit(ax, loc_d1, 'orange')
+            place_qubit(ax, loc_a1, 'black')
+            place_qubit(ax, loc_d2, 'orange')
+            place_qubit(ax, loc_a2, 'black')
+
+    ax.set_xlim([-2*d_HS,distance*2*d_HS])
+    ax.set_ylim([-2*d_HS,distance*2*d_HS])
+    ax.set_aspect('equal')
+
+
 if __name__ == '__main__':
-    ''' HEAVY HEXAGON '''
-    #plot_cell_array(4,4, filename="cell_array")
-    #generate_CNOTs()
-    #generate_2_coupler_conditions()
-    #plot_annotated_cell(filename="single_cell")
-    #numbered_qubits_cell()
-    #plot_single_cell()
 
     ''' HEAVY SQUARE '''
+    couplers=False
 
 
-    #make_HS_array(ax, 9)
+    make_HS_array(plt.subplot(), 3)
     #surface_code_defects(np.array([[2,2], ]), distance=5)
 
     #plt.subplot().add_patch(mpl.patches.Polygon([[0,0],[1,2],[2,3]]))
 
     #illustrative_configs()
-    readout()
+    #readout()
     #HS_side_view()
     #make_stab_unit_cell()
     #make_atomic_unit_cell()
     #stabilizer_activations()
+    #make_HS_qubit_array(plt.subplot(), 5)
+    #make_conventional_square_array()
     plt.show()
 

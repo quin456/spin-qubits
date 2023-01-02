@@ -64,8 +64,8 @@ def spin_state_ket_label_getter(i, nq=2, states_to_label=None):
 def spin_state_ket_sq_label_getter(i, nq=2, states_to_label=None):
     return f"|{spin_state_ket_label_getter(i, nq=nq, states_to_label=states_to_label)}$|^2$"
 
-def alpha_sq_label_getter(i):
-    return f'$|α_{i}|^2$'
+def alpha_sq_label_getter(i,nq=2):
+    return f'$|α_{{{np.binary_repr(i,nq)}}}|^2$'
 
 def eigenstate_label_getter(i, states_to_label=None):
     if states_to_label is not None:
@@ -110,7 +110,7 @@ def multi_NE_label_getter(j, label_states=None):
     
     return b[0]+b[1]+L2+L3
 
-def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, fp=None, legend_loc='upper center'):
+def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, fp=None, legend_loc='upper center', legend_ncols=1):
     '''
     Plots the evolution of each component of psi.
 
@@ -139,7 +139,7 @@ def plot_psi(psi, tN=None, T=None, ax=None, label_getter =  None, squared=True, 
         # if squared and label is not None:
         #     label = f"Pr({label})"
         ax.plot(T/unit.ns,y, label = label)
-    ax.legend(loc=legend_loc)
+    ax.legend(loc=legend_loc, ncol=legend_ncols)
     ax.set_xlabel("time (ns)")
     if y_axis_labels: ax.set_ylabel("$|\psi|$")
     print(squared)
@@ -224,7 +224,7 @@ def plot_fidelity(ax,fids, T=None, tN=None, legend=True, printfid=False):
         for q in range(nS):
             ax.plot(T/unit.ns,fids[q], label=f"System {q+1} fidelity")
     if legend: ax.legend()
-    ax.set_xlabel("time (ns)")
+    ax.set_xlabel("Time (ns)")
     if y_axis_labels: ax.set_ylabel("Fidelity")
     if annotate: ax.annotate("Fidelity progress", (0,0.95))
     if printfid: print(f"Achieved fidelity = {fids[:,-1]:.4f}")
@@ -308,7 +308,7 @@ def plot_NE_energy_diagram(Bz = pt.linspace(0,0.2, 100)*unit.T, N=1000, A=get_A(
         H0[j] = get_NE_H0(A, Bz[j])
 
     if ax is None: fig,ax=plt.subplots(1)
-    E = plot_energy_level_variation(H0, Bz, '$B_z$ (mT)', unit.mT, ax=ax)
+    E = plot_energy_level_variation(H0, Bz, '$B_0$ (mT)', unit.mT, ax=ax)
     ax.annotate('$T_0$', (-0.4,E[0,1]/unit.MHz+14))
     ax.annotate('$T^+$', (-0.4, E[0,1]/unit.MHz-5))
     ax.annotate('$T^-$', (-0.4, E[0,1]/unit.MHz-24))
@@ -334,7 +334,7 @@ def plot_NE_alpha_beta(Bz = pt.linspace(0,0.2, 100)*unit.T, N=1000, A=get_A(1,1)
     
     if ax is None: ax=plt.subplot()
     plot_alpha_beta(S, D, Bz/unit.mT, ax=ax)
-    ax.set_xlabel("Bz (mT)")
+    ax.set_xlabel("$B_0$ (mT)")
 
 
     
@@ -350,10 +350,7 @@ def plot_alpha_beta(S, D, x_axis, ax=None):
     ax.plot(x_axis, beta**2, label="$ß^2$")  
     ax.legend()
 
-    i = 0
-    while alpha[i]**2 > 0.999:
-        i += 1
-
+    
 
 
 def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
@@ -364,6 +361,9 @@ def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
     
     if ax is None: ax = plt.subplot()
     plot_fidelity(ax,fids, tN=tN, T=T)
+    ax.set_yticks([0,1])
+    ax.axhline(1, linestyle='--', color='black', linewidth=1)
+    ax.set_ylim([0,1.1])
     return fids
 
 
@@ -391,54 +391,51 @@ def plot_J(T, J, ax=None):
 
 
 
-def fidelity_bar_plot(fids, ax=None, f1=0.9999, f2=0.99, f3=0.98):
+def fidelity_bar_plot(fids, ax=None, f=[0.9999, 0.99, 0.98], colours=['green', 'orange', 'red', 'darkred'], legend_loc='best'):
     '''
     Accepts nS length array of final fidelities for each system.
     '''
+    nbins=len(colours)
     def get_fid_color(fid):
-        if fid>f1:
-            return 'green'
-        elif fid>f2:
-            return 'orange'
-        elif fid>f3:
-            return 'red'
+        for i in range(nbins-1):
+            if fid>f[i]:
+                return colours[i]
         else:
-            return 'darkred'
+            return colours[nbins-1]
 
-    nbins=4
     fids_binned = [[] for _ in range(nbins)]
     sys_binned = [[] for _ in range(nbins)]
     for j in range(len(fids)):
-        if fids[j]>f1:
-            i_bin = 0
-        elif fids[j]>f2:
-            i_bin = 1
-        elif fids[j]>f3:
-            i_bin = 2
-        elif fids[j]<f3:
-            i_bin = 3
+        for i in range(nbins-1):
+            if fids[j]>f[i]:
+                i_bin = i
+                break
+        else:
+            i_bin = nbins-1
         fids_binned[i_bin].append(fids[j])
         sys_binned[i_bin].append(j)
     
 
-    colors = ['green', 'orange', 'red', 'darkred']
-    labels = [f'>{f1*100}%', f'>{f2*100}%', f'>{f3*100}%', f'<{f3*100}%']
+    labels = [f'>{fj*100}%' for fj in f] + [f'<{f[-1]*100}%']
     for i in range(nbins):
-        ax.bar(sys_binned[i], fids_binned[i], color=colors[i], label=labels[i])
+        ax.bar(sys_binned[i], fids_binned[i], color=colours[i], label=labels[i])
     color = [get_fid_color(fid) for fid in fids]
     if ax is None: ax = plt.subplot()
     nS=len(fids)
     #ax.bar(np.linspace(0,nS-1,nS), fids, np.ones(nS)*0.3, color = color)
-    ax.legend()
+    ax.legend(loc=legend_loc, ncol=4)
+    ax.set_xlabel('Systems')
+    ax.set_ylabel('Fidelity')
     
 
-def nuclear_spin_tag(ax, NucSpin, r_prop = 0.1, down_color = 'red', up_color = 'dodgerblue', loc = 'lower left', dx=0, dy=0, text=None):
-    width, height = ax.get_figure().get_size_inches()
+def nuclear_spin_tag(ax, NucSpin, r_prop = 0.1, down_color = 'black', up_color = 'black', loc = 'lower left', dx=0, dy=0, text=None, mult=1, dx_text=0, dy_text=0):
+    bbox = ax.get_window_extent().transformed(ax.get_figure().dpi_scale_trans.inverted())
+    width, height = bbox.width, bbox.height
     ylim = ax.get_ylim()
     xlim = ax.get_xlim()
-    x_mult = (xlim[1] - xlim[0])/width
-    y_mult = (ylim[1] - ylim[0])/height
-    radius = r_prop * (ylim[1]-ylim[0])
+    x_mult = mult * (xlim[1] - xlim[0])/width
+    y_mult = mult * (ylim[1] - ylim[0])/height
+    radius = r_prop * mult
 
     locy, locx = loc.split()
     if locx == 'left': x0 = xlim[0]
@@ -449,19 +446,37 @@ def nuclear_spin_tag(ax, NucSpin, r_prop = 0.1, down_color = 'red', up_color = '
     elif locy == 'center': y0 = (ylim[1]+ylim[0])/2-radius*y_mult*2
     elif locy == 'lower': y0 = ylim[0]
     else: raise Exception("Invalid location")
-    pos = np.array([x0 + (2*radius+dx)*x_mult, y0 + (2*radius+dy)*y_mult])
+    pos = np.array([x0 + (2*radius)*x_mult+dx, y0 + (2*radius)*y_mult+dy])
     color = [down_color if nspin else up_color for nspin in NucSpin]
     for j,nspin in enumerate(NucSpin):
-        posj = pos+j*np.array([1.5*radius*x_mult, 0])
-        circ = mpl.patches.Ellipse(posj, radius*x_mult, radius*y_mult, facecolor = 'gray', edgecolor='black', linewidth=0.5)
+        posj = pos+j*np.array([2*radius*x_mult, 0])
+        circ = mpl.patches.Ellipse(posj, radius*x_mult, radius*y_mult, facecolor = 'darkred', edgecolor='black', linewidth=0.5, zorder=3)
+        width= 0.1 *x_mult/ 1.71875
+        head_width= 0.2 *x_mult/ 1.71875
+        head_length = 0.05 * y_mult /0.5949633626483772
         if nspin:
-            farrow = mpl.patches.FancyArrow(*posj, 0, -1*radius*y_mult, width=0.1, head_length=0.05, head_width=0.2, color=color[j])
+            farrow = mpl.patches.FancyArrow(*posj, 0, -1*radius*y_mult, width=width, head_length=head_length, head_width=head_width, color=color[j], zorder=3)
         else:
-            farrow = mpl.patches.FancyArrow(*posj, 0, 1*radius*y_mult, width=0.1, head_length=0.05, head_width=0.2, color=color[j])
+            farrow = mpl.patches.FancyArrow(*posj, 0, 1*radius*y_mult, width=width, head_length=head_length, head_width=head_width, color=color[j], zorder=3)
         ax.add_patch(farrow)
         ax.add_patch(circ)
     if text is not None:
-        ax.annotate(text, (x0 + (1.5    *radius+dx)*x_mult, y0-radius*2.5*y_mult + (2*radius+dy)*y_mult))
+        ax.annotate(text, (x0 + (1.5    *radius)*x_mult+dx+dx_text, y0-radius*2.5*y_mult + (2*radius)*y_mult+dy+dy_text))
+
+
+def box_ax(ax, xlim=None, ylim=None, color='red', padding=1):
+    if xlim is None: xlim = ax.get_xlim() 
+    if ylim is None: ylim = ax.get_ylim()
+    xy = [xlim[0]+padding, ylim[0]+padding]
+    w = xlim[1] - xlim[0] - 2*padding
+    h = ylim[1] - ylim[0] - 2*padding
+    draw_box(ax, xy, w, h, color=color)
+
+
+
+def draw_box(ax, xy, w, h, color='red', linewidth=2):
+    box = plt.Rectangle(xy, w, h, color=color, fill=False, linewidth=linewidth, alpha=1, zorder=3)
+    ax.add_patch(box)
 
 
 def color_bar(ax, colors, padding = 0, tick_labels=['V3', 'V2', 'V1', '0 V'], orientation='horizontal'):
@@ -498,13 +513,18 @@ if __name__=='__main__':
     #plot_NE_alpha_beta(Bz = pt.linspace(0,5, 500)*unit.T)
     #plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.T)
     #fidelity_bar_plot(np.array([0.99, 0.95, 0.92, 0.99, 0.9999, 0.978]))
-
-    # fig,ax = plt.subplots()
-    # x = np.linspace(0,10,100)
-    # ax.plot(x, np.sin(x))
-    # nuclear_spin_tag(ax, [0,1,1], loc = 'center center', text='15x 1P-1P')
+    from GRAPE import load_grape
+    prev_grape_fp='fields/c878_1S_2q_100ns_500step'
+    grape = load_grape(prev_grape_fp)
+    fig,ax = plt.subplots()
+    x = np.linspace(0,10,100)
+    #ax.plot(x, np.sin(x))
+    psi = grape.X[0]@gate.spin_10
+    plot_psi(psi, tN=grape.tN, ax=ax)
+    #ax.set_xlim([-1000,10000])
+    nuclear_spin_tag(ax, [0,1,1], loc = 'center right', text='15x 1P-1P', mult=1.5)
     # plt.show()
 
-    ax = plt.subplot()
-    color_bar(ax, colors=['#0000cc', '#0080ff', '#99ccff','lightgray', 'orange', 'red'], tick_labels=['1','2','3','4','5','6'], orientation='vertical')
+    #ax = plt.subplot()
+    #color_bar(ax, colors=['#0000cc', '#0080ff', '#99ccff','lightgray', 'orange', 'red'], tick_labels=['1','2','3','4','5','6'], orientation='vertical')
     plt.show()

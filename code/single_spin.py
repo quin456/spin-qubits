@@ -21,7 +21,7 @@ from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_U0
 from data import get_A
 from GRAPE import Grape
 from hamiltonians import single_electron_H0
-
+from visualisation import *
 
 from pdb import set_trace
 
@@ -45,14 +45,14 @@ def show_single_spin_evolution(Bz = 0*unit.T, A=get_A(1,1), tN = 500*unit.ns, N=
     H0 = single_electron_H0(Bz, A)
     Hw = get_pulse_hamiltonian(Bx, By, gamma_e)
     H = sum_H0_Hw(H0, Hw)
-    U0 = get_U0(H0, tN, N)
+    U0 = get_U0(H0, tN=tN, N=N)
 
     U = pt.matrix_exp(-1j*H*tN/N)
     X = forward_prop(U)
-    show_fidelity(X,tN,gate.X, ax[1])
+    show_fidelity(X,tN=tN,target=gate.X, ax=ax[1])
     psi = X@psi0 
 
-    plot_psi(psi, tN, ax[2], label_getter=label_getter)
+    plot_psi(psi, tN=tN, ax=ax[2], label_getter=label_getter)
     #plot_phases(psi, tN, ax[1,1])
     plt.tight_layout()
 
@@ -61,20 +61,21 @@ def show_single_spin_evolution(Bz = 0*unit.T, A=get_A(1,1), tN = 500*unit.ns, N=
 
 
 class SingleElectronGRAPE(Grape):
-    def __init__(self, tN, N, target, rf=None, u0=None, hist0=[], max_time=60, save_data=False, Bz=0, A=get_A(1,1)):
+    def __init__(self, tN, N, target, rf=None, u0=None, hist0=[], max_time=60, save_data=False, Bz=0, A=get_A(1,1), lam=0):
         self.nq = 1
         self.nS = 1
         self.Bz=Bz
         self.A=A
-        super().__init__(tN,N,target, rf, u0, hist0, max_time, save_data)
-        self.Hw = self.get_Hw()
+        super().__init__(tN,N,target, rf=rf, nS=1, u0=u0, max_time=max_time, kappa=1e12, lam=lam)
         self.rf = self.get_all_resonant_frequencies() if rf is None else rf
-
+        self.Hw=self.get_Hw()
         self.fun = self.cost
 
 
-    def get_H0(self):
-        return single_electron_H0(self.Bz, self.A)
+
+    def get_H0(self, Bz=0):
+        H0 = single_electron_H0(Bz, self.A)
+        return H0.reshape(1,*H0.shape)
 
     def get_Hw(self):
         return get_pulse_hamiltonian(self.x_cf, self.y_cf, gamma_e)
@@ -83,39 +84,46 @@ class SingleElectronGRAPE(Grape):
         return pt.tensor([gamma_e*self.Bz + 2*self.A])
 
 
-    def plot_result(self, u, X, psi0 = spin_up, show_plot=True):
+    def plot_result(self, psi0 = spin_up):
+        fig,ax = plt.subplots(2,2)
 
-        fig,ax = plt.subplots(3,1)
+        psi = self.X[0]@psi0 
 
-        psi = X[0]@psi0 
+        self.plot_u(ax[0,0])
+        self.plot_control_fields(ax[0,1])
 
-
-        plot_psi(psi, self.tN, ax[2], label_getter=label_getter)
-        Bx, By = self.sum_XY_fields(self.u_mat())
-        self.plot_XY_fields(ax[0], Bx, By)
+        #plot_psi(psi, tN=self.tN, ax=ax[1,1], label_getter=label_getter)
+        Bx, By = self.sum_XY_fields()
+        self.plot_XY_fields(ax[1,0], Bx, By)
         #plot_phases(psi, self.tN, ax[0])
-        show_fidelity(X,self.tN,self.target,ax[1])
-        plt.tight_layout()
+        show_fidelity(self.X[0], tN=self.tN, target=self.target, ax=ax[1,1])
+        fig.set_size_inches(1.1*fig_width_double, 1.1*0.8*fig_height_double_long)
+        fig.tight_layout()
 
-        plt.savefig("thesis-plots/Ch1-numerical-example.pdf")
-        plt.show()
+        x_offset=-0.11; y_offset=-0.25
+        label_axis(ax[0,0], '(a)', x_offset=x_offset, y_offset=y_offset)
+        label_axis(ax[0,1], '(b)', x_offset=x_offset, y_offset=y_offset)
+        label_axis(ax[1,0], '(c)', x_offset=x_offset, y_offset=y_offset)
+        label_axis(ax[1,1], '(d)', x_offset=x_offset, y_offset=y_offset)
+
+        return ax
 
 
 
-def run_single_electron_grape():
-    target = gate.X 
-    N = 1000
+def run_single_electron_grape(fp=None):
+    target = gate.H
+    N = 300
     Bz=0
     A = get_A(1,1)
-    tN = 100*unit.ns 
-    tN = lock_to_frequency(A,tN)
-    u0 = 1.5*np.pi/( (gamma_e*unit.T)*tN) * pt.ones(2,N, dtype=cplx_dtype)
+    tN = 50*unit.ns 
+    u0 = 1.5*np.pi/( (gamma_e*unit.T)*tN) * pt.ones(2,N, dtype=cplx_dtype)*0.2
 
-    grape = SingleElectronGRAPE(tN,N,target, Bz=Bz,u0=u0)
-    #grape.run()
-    grape.result()
+    grape = SingleElectronGRAPE(tN,N,target, Bz=Bz,u0=u0, lam=1e5)
+    grape.run()
+    grape.print_result()
+    ax=grape.plot_result()
 
-
+    if fp is not None: ax[0,0].get_figure().savefig(fp)
 
 
 

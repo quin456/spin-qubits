@@ -39,6 +39,10 @@ meV = 1e-3*eV
 K=1
 mK=1e-3*K
 
+mu_0 = 1.25663706e-6 * m*kg*(s**-2)*(A**2)
+mu_B = qE*hbar/(2*mE)
+
+
 
 MV = 1e6*V
 MHz = 1e6*Hz

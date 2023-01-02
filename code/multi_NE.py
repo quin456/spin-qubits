@@ -17,7 +17,7 @@ from eigentools import *
 from data import get_A, get_J
 from visualisation import plot_psi, plot_fields, plot_fidelity, multi_NE_label_getter
 from pulse_maker import square_pulse
-from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X_from_H, get_U0
+from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, multi_NE_H0, multi_NE_Hw, get_X_from_H, get_U0, get_NE_H0, get_NE_Hw
 from GRAPE import Grape
 from pulse_maker import pi_pulse_square
 
@@ -250,7 +250,7 @@ def get_NE_estate_transition(S, D, i_psi0=25, i_psi1=28, tN=4000*unit.ns, N=1000
     return Bx,By
 
 
-def triple_NE_estate_transition(i_psi0=27, i_psi1=28, tN=14000*unit.ns, N=4000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3,J2=J_1s3q), ax=None):
+def triple_NE_estate_transition(i_psi0=27, i_psi1=28, tN=14000*unit.ns, N=4000, Bz=2*unit.T, A=get_A(1,1), J=get_J(1,3,J2=J_1s3q/1.3), ax=None):
     H0 = multi_NE_H0(J=J, A=A, Bz=Bz)
     S,D = get_ordered_eigensystem(H0, ascending=True) 
 
@@ -287,13 +287,16 @@ def triple_NE_estate_transition(i_psi0=27, i_psi1=28, tN=14000*unit.ns, N=4000, 
 
 
 
-def triple_NE_free_evolution(tN=50*unit.ns, N=500, A=get_A(1,1), J=get_J(1,3)):
+def triple_NE_free_evolution(tN=15000*unit.ns, N=5000, A=get_A(1,1), J=get_J(1,3)):
     H0 = multi_NE_H0(J=J, A=A)
     S,D = get_ordered_eigensystem(H0, ascending=True) 
 
-    psi0 = S[:,53]
+    psi0 = pt.zeros_like(S[:,0])
+    psi0[15]=1
 
-    U0 = get_U0(H0, tN, N)
+    set_trace()
+
+    U0 = get_U0(H0, tN=tN, N=N)
     #psi = U0@psi0 
 
     Hw = pt.zeros(N,64,64)
@@ -439,6 +442,39 @@ class MultiNuclearElectronGrape(Grape):
 
 
 
+def NE_swap_with_exchange(J=0):
+    A = get_A(1,1)
+    B0 = 2*unit.T 
+
+    Bx_By_T = pt.load("fields/swap_fields")
+    Bx = Bx_By_T[:,0]
+    By = Bx_By_T[:,1]
+    T = Bx_By_T[:,2]
+
+    H0 = multi_NE_H0(B0, A, J)
+    H_ac = multi_NE_Hw(Bx, By, 2)
+
+    H = sum_H0_Hw(H0, H_ac)
+    X = get_X_from_H(H, T=T)
+    
+
+    swaps = gate.NE_swap_2q
+    Phi = fidelity(swaps, X[-1])
+
+    return Phi
+
+
+def NE_swap_fidelity_vs_J(n=4):
+    Jmin = 0*unit.kHz 
+    Jmax = 1*unit.kHz
+    J = pt.linspace(Jmin, Jmax, n)
+    Phi = pt.zeros(n)
+    for i in range(n):
+        Phi[i] = NE_swap_with_exchange(J[i])
+
+    ax=plt.subplot()
+    ax.plot(J/unit.kHz, Phi)
+    ax.set_xlabel('J (kHz)')
 
 if __name__ == '__main__':
 
@@ -450,11 +486,12 @@ if __name__ == '__main__':
 
 
 
-    map_3NE_transitions()
+    #map_3NE_transitions()
     
     
     triple_NE_estate_transition()
     #triple_NE_free_evolution()
     
+    #NE_swap_fidelity_vs_J()
     
     plt.show()

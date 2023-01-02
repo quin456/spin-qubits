@@ -394,20 +394,39 @@ def visualise_3E_Hw(A=get_A(1,3), J=get_J(1,3), Bz=0, tN=10*unit.ns, N=1000):
     visualise_Hw(Hw_eig_IP,tN)
 
 
-def examine_electron_eigensystem(Bz = B0, NucSpin=[1,0], A_mags=[A_P, A_2P], n=500, dim=4):
+def examine_electron_eigensystem(Bz = B0, NucSpin=[0,1], A_mags=[A_P, A_P], n=500, dim=4):
 
     A = get_A(n,2, NucSpin, A_mags)
-    J = pt.linspace(0.1, 145, n) * unit.MHz
+    J = pt.linspace(0.1, 50, n) * unit.MHz
     S = pt.zeros(n, dim, dim, dtype=cplx_dtype, device=default_device)
     D = pt.zeros_like(S)
 
 
-    H0 = get_H0(A, J, B0/50)
+    H0 = get_H0(A, J, 1*unit.mT)
     H0_phys = get_H0(A, J, B0)
 
     S,D = get_multi_ordered_eigensystems(H0, H0_phys)
-    plot_alpha_beta(S,D, J/unit.MHz)
 
+    alpha = pt.real(S[:,1,1])
+    beta = pt.real(S[:,1,2])
+
+    fig,ax=plt.subplots(1,2)
+    ax[1].plot(J/unit.MHz, alpha**2, label="$α^2$")
+    ax[1].plot(J/unit.MHz, beta**2, label="$ß^2$")
+    ax[1].set_xlabel("J (MHz)")
+
+    ax[0].plot(J/unit.MHz, D[:,0,0]/unit.MHz, label='$|T^+>$')
+    ax[0].plot(J/unit.MHz, D[:,1,1]/unit.MHz, label='$|S_0>$')
+    ax[0].plot(J/unit.MHz, D[:,2,2]/unit.MHz, label='$|T_0>$')
+    ax[0].plot(J/unit.MHz, D[:,3,3]/unit.MHz, label='$|T_->$')
+    ax[0].legend()
+    i = 0
+    while alpha[i]**2 > 0.999:
+        i += 1
+
+    print(f"alpha[{i}]^2 = {alpha[i]**2} at J[{i}] = {J[i]/unit.MHz} MHz")
+    ax[1].axvline(J[i]/unit.MHz, linestyle='--', color='red', label='Low J cutoff', linewidth=1)
+    ax[1].legend()
 
 
 def get_2E_low_J_CNOT_pulse(tN = 20*unit.ns, N=500, J=1*unit.MHz, A=get_A(1,2), Bz=0):
@@ -430,3 +449,4 @@ def get_2E_low_J_CNOT_pulse(tN = 20*unit.ns, N=500, J=1*unit.MHz, A=get_A(1,2), 
 if __name__ == '__main__':
 
     examine_electron_eigensystem()
+    plt.show()

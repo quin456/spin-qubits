@@ -1,1 +1,1 @@
-scp qa4681@gadi.nci.org.au:spin-qubits/code/fields/$1\* fields
+scp qa4681@gadi.nci.org.au:spin-qubits/code/fields/$1\* ./fields/

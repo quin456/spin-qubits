@@ -1,0 +1,13 @@
+#!/bin/bash
+# -P na4#PBS -q normal
+#PBS -l walltime=20:00:00
+#PBS -l mem=48GB
+#PBS -l jobfs=1GB
+#PBS -l ncpus=12
+#PBS -l wd
+
+module load openmpi/3.0.4
+
+ulimit -s unlimited
+
+mpirun /scratch/na4/qa4681/nemo_1P_2P/test/nemo3d.ex silicon4_P.xml > my_output.out

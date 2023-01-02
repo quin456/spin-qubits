@@ -4,6 +4,7 @@ import pickle
 import torch as pt 
 import atomic_units as unit
 from atomic_units import hbar, qE, mE
+import numpy as np
 
 from pdb import set_trace
 
@@ -22,10 +23,11 @@ J_100_18nm = pt.tensor(exch_data['100_18'], dtype=cplx_dtype, device=default_dev
 J_100_14nm = pt.tensor(exch_data['100_14'], dtype=cplx_dtype, device=default_device) * unit.MHz
 J_110_18nm = pt.tensor(exch_data['110_18'], dtype=cplx_dtype, device=default_device) * unit.MHz
 J_110_14nm = pt.tensor(exch_data['110_14'], dtype=cplx_dtype, device=default_device) * unit.MHz
-J_2P_1P_fab = pt.load(f"{exch_data_folder}J").to(cplx_dtype).to(device=default_device) * unit.MHz
+J_2P_1P_fab = pt.load(f"{exch_data_folder}J_big").to(cplx_dtype).to(device=default_device) * unit.MHz
 A_2P_1P_fab = pt.load(f"{exch_data_folder}A_2P_1P").to(cplx_dtype).to(default_device) * unit.MHz
-A_2P_fab = pt.load(f"{exch_data_folder}A_2P").to(default_device) * unit.MHz
-
+A_2P_fab = pt.load(f"{exch_data_folder}A_2P").to(cplx_dtype).to(device=default_device) * unit.MHz
+A_2P_69 = pt.load(f"{exch_data_folder}A_2P_69").to(cplx_dtype).to(device=default_device) * unit.MHz
+J_69 = pt.load(f"{exch_data_folder}J_69").to(cplx_dtype).to(device=default_device)*unit.MHz
 J_extended = pt.cat((J_100_18nm, J_100_18nm*1.1, J_100_18nm*1.2, J_100_18nm*1.3, J_100_18nm*1.4, J_100_18nm*1.5, J_100_18nm*1.6, J_100_18nm*1.7, J_100_18nm*1.8, J_100_18nm*1.9))
 
 
@@ -71,7 +73,7 @@ def get_A(nS,nq, NucSpin=None, A_mags=None, device=default_device, E_rise_time =
         if NucSpin is None: NucSpin = [1, -1]
         A = pt.tensor(nS*[[NucSpin[0]*A_mags[0], NucSpin[1]*A_mags[1]]], device=device, dtype = cplx_dtype)
     elif nq==3:
-        if NucSpin is None: NucSpin = [1, -1, 1]
+        if NucSpin is None: NucSpin = [1,-1,1]
         A = pt.tensor(nS*[[NucSpin[0]*A_mags[0], NucSpin[1]*A_mags[1], NucSpin[2]*A_mags[2]]], device=device, dtype=cplx_dtype)
 
     if nS==1:
@@ -87,7 +89,7 @@ def all_J_pairs(J1, J2, device=default_device):
             J[i*nJ+j,0] = J1[i]; J[i*nJ+j,1] = J2[j]
     return J
 
-def get_J(nS,nq,J1=J_100_18nm,J2=J_100_14nm, N=1, device=default_device, E_rise_time=1*unit.ns):
+def get_J(nS,nq,J1=J_100_18nm,J2=J_110_18nm/3.217, N=1, device=default_device, E_rise_time=1*unit.ns):
 
     # default to small exchange for testing single triple donor
     # if nS==1 and nq==3:
@@ -105,16 +107,22 @@ def get_J(nS,nq,J1=J_100_18nm,J2=J_100_14nm, N=1, device=default_device, E_rise_
     return J
 
 def get_A_1P_2P(nS, NucSpin=[0,0]):
-    A = A_2P_1P_fab[:nS] if nS>1 else A_2P_1P_fab[0]
+    A = A_2P_69[:nS] if nS>1 else A_2P_69[0]
     return A
 
 
 def get_J_1P_2P(nS):
-    return get_J(nS, 2, J1=J_2P_1P_fab)
+    return get_J(nS, 2, J1=J_69)
 
+
+def J_HF(R, a=1.8*unit.nm):
+    return (R/a)**(5/2) * np.exp(-2*R/a)
 
 
 J_1s3q = J=get_J(1, 3, J1=J_100_18nm, J2=J_100_14nm[8:])
+
+
+
 
 
 if __name__ == '__main__':

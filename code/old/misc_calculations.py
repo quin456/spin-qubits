@@ -16,6 +16,7 @@ from hamiltonians import *
 from data import *
 from utils import dagger, fidelity, wf_fidelity, get_rec_min_N
 from eigentools import get_resonant_frequencies
+from single_NE import *
 import gates as gate
 from gates import spin_101, spin_10
 from eigentools import *
@@ -364,8 +365,9 @@ def placement_symmetries_1P_2P(delta_x=50, delta_y=0, separation_2P = 2, verbose
 
     d = 1
     J_rand = minreal(J_100_18nm) + pt.rand(100) * (maxreal(J_100_18nm)-minreal(J_100_18nm))
-    J_2P_1P_fab = pt.cat((J_100_18nm, J_110_18nm, J_rand))/5
-    A_2P_fab = pt.tensor([87.3, 90.2, 87.0, 88.9, 74.7, 78.5,  69.2, 69.1, 63.3], dtype=cplx_dtype) * unit.MHz 
+    J_2P_1P_fab = pt.cat((J_100_18nm, J_110_18nm, J_rand))
+    A_2P_fab_old = pt.tensor([87.3, 90.2, 87.0, 88.9, 74.7, 78.5,  69.2, 69.1, 63.3], dtype=cplx_dtype) * unit.MHz 
+    A_2P_fab = pt.tensor([36.3, 35.7, 35.2, 34.9, 34.8, 34.5, 33.0, 31.9, 31.7, 30.7], dtype=cplx_dtype) * unit.MHz 
 
     sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites_1P_2P(delta_x, delta_y, d=d, separation_2P=separation_2P)
 
@@ -393,7 +395,7 @@ def placement_symmetries_1P_2P(delta_x=50, delta_y=0, separation_2P = 2, verbose
     for q in range(nS):
         A_2P[q] = A_map[d_pairs[q][0]]
         A_1P_2P[q,0] = A_P; A_1P_2P[q,1] = A_2P[q]
-        A_2P_1P[q,0] = A_2P[q]; A_2P_1P[q,1] = A_P
+        A_2P_1P[q,0] = A_2P[q]; A_2P_1P[q,1] = -A_P
         J[q] = J_map[d_pairs[q][1]]
 
 
@@ -413,7 +415,7 @@ def placement_symmetries_1P_2P(delta_x=50, delta_y=0, separation_2P = 2, verbose
         pt.save(A_2P/unit.MHz, f"{exch_data_folder}A_2P")
         pt.save(A_2P_1P/unit.MHz, f"{exch_data_folder}A_2P_1P")
         pt.save(A_1P_2P/unit.MHz, f"{exch_data_folder}A_1P_2P")
-        pt.save(J/unit.MHz, f"{exch_data_folder}J")
+        pt.save(J/unit.MHz, f"{exch_data_folder}J_big")
     return A_2P, J
 
 
@@ -560,6 +562,39 @@ def compare_1P_2P_frequencies():
     H0 = get_H0(A,J)
     check_system_overlap(H0)
 
+def split_rf(rf):
+    rf1=[]; rf2=[]
+    midfreq = pt.max(pt.real(rf))/2 
+    for w in rf:
+        if pt.abs(w)<midfreq:
+            rf1.append(w)
+        else:
+            rf2.append(w)
+    return pt.tensor(rf1), pt.tensor(rf2)
+
+
+def compare_3E_frequencies():
+    J = get_J(225,3)
+    A = get_A(225,3)
+    H0 = get_H0(A,J)
+    S,D = get_ordered_eigensystem(H0)
+
+    rf = get_multi_system_resonant_frequencies(H0)
+    rf1, rf2 = split_rf(rf)
+    #set_trace()
+
+    ax=plt.subplot()
+    #for w in rf:
+        #ax.axhline(w/unit.MHz)
+    C = get_couplings(S)
+    dw = pt.linspace(0,1000*unit.MHz,1000)
+    P=get_rabi_prob(0, dw, 1*unit.mT, 2*gamma_e)
+    i=0
+    while P[i]>0.01: i+=1
+    print(f"P({dw[i]/unit.MHz} MHz) = {P[i]}")
+    ax.plot(dw/unit.MHz,P)
+    check_system_overlap(H0, pmax=0.3)
+
 
 # Question 1: How low does J have to be?
 
@@ -575,7 +610,57 @@ def check_NE_frequency_overlap():
     Hw_mag = -gamma_n*gate.XI + gamma_e*gate.IX
     check_frequency_overlap(H0, Hw_mag=Hw_mag)
 
+def swap_exchange_rabi_prob(ax=None, B_ac=1*unit.mT):
+    A = get_A(1,1)
+    H0 = get_NE_H0(A, B0)
+    S,D = NE_eigensystem(H0)
 
+    t_pulse = np.pi / (gamma_e*B_ac)
+
+    couplings = NE_couplings(H0)
+    c = couplings[2,3]
+    w_res = D[2,2]-D[3,3]
+
+    J = pt.linspace(0,2*unit.MHz, 10000)
+    prob = get_rabi_prob(w_res, w_res+J, B_ac, c)
+
+    i=0
+    while prob[i]>0.99:
+        i+=1
+    print(f"Prob has fallen to {prob[i]} at exchange J={J[i]/unit.kHz} kHz")
+    print(f"Pulse time at {B_ac/unit.mT} mT is {t_pulse/unit.ns} ns")
+
+    if ax is None: ax=plt.subplot()
+    ax.plot(J/unit.kHz, prob, label='Rabi probability')
+
+
+def hyperfine_calculation(evec_0_sq):
+    return (2/3) * evec_0_sq * mu_B * unit.mu_0 * hbar * gamma_n
+
+
+def visualise_frequency_overlap(fp=None):
+    Pr=0.001
+    B_ac = 0.1*unit.mT
+    Jmax = 1.87*unit.MHz
+    J1_low = J_100_18nm/10
+    J2_low = J_100_18nm * Jmax / pt.max(pt.real(J_100_18nm))
+    H0 = get_H0(get_A(225,3, NucSpin=[1,0,1]), get_J(225, 3, J1=J1_low, J2=J2_low))
+
+    gbac = gamma_e*B_ac/2
+    dw = gbac*np.sqrt(1/Pr - 1)/unit.MHz
+
+    rf = pt.real(get_multi_system_resonant_frequencies(H0))/unit.MHz
+    print(f"Total number of frequencies = {len(rf)}")
+    print(f"dw = {dw} MHz")
+    ax = plt.subplot()
+    for freq in rf:
+        ax.axvline(freq, 0,1)
+    ax.set_yticks([])
+    ax.set_xlabel('Frequency (MHz)')
+    ax.annotate(f"$p_{{max}}={Pr}, B_{{ac}}=1$ mT\n $⟹\Delta\omega = {dw:.1f}$ MHz", [-170,0.4])
+    ax.get_figure().set_size_inches(fig_width_double, 0.2*fig_width_double)
+    ax.get_figure().tight_layout()
+    if fp is not None: ax.get_figure().savefig(fp)
 
 
 if __name__ == '__main__':
@@ -588,11 +673,15 @@ if __name__ == '__main__':
     #approximate_full_NE_optimisation_time()
 
     placement_symmetries_1P_2P(delta_x = 52, delta_y = 10, save=True)
-
-    #compare_1P_2P_frequencies()
+    #swap_exchange_rabi_prob(B_ac = 1*unit.mT)
+    #compare_3E_frequencies()
 
     #check_NE_frequency_overlap()
 
     #HS_SQR_rabi_probs()
 
+    #print(f"A = {hyperfine_calculation(8.69e-12+2.3820e-11)/unit.MHz} MHz")
+
+    #visualise_frequency_overlap()
+    #check_system_overlap(H0, 10*unit.mT)
     plt.show()

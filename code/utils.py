@@ -2,6 +2,8 @@
 import torch as pt 
 import numpy as np
 import matplotlib
+from scipy import linalg
+from enum import Enum
 
 if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
@@ -10,8 +12,7 @@ import math
 import itertools
 
 
-import gates as gate
-from gates import default_device, cplx_dtype
+from data import default_device, cplx_dtype
 import atomic_units as unit
 
 
@@ -335,12 +336,25 @@ def linspace(start, end, N, dtype=cplx_dtype, device=default_device):
 def maxreal(T):
     return pt.max(pt.real(T))
 
+def real(z):
+    try:
+        return pt.real(z)
+    except:
+        return z
+
 def minreal(T):
     return pt.min(pt.real(T))
 
 def rise_ones_fall(N, rise_prop):
     N_rise = int((N*rise_prop)//1)
     return pt.cat((linspace(0, 1, N_rise, device=default_device), pt.ones(N-2*N_rise, device=default_device), linspace(1, 0, N_rise, device=default_device)))
+
+def sqrtm(T):
+    return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
+
+class NoiseModels(str, Enum):
+    delta_correlated_exchange = 'delta-exchange'
+    dephasing = 'dephasing'
 
 
 

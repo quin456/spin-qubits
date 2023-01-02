@@ -95,12 +95,14 @@ def sum_grapes(grapes):
     return grape
 
     
-def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, prev_grape_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0, alpha=0):
+def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, prev_grape_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0, alpha=0, noise_model = None, ensemble_size=1):
 
     div=1
-
+    Jmax = 1.87*unit.MHz
+    J1_low = J_100_18nm/50
+    J2_low = J_100_18nm * Jmax / pt.max(pt.real(J_100_18nm))
     if A is None: A = get_A(nS, nq)
-    if J is None: J = get_J(nS, nq, J1=J_100_18nm, J2=J_100_14nm[8:])/div
+    if J is None: J = get_J(nS, nq, J1=J1_low)/div
 
     H0 = get_H0(A, J)
     H0_phys = get_H0(A, J, B0)
@@ -111,20 +113,22 @@ def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_d
 
     target = CNOT_targets(nS,nq, native=True)
     if prev_grape_fn is None:
-        grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, lam=lam, alpha=alpha)
+        grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, lam=lam, alpha=alpha, noise_model = noise_model, kappa=kappa, ensemble_size=ensemble_size)
     else:
         grape = load_grape(prev_grape_fn, max_time=max_time)
     grape.run()
     grape.plot_result()
     if save_data:
         grape.save()
+
     
 if __name__ == '__main__':
 
     lam=1e11
 
-    #run_CNOTs(tN = 100.0*unit.ns, N = 500, nq = 2, nS = 1, max_time = 18000, save_data = True, lam=1e8, prev_grape_fn=None)
-    run_CNOTs(tN = 200.0*unit.ns, N = 500, nq = 2, nS = 2, max_time = 10, save_data = True, lam=0, alpha=0, prev_grape_fn=None)
+
+    run_CNOTs(tN = 500.0*unit.ns, N = 500, nq = 2, nS = 1, max_time = 10, save_data = True, lam=0, kappa=1, noise_model = None, ensemble_size=1)
+    #run_CNOTs(tN = 5000.0*unit.ns, N = 5000, nq = 3, nS = 25, max_time = 23.5*3600, save_data = True, lam=1e9, alpha=0, prev_grape_fn=None, kappa=1e-2)
     plt.show()
     
     

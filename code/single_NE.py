@@ -1,5 +1,6 @@
 
 
+from turtle import forward
 import numpy as np
 import torch as pt
 import matplotlib
@@ -17,7 +18,7 @@ from visualisation import plot_psi, plot_psi_and_fields, visualise_Hw, plot_fide
 from pulse_maker import pi_pulse_square
 from data import *
 from visualisation import *
-from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine
+from hamiltonians import get_IP_X, get_U0, get_pulse_hamiltonian, sum_H0_Hw, get_NE_H0, H_zeeman, H_hyperfine, get_NE_Hw, get_X_from_H
 from GRAPE import Grape
 
 
@@ -199,12 +200,22 @@ def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=
     print("Performing NE_CX, which flips electron spin conditionally on nuclear spin being down.")
     print_specs(A, Bz, tN, N, gamma=gamma_e)
     if ax is None:
-        fig,ax = plt.subplots(2,1)
+        fig,ax = plt.subplots(1,3, gridspec_kw={'width_ratios': [1.5, 0.5,  1]})
+        #fig,ax = plt.subplots(1,2)
     Bx,By,T = NE_CX_pulse(tN,N,A,Bz)
     X = get_NE_X(N, Bz, A, Bx, By, T=T)
     show_fidelity(X, T=T, target=gate.CX, ax=ax[0])
+    t_zoom = 0.2*unit.ns
+    N_zoom = 1
+    while pt.real(T[-1]-T[-N_zoom])<t_zoom: 
+        N_zoom+=1
+    T_zoom = T[-N_zoom:]
+    X_zoom = X[-N_zoom:]
+    show_fidelity(X_zoom, T=T_zoom, target=gate.CX, ax=ax[1])
+    box_ax(ax[0], xlim = [(T[-1]-t_zoom)/unit.ns, T[-1]/unit.ns], padding=0)
+    box_ax(ax[1], xlim=[(T[-1]-t_zoom)/unit.ns, T[-1]/unit.ns], padding=0.1)
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,tN=tN, T=T, ax=ax[1], label_getter = NE_label_getter, legend_loc=legend_loc)
+    plot_psi(psi,tN=tN, T=T, ax=ax[2], label_getter = NE_label_getter, legend_loc=legend_loc)
     if fig is not None:
         fig.set_size_inches(fig_width_double_long, fig_height_single_long)
         fig.tight_layout()
@@ -219,8 +230,6 @@ def show_NE_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_10)/np.sqrt(2), fp=
 
 
 
-def get_NE_Hw(Bx,By):
-    return -get_pulse_hamiltonian(Bx, By, gamma_n, 2*Ix, 2*Iy) + get_pulse_hamiltonian(Bx, By, gamma_e, 2*Sx, 2*Sy)
 
 def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
     # Bx and By both None results in free evolution X
@@ -237,11 +246,8 @@ def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
     H0 = get_NE_H0(A, Bz)
     H = sum_H0_Hw(H0,Hw)
 
-    dT = get_dT(T)
-    Ht = pt.einsum('jab,j->jab', H, dT)
-    U = pt.matrix_exp(-1j*Ht)
+    X = get_X_from_H(H, T=T)
 
-    X = forward_prop(U)
     S,D = NE_eigensystem(H0)
     #X = get_IP_X(X,H0,tN,N)
     #X = dagger(get_U0(H0,tN,N))@X
@@ -250,7 +256,7 @@ def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None):
     return X
     #undo only zeeman evolution
     Hz=H_zeeman(Bz)
-    UZ = get_U0(Hz, N, T=T)
+    UZ = get_U0(H0, N, T=T)
     X = dagger(UZ) @ X
     return X
 
@@ -287,16 +293,27 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), tar
     print_specs(A, Bz, tN, N, gamma_n)
 
     if ax is None:
-        fig,ax = plt.subplots(1,2)
+        fig,ax = plt.subplots(1,3, gridspec_kw={'width_ratios': [1.5, 0.5,  1]})
 
     Bx,By,T = EN_CX_pulse(tN,N,A,Bz)
 
     X = get_NE_X(N, Bz, A, Bx, By, T=T)
 
     fids=show_fidelity(X, T=T, target=target, ax=ax[0])
+    t_zoom = 0.1*unit.ns
+    N_zoom = 1
+    while pt.real(T[-1]-T[-N_zoom])<t_zoom: 
+        N_zoom+=1
+    T_zoom = pt.round(pt.real(T[-N_zoom:]),decimals=2)
+    X_zoom = X[-N_zoom:]
+    show_fidelity(X_zoom, T=T_zoom, target=gate.CXr, ax=ax[1])
+    ax[1].set_xlabel('')
+    ax[1].set_xticks(np.round(np.array([T[-1]-t_zoom,T[-1]]),decimals=1)/unit.ns)
+    box_ax(ax[0], xlim = [(T[-1]-t_zoom)/unit.ns, T[-1]/unit.ns], padding=0)
+    box_ax(ax[1], xlim=[(T[-1]-t_zoom)/unit.ns, T[-1]/unit.ns], padding=0)
 
     psi = pt.matmul(X,psi0)
-    plot_psi(psi,T=T, ax=ax[1], label_getter=NE_label_getter, legend_loc = legend_loc)
+    plot_psi(psi,T=T, ax=ax[2], label_getter=NE_label_getter, legend_loc = legend_loc)
     #plot_phases(psi,T=T, ax=ax[1])
 
     if fig is not None:
@@ -307,6 +324,17 @@ def show_EN_CX(A,Bz,N, tN=None, psi0=(gate.spin_00+gate.spin_01)/np.sqrt(2), tar
 
 
 
+
+def save_NE_swap_pulse():
+    A = get_A(1,1)
+    Bz = 2*unit.T
+    N_e = 100000
+    N_n = 40000
+
+    fig,ax = plt.subplots(1,2)
+    Bx,By,T = NE_swap_pulse(N_e, N_n, A, Bz)
+    Bx_By_T = pt.stack((Bx, By, T)).T
+    pt.save(Bx_By_T, "fields/swap_fields")
 
 
 def show_NE_swap(A, Bz, N_e, N_n, psi0=None, fp=None):
@@ -441,16 +469,72 @@ def kms(N=5, Bz = 2*unit.T, A=get_A(1,1)):
     print(U01==U02)
 
 
+
+def IP_NE_SWAP_things(A = get_A(1,1), tN_e=100*unit.ns, tN_n=12000*unit.ns, N = 20000):
+    
+    H0 = get_NE_H0(A, B0)
+   
+
+    S,D = NE_eigensystem(H0)
+
+    couplings = NE_couplings(H0)
+    c_e = couplings[2,3]
+    w_res_e = D[2,2]-D[3,3]
+    Bx_e,By_e = pi_pulse_square(w_res_e, c_e, tN_e, N, 0)
+    T_e = linspace(0,tN_e,N)
+
+    c_n = couplings[1,3]
+    w_res_n = D[1,1]-D[3,3]
+    Bx_n,By_n = pi_pulse_square(w_res_n, c_n, tN_n, N, 0)
+    T_n = linspace(0,tN_n,N)
+
+    set_trace()
+
+    Bx = Bx_n; By=By_n; T=T_n
+    #Bx = pt.zeros(N); By=pt.zeros_like(Bx)
+    H_ac = get_NE_Hw(Bx, By)
+    #U0 = get_U0(H0, N, T=T)
+    U0 = get_U0(D, N, T=T)
+    #H_ac_IP = pt.einsum('jac,jcd->jad',pt.einsum('jab,jbc->jac',dagger(U0),H_ac),U0)
+    H_ac_IP = pt.einsum('jac,cd->jad',pt.einsum('ab,jbc->jac',dagger(S),H_ac),S)
+    H_ac_IP = pt.einsum('jac,jcd->jad',pt.einsum('jab,jbc->jac',dagger(U0),H_ac_IP),U0)
+    H_ac_IP[:,0,1] = pt.zeros_like(H_ac_IP[:,0,1])
+    H_ac_IP[:,0,2] = pt.zeros_like(H_ac_IP[:,0,1])
+    H_ac_IP[:,1,0] = pt.zeros_like(H_ac_IP[:,0,1])
+    H_ac_IP[:,2,0] = pt.zeros_like(H_ac_IP[:,0,1])
+    H_ac_IP[:,2,3] = pt.zeros_like(H_ac_IP[:,0,1])
+    H_ac_IP[:,3,2] = pt.zeros_like(H_ac_IP[:,0,1])
+    visualise_Hw(H_ac_IP,tN_n)
+    
+    dT = get_dT(T)
+    Ht = pt.einsum('j,jab->jab', dT, H_ac_IP)
+    U = pt.matrix_exp(-1j*Ht)
+
+    X = forward_prop(U)
+
+    psi0 = gate.spin_01
+    fig,ax = plt.subplots(1,2)
+    plot_psi(X@psi0, T=T, ax=ax[1])
+    show_fidelity(X, T=T, target=gate.CXr_native, ax=ax[0])
+    
+
+
+
+
+
+
 if __name__ == '__main__':
 
 
     #tN = lock_to_frequency(get_A(1,1),100*unit.ns)
 
-    show_NE_CX(get_A(1,1), 2*unit.T,  100000, psi0 = (gate.spin_00)); plt.show()
+    show_NE_CX(get_A(1,1), 2*unit.T,  300000, psi0 = (gate.spin_10)); plt.show()
 
-    #show_EN_CX(get_A(1,1), Bz=2*unit.T, N=40000); plt.show()
+    #show_EN_CX(get_A(1,1), Bz=2*unit.T, N=400); plt.show()
 
     #show_NE_swap(get_A(1,1), 2*unit.T, 100000, 40000)
+    #save_NE_swap_pulse()
+    #IP_NE_SWAP_things()
 
 
     plt.show()
