@@ -650,7 +650,7 @@ d_HS = 18#47*d_lattice
 q_radius=0.2*d_HS
 #q_coup_radius = 0.1*d_HS
 q_radii = [q_radius,q_radius,q_radius,q_coup_radius]
-q_locs_HS = np.array([[[-d_HS,0]], [[0,0]], [[0,-d_HS]], [[-3*d_HS/2,0], [-d_HS/2,0], [0,-d_HS/2], [0,d_HS/2]]])
+q_locs_HS = [[[-d_HS,0]], [[0,0]], [[0,-d_HS]], [[-3*d_HS/2,0], [-d_HS/2,0], [0,-d_HS/2], [0,d_HS/2]]]
 HS_cell_size = 2*d_HS
 read_color='red'
 
@@ -660,8 +660,8 @@ SET_flag_2e_color = 'blue'
 SET_no_Sb_color = 'gold'
 SET_size=13
 tile_pad=0
-tile_alpha=0
-Xstab_tile_color='orange'
+tile_alpha=0.5
+Xstab_tile_color='lightgreen'
 Zstab_tile_color='lightblue'
 read_radius=1.8*q_radius
 
@@ -798,6 +798,7 @@ def HS_upper_boundary_cell(ax, i, distance, q_colours=q_colours):
         stab_tile = plt.Rectangle(upper_data_loc+2*d_HS*y_hat-HS_cell_size*np.array([1-tile_pad,1-tile_pad]), HS_cell_size*(1-2*tile_pad), HS_cell_size*(0.5-2*tile_pad), color=Zstab_tile_color, zorder=0, alpha=tile_alpha)
         ax.add_patch(stab_tile)
     
+couplers=False
 
 
 def HS_left_boundary_cell(ax, i, distance, q_colours=q_colours):
@@ -1110,6 +1111,25 @@ def make_conventional_square_array(distance=4):
     ax.set_ylim([-2*d_HS,distance*2*d_HS])
     ax.set_aspect('equal')
 
+############################################################################################################
+############################################################################################################
+#           1P-1P stuff for paper
+############################################################################################################
+############################################################################################################
+
+
+    ax.set_ylim([-2*d_HS-pad, pad])
+    ax.set_xlim([-2*d_HS-pad, pad])
+    
+
+
+
+def HS_11(distance=5):
+
+    ax = plt.subplot()
+
+    make_HS_array(ax, distance=distance, SET_colors=[grey, yellow], wire_colors=[grey,yellow, grey,blue, grey, orange], q_colours=[q_meas_colour, q_flag_colour, q_data_colour,q_meas_colour,q_meas_colour,q_meas_colour])
+
 
 if __name__ == '__main__':
 
@@ -1117,7 +1137,7 @@ if __name__ == '__main__':
     couplers=False
 
 
-    make_HS_array(plt.subplot(), 3)
+    #make_HS_array(plt.subplot(), 5)
     #surface_code_defects(np.array([[2,2], ]), distance=5)
 
     #plt.subplot().add_patch(mpl.patches.Polygon([[0,0],[1,2],[2,3]]))
@@ -1130,5 +1150,10 @@ if __name__ == '__main__':
     #stabilizer_activations()
     #make_HS_qubit_array(plt.subplot(), 5)
     #make_conventional_square_array()
+
+    HS_11_single_square()
+    #HS_11()
+
+
     plt.show()
 

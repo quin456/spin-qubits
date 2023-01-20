@@ -8,15 +8,16 @@ if not pt.cuda.is_available():
     matplotlib.use('Qt5Agg')
 from matplotlib import pyplot as plt 
 import torch as pt
+from torch.fft import fft
 
 
 import gates as gate 
 from gates import cplx_dtype
+from data import *
 import atomic_units as unit
 from data import default_device
 from utils import *
 
-from pdb import set_trace
 
 
 def get_smooth_E(tN, N, rise_time = 1*unit.ns):
@@ -57,3 +58,20 @@ def pi_rot_gaussian_pulse():
     return
     
 
+
+
+if __name__ == '__main__':
+
+
+
+    B = pi_pulse_field_strength(gamma_e,1*unit.us)
+    Bx, By = square_pulse(B, 100*unit.MHz, 1*unit.us, 1000)
+    B_const = pt.ones(1000)*B 
+
+    F_B_const = fft(B_const)
+    F_Bx = fft(Bx)
+
+    fig,ax=plt.subplots(1,2)
+    ax[0].plot(Bx/unit.T)
+    ax[1].plot(F_Bx/unit.Hz)
+    plt.show()

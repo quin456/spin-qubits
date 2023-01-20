@@ -829,8 +829,6 @@ def HSquare(chapter = 'HS-'):
         ycol = color_cycle[1]
         fig, ax = plt.subplots(2,1, gridspec_kw={'height_ratios': [3,  2]})
         ax2=ax[0].twinx()
-        ax[0].set_ylabel("$B_x$ (mT)", color=xcol)
-        ax2.set_ylabel("$B_y$ (mT)", color=ycol)
         ax[0].set_yticks([-0.5,0,0.5], color=xcol)
         ax2.set_yticks([-0.5,0,0.5])
         grape.plot_XY_fields(ax[0], legend_loc = False, twinx=ax2, xcol=xcol, ycol=ycol)
@@ -891,7 +889,7 @@ def HSquare(chapter = 'HS-'):
 if __name__=='__main__':
     #intro_and_review()
     #HHex()
-    #pulse_design()
+    pulse_design()
     HSquare()
 
     #no_coupler()

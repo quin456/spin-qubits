@@ -395,6 +395,8 @@ def fidelity_bar_plot(fids, ax=None, f=[0.9999, 0.99, 0.98], colours=['green', '
     '''
     Accepts nS length array of final fidelities for each system.
     '''
+    if ax is None: ax=plt.subplot()
+
     nbins=len(colours)
     def get_fid_color(fid):
         for i in range(nbins-1):

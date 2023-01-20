@@ -22,6 +22,7 @@ m = 1/a0_n
 kg = 1/mE_n 
 C = 1/qE_n 
 s = hbar_n*kg*m**2
+us = 1e-6*s
 ns = 1e-9*s
 ps = 1e-12*s
 

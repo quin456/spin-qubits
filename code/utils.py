@@ -97,7 +97,8 @@ but it is converted to and from vector form for input into scipy.minimize.
 '''
 def uToVector(u):
     '''  Takes m x N torch tensor 'u' and converts to 1D tensor in which the columns of u are kept together.  '''
-    #return (ptflatten?) (pt.transpose(u,0,1))
+    if u is None: return u
+    if len(u.shape)==1: return u
     return pt.reshape(pt.transpose(u,0,1),(u.numel(),))
 
 def uToMatrix(u,m):

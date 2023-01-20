@@ -15,13 +15,14 @@ import atomic_units as unit
 from gates import spin_up, spin_down
 from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
 from data import gamma_e, dir, cplx_dtype
-from utils import forward_prop
+from utils import forward_prop, NoiseModels
 from eigentools import lock_to_frequency
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_U0
 from data import get_A
 from GRAPE import Grape
 from hamiltonians import single_electron_H0
 from visualisation import *
+
 
 from pdb import set_trace
 
@@ -61,12 +62,14 @@ def show_single_spin_evolution(Bz = 0*unit.T, A=get_A(1,1), tN = 500*unit.ns, N=
 
 
 class SingleElectronGRAPE(Grape):
-    def __init__(self, tN, N, target, rf=None, u0=None, hist0=[], max_time=60, save_data=False, Bz=0, A=get_A(1,1), lam=0):
+
+
+    def __init__(self, tN, N, target, rf=None, u0=None, hist0=[], max_time=60, save_data=False, Bz=0, A=get_A(1,1), lam=0, noise_model=None, ensemble_size=1, cost_momentum=0):
         self.nq = 1
         self.nS = 1
         self.Bz=Bz
         self.A=A
-        super().__init__(tN,N,target, rf=rf, nS=1, u0=u0, max_time=max_time, kappa=1e12, lam=lam)
+        super().__init__(tN,N,target, rf=rf, nS=1, u0=u0, max_time=max_time, kappa=1e12, lam=lam, noise_model=noise_model, ensemble_size=ensemble_size, cost_momentum=cost_momentum)
         self.rf = self.get_all_resonant_frequencies() if rf is None else rf
         self.Hw=self.get_Hw()
         self.fun = self.cost
@@ -90,7 +93,8 @@ class SingleElectronGRAPE(Grape):
         psi = self.X[0]@psi0 
 
         self.plot_u(ax[0,0])
-        self.plot_control_fields(ax[0,1])
+        #self.plot_control_fields(ax[0,1])
+        self.plot_cost_hist(ax[0,1])
 
         #plot_psi(psi, tN=self.tN, ax=ax[1,1], label_getter=label_getter)
         Bx, By = self.sum_XY_fields()
@@ -115,10 +119,12 @@ def run_single_electron_grape(fp=None):
     N = 300
     Bz=0
     A = get_A(1,1)
-    tN = 50*unit.ns 
-    u0 = 1.5*np.pi/( (gamma_e*unit.T)*tN) * pt.ones(2,N, dtype=cplx_dtype)*0.2
+    tN = 100*unit.ns 
+    u0 = 1.5*np.pi/( (gamma_e*unit.T)*tN) * pt.ones(2*N, dtype=cplx_dtype)*0.2
 
-    grape = SingleElectronGRAPE(tN,N,target, Bz=Bz,u0=u0, lam=1e5)
+    grape = SingleElectronGRAPE(tN,N,target, Bz=Bz,u0=u0, lam=1e5, noise_model = NoiseModels.dephasing, ensemble_size=100, cost_momentum=0.99)
+
+
     grape.run()
     grape.print_result()
     ax=grape.plot_result()
@@ -131,3 +137,4 @@ if __name__ == '__main__':
 
     #show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
     run_single_electron_grape()
+    plt.show()

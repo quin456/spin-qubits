@@ -1,5 +1,3 @@
-
-
 from email.policy import default
 import torch as pt
 import numpy as np
@@ -8,7 +6,7 @@ import pickle
 
 
 if not pt.cuda.is_available():
-    matplotlib.use('Qt5Agg')
+    matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 
 
@@ -17,7 +15,16 @@ import atomic_units as unit
 from data import *
 from utils import *
 from eigentools import *
-from data import get_A, get_J, J_100_18nm, J_100_14nm, cplx_dtype, default_device, gamma_e, gamma_n
+from data import (
+    get_A,
+    get_J,
+    J_100_18nm,
+    J_100_14nm,
+    cplx_dtype,
+    default_device,
+    gamma_e,
+    gamma_n,
+)
 from visualisation import visualise_Hw, plot_psi, show_fidelity, fidelity_bar_plot
 from hamiltonians import get_U0, get_H0, get_X_from_H
 from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation, load_grape
@@ -27,14 +34,10 @@ from pulse_maker import get_smooth_E
 from pdb import set_trace
 
 
-
-
-
-
 def inspect_system():
-    J = get_J(3,3)[2:3]
-    J[0,0]/=5
-    tN = 200.0*unit.ns
+    J = get_J(3, 3)[2:3]
+    J[0, 0] /= 5
+    tN = 200.0 * unit.ns
     N = 1500
     nq = 3
     nS = 1
@@ -44,102 +47,144 @@ def inspect_system():
     save_data = True
     init_u_fn = None
     mergeprop = False
-    A = get_A(1,3, NucSpin=[-1,-1,-1])*0
+    A = get_A(1, 3, NucSpin=[-1, -1, -1]) * 0
 
-    grape = GrapeESR(J,A,tN,N, Bz=0.02*unit.T, max_time=max_time, save_data=save_data)
-    Hw=grape.get_Hw()
+    grape = GrapeESR(
+        J, A, tN, N, Bz=0.02 * unit.T, max_time=max_time, save_data=save_data
+    )
+    Hw = grape.get_Hw()
 
     eigs = pt.linalg.eig(grape.H0)
-    E = eigs.eigenvalues[0] 
-    S = eigs.eigenvectors[0] 
+    E = eigs.eigenvalues[0]
+    S = eigs.eigenvectors[0]
     D = pt.diag(E)
     UD = get_U0(D, tN, N)
-    Hwd = dagger(UD)@S.T@Hw[0]@UD
-    visualise_Hw(Hw[0],tN)
+    Hwd = dagger(UD) @ S.T @ Hw[0] @ UD
+    visualise_Hw(Hw[0], tN)
 
     plt.show()
-    
-
-
-
-
 
 
 def sum_grapes(grapes):
 
-    grape=grapes[0].copy()
+    grape = grapes[0].copy()
     nG = len(grapes)
 
     m = sum([grape.m for grape in grapes])
     N = grape.N
     u_sum = zeros_like_reshape(grapes[0].u, (m, N))
-    rf = zeros_like_reshape(grapes[0].rf, (m//2,))
+    rf = zeros_like_reshape(grapes[0].rf, (m // 2,))
 
     k0 = 0
     for grape in grapes:
-        kmid = grape.m//2
+        kmid = grape.m // 2
         k1 = k0 + kmid
         u_sum[k0:k1] = grape.u_mat()[:kmid]
-        u_sum[m//2+k0 : m//2+k1] = grape.u_mat()[kmid:]
+        u_sum[m // 2 + k0 : m // 2 + k1] = grape.u_mat()[kmid:]
         rf[k0:k1] = grape.rf
-        k0=k1
+        k0 = k1
     u_sum = uToVector(u_sum)
 
-
-    grape.u = u_sum 
+    grape.u = u_sum
     grape.rf = rf
-    grape.m=m; grape.N=N
+    grape.m = m
+    grape.N = N
     grape.initialise_control_fields()
 
-    
     return grape
 
-    
-def run_CNOTs(tN,N, nq=3,nS=15, Bz=0, max_time = 24*3600, J=None, A=None, save_data=True, show_plot=True, rf=None, prev_grape_fn=None, kappa=1, minprint=False, mergeprop=False, lam=0, alpha=0, noise_model = None, ensemble_size=1):
 
-    div=1
-    Jmax = 1.87*unit.MHz
-    J1_low = J_100_18nm/50
+def run_CNOTs(
+    tN=1000 * unit.ns,
+    N=2500,
+    nq=2,
+    nS=15,
+    Bz=0,
+    max_time=24 * 3600,
+    J=None,
+    A=None,
+    save_data=True,
+    show_plot=True,
+    rf=None,
+    prev_grape_fn=None,
+    kappa=1,
+    minprint=False,
+    mergeprop=False,
+    lam=0,
+    alpha=0,
+    noise_model=None,
+    ensemble_size=1,
+    run_optimisation=True,
+    cost_momentum=0,
+):
+
+    div = 71
+    Jmax = 1.87 * unit.MHz
+    J1_low = J_100_18nm / 50
     J2_low = J_100_18nm * Jmax / pt.max(pt.real(J_100_18nm))
-    if A is None: A = get_A(nS, nq)
-    if J is None: J = get_J(nS, nq, J1=J1_low)/div
+    if A is None:
+        A = get_A(nS, nq)
+    if J is None:
+        J = get_J(nS, nq) / div
 
     H0 = get_H0(A, J)
     H0_phys = get_H0(A, J, B0)
-    S,D = get_ordered_eigensystem(H0, H0_phys)
+    S, D = get_ordered_eigensystem(H0, H0_phys)
 
-    #rf,u0 = get_low_J_rf_u0(S, D, tN, N)
-    rf=None; u0=None
+    # rf,u0 = get_low_J_rf_u0(S, D, tN, N)
+    rf = None
+    u0 = None
 
-    target = CNOT_targets(nS,nq, native=True)
+    target = CNOT_targets(nS, nq, native=True)
     if prev_grape_fn is None:
-        grape = GrapeESR(J,A,tN,N, Bz=Bz, target=target,rf=rf,u0=u0, max_time=max_time, lam=lam, alpha=alpha, noise_model = noise_model, kappa=kappa, ensemble_size=ensemble_size)
+        grape = GrapeESR(
+            J,
+            A,
+            tN,
+            N,
+            Bz=Bz,
+            target=target,
+            rf=rf,
+            u0=u0,
+            max_time=max_time,
+            lam=lam,
+            alpha=alpha,
+            noise_model=noise_model,
+            kappa=kappa,
+            ensemble_size=ensemble_size,
+            cost_momentum=cost_momentum,
+        )
     else:
         grape = load_grape(prev_grape_fn, max_time=max_time)
-    grape.run()
+
+    if run_optimisation:
+        grape.run()
+    grape.print_result()
     grape.plot_result()
     if save_data:
         grape.save()
 
-    
-if __name__ == '__main__':
 
-    lam=1e11
+if __name__ == "__main__":
 
+    lam = 1e11
 
-    run_CNOTs(tN = 500.0*unit.ns, N = 500, nq = 2, nS = 1, max_time = 10, save_data = True, lam=0, kappa=1, noise_model = None, ensemble_size=1)
-    #run_CNOTs(tN = 5000.0*unit.ns, N = 5000, nq = 3, nS = 25, max_time = 23.5*3600, save_data = True, lam=1e9, alpha=0, prev_grape_fn=None, kappa=1e-2)
+    # run_CNOTs(tN = 2000.0*unit.ns, N = 2500, nq = 2, nS = 15, max_time = 3600, save_data = True, lam=0, kappa=1, noise_model = None, ensemble_size=1)
+    # run_CNOTs(prev_grape_fn='fields/c965_15S_2q_2000ns_2500step', max_time=1, run_optimisation=False)
+    run_CNOTs(
+        tN=500.0 * unit.ns,
+        N=1000,
+        nq=2,
+        nS=1,
+        max_time=100,
+        save_data=False,
+        lam=1e8,
+        alpha=0,
+        prev_grape_fn=None,
+        kappa=1e-1,
+        noise_model=NoiseModels.delta_correlated_exchange,
+        ensemble_size=100,
+        cost_momentum=0.99,
+    )
     plt.show()
-    
-    
-
-
-
-
-
-
-
-
-
-
 
