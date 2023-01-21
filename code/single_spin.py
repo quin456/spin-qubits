@@ -162,11 +162,11 @@ def run_single_electron_grape(fp=None):
         target,
         Bz=Bz,
         u0=u0,
-        lam=1e5,
+        lam=0,
         noise_model=None,
         ensemble_size=1,
-        cost_momentum=0.99,
-        kappa=1e12,
+        cost_momentum=0,
+        kappa=1e14,
     )
 
     grape.run()
