@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
     lam = 1e11
     # run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=48, max_time = 23.5*3600, lam=1e8, prev_grape_fn='fields/g254_48S_2q_5000ns_10000step', reverse_CX=False, kappa=1e2)
-    run_2P_1P_CNOTs(1000 * unit.ns, 1000, nS=1, max_time=10, lam=0)
+    run_2P_1P_CNOTs(900 * unit.ns, 1000, nS=1, max_time=200, lam=0)
     plt.show()
     # grape_48S_fid_bars(); plt.show()
 

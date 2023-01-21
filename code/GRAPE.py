@@ -31,7 +31,7 @@ import gates as gate
 from utils import *
 from eigentools import *
 from data import *
-from hamiltonians import get_H0, single_electron_H0
+from hamiltonians import get_H0, single_electron_H0, get_pulse_hamiltonian
 from visualisation import *
 from pulse_maker import get_smooth_E, get_simple_E
 
@@ -86,6 +86,8 @@ def ID_targets(nS, nq, device=default_device):
         return pt.einsum("i,ab->iab", pt.ones(nS, device=device), gate.Id2.to(device))
     elif nq == 3:
         return pt.einsum("i,ab->iab", pt.ones(nS, device=device), gate.Id3.to(device))
+    elif nq == 1:
+        return pt.einsum("i,ab->iab", pt.ones(nS, device=device), gate.Id.to(device))
 
 
 def SWAP_targets(n, device=default_device):
@@ -375,6 +377,8 @@ class Grape:
         """
         Calculates the time-evolution operators corresponding to each of the N timesteps,
         and returns as an array, U.
+
+        Relies on self.Hw already being saved
         """
         dim = self.H0.shape[-1]
         nS = len(self.H0)
@@ -432,6 +436,24 @@ class Grape:
         Bz_noise = self.Bz + rand.normal() * sigma
         self.H0 = self.get_H0(Bz=Bz_noise)
 
+    @staticmethod
+    def get_X_and_P(U, target, device=default_device):
+        nS = len(U)
+        N = len(U[0])
+        dim = U[0].shape[1]  # forward propagated time evolution operator
+        nq = get_nq_from_dim(dim)
+        if target is None:
+            target = CNOT_targets(nS, nq)
+        X = pt.zeros((nS, N, dim, dim), dtype=cplx_dtype, device=device)
+        X[:, 0, :, :] = U[:, 0]  # forward propagated time evolution operator
+        P = pt.zeros((nS, N, dim, dim), dtype=cplx_dtype, device=device)
+        P[:, N - 1, :, :] = target  # backwards propagated target
+
+        for j in range(1, N):
+            X[:, j, :, :] = pt.matmul(U[:, j, :, :], X[:, j - 1, :, :])
+            P[:, -1 - j, :, :] = pt.matmul(dagger(U[:, -j, :, :]), P[:, -j, :, :])
+        return X, P
+
     def propagate(self, device=default_device):
         """
         Determines total time evolution operators to evolve system from t=0 to time t(j) and stores in array P. 
@@ -443,23 +465,7 @@ class Grape:
         self.update_H0()
         U = self.time_evolution()
         target = self.target
-        nS = len(U)
-        N = len(U[0])
-        dim = U[0].shape[1]  # forward propagated time evolution operator
-        nq = get_nq_from_dim(dim)
-        if target is None:
-            target = CNOT_targets(nS, nq)
-        self.X = pt.zeros((nS, N, dim, dim), dtype=cplx_dtype, device=device)
-        self.X[:, 0, :, :] = U[:, 0]  # forward propagated time evolution operator
-        self.P = pt.zeros((nS, N, dim, dim), dtype=cplx_dtype, device=device)
-        self.P[:, N - 1, :, :] = target  # backwards propagated target
-
-        for j in range(1, N):
-            self.X[:, j, :, :] = pt.matmul(U[:, j, :, :], self.X[:, j - 1, :, :])
-            self.P[:, -1 - j, :, :] = pt.matmul(
-                dagger(U[:, -j, :, :]), self.P[:, -j, :, :]
-            )
-
+        self.X, self.P = self.get_X_and_P(U, self.target)
         return self.X, self.P
 
     def check_time(self, xk):
@@ -719,9 +725,15 @@ class Grape:
         if self.nS == 1:
             print(f"Fidelity = {avgfid}")
         else:
-            print(f"Average fidelity = {avgfid}")
+            print(f"Average fidelity = {avgfid:.5f}")
             print(f"Min fidelity = {minfid}")
             print(f"Call to cost function: {self.iters}")
+        if self.simulate_spectators:
+            spectator_fidelities = self.spectator_fidelity()[0]
+            spectator_avg_fidelity = sum(spectator_fidelities) / len(
+                spectator_fidelities
+            )
+            print(f"Average spectator fidelity = {spectator_avg_fidelity:.5f}")
         if verbosity >= 2:
             print(f"All fidelities = {fidelities}")
         if verbosity >= 3:
@@ -1130,20 +1142,21 @@ class GrapeESR(Grape):
         y_sum = pt.einsum("kj,kj->j", u_mat, self.y_cf)
 
         H0 = self.spectator_H0()
+        Hw = get_pulse_hamiltonian()
 
-    def time_evolution(self, device=default_device):
-        nS = self.nS
-        nq = self.nq
+    @staticmethod
+    def get_U(u_mat, x_cf, y_cf, H0, nq, tN, device=default_device):
+        nS = len(H0)
+        m, N = u_mat.shape
         dim = 2 ** nq
-        m, N = self.x_cf.shape
         sig_xn = gate.get_Xn(nq, device)
         sig_yn = gate.get_Yn(nq, device)
-        dt = self.tN / N
-        u_mat = self.u_mat()
-        x_sum = pt.einsum("kj,kj->j", u_mat, self.x_cf)
-        y_sum = pt.einsum("kj,kj->j", u_mat, self.y_cf)
+        dt = tN / N
+        u_mat = u_mat
+        x_sum = pt.einsum("kj,kj->j", u_mat, x_cf)
+        y_sum = pt.einsum("kj,kj->j", u_mat, y_cf)
         H = pt.einsum(
-            "j,sab->sjab", pt.ones(N, device=device), self.H0.to(device)
+            "j,sab->sjab", pt.ones(N, device=device), H0.to(device)
         ) + pt.einsum(
             "s,jab->sjab",
             pt.ones(nS, device=device),
@@ -1156,6 +1169,14 @@ class GrapeESR(Grape):
         U = pt.reshape(U, (nS, N, dim, dim))
         return U
 
+    def time_evolution(self, device=default_device):
+        """
+        Determines U. Calculates Hw on the fly.
+        """
+        return self.get_U(
+            self.u_mat(), self.x_cf, self.y_cf, self.H0, self.nq, self.tN, device=device
+        )
+
     def update_H0(self):
 
         if self.noise_model == NoiseModels.delta_correlated_exchange:
@@ -1166,20 +1187,32 @@ class GrapeESR(Grape):
         J_noise = self.J + rand.normal() * sigma
         self.H0 = self.get_H0(J=J_noise)
 
-    def spectator_H0(self):
-        H0 = single_electron_H0(self.Bz, self.A)
-        return H0.reshape(1, *H0.shape)
+    def get_spectator_A(self):
+        if len(self.A.shape) == 1:
+            return self.A
+        else:
+            return pt.cat((self.A[:, 0], self.A[0, 1:]))
 
-    def spectator_fidelity(self):
+    def spectator_H0(self):
+        A_spec = self.get_spectator_A()
+        H0 = pt.einsum("s,ab->sab", 0.5 * gamma_e * self.Bz + A_spec, gate.Z)
+        return H0
+
+    def spectator_fidelity(self, device=default_device):
         """
         Returns fidelity of an uncoupled qubit with the identity. Qubits which are not coupled should be subject to evolution
         equal to the identity under the influence of the applied pulse. 
         """
-        H0 = self.spectator_H0()
-        set_trace()
-        return (
-            pt.zeros(self.nS, dtype=real_dtype),
-            pt.zeros(self.m, self.N, dtype=real_dtype),
+        nS_spec = len(self.get_spectator_A())
+        nq_spec = 1
+        H0_spec = self.spectator_H0()
+        target_spec = ID_targets(nS_spec, nq_spec)
+        U_spec = self.get_U(
+            self.u_mat(), self.x_cf, self.y_cf, H0_spec, 1, self.tN, device=device
+        )
+        X, P = self.get_X_and_P(U_spec, target_spec)
+        return self.fidelity_from_X_and_P(
+            X, P, self.x_cf, self.y_cf, nq_spec, device=device
         )
 
     def spectator_cost(self):
@@ -1188,43 +1221,34 @@ class GrapeESR(Grape):
         J_spec, dJ_spec = self.cost_from_fidelity(Phi_spec_avg, dPhi_spec_avg)
         return J_spec, dJ_spec
 
-    def fidelity(self, device=default_device):
-        """
-        Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
-        """
+    @staticmethod
+    def fidelity_from_X_and_P(X, P, x_cf, y_cf, nq, device=default_device):
 
-        x_cf = self.x_cf
-        y_cf = self.y_cf
-        dim = 2 * self.nq
-        sig_xn = gate.get_Xn(self.nq, device)
-        sig_yn = gate.get_Yn(self.nq, device)
+        dim = 2 ** nq
+        sig_xn = gate.get_Xn(nq, device)
+        sig_yn = gate.get_Yn(nq, device)
 
         t0 = time.time()
         global time_exp
         time_exp += time.time() - t0
 
         t0 = time.time()
-        self.X, self.P = self.propagate(device=device)
         global time_prop
         time_prop += time.time() - t0
-        Ut = self.P[:, -1]
-        Uf = self.X[:, -1]
+        Ut = P[:, -1]
+        Uf = X[:, -1]
         # fidelity of resulting unitary with target
         IP = batch_IP(Ut, Uf)
         Phi = pt.real(IP * pt.conj(IP))
 
         t0 = time.time()
         # calculate grad of fidelity
-        XP_IP = batch_IP(self.X, self.P)
+        XP_IP = batch_IP(X, P)
 
-        ox_X = pt.einsum("ab,sjbc->sjac", sig_xn, self.X)
-        oy_X = pt.einsum("ab,sjbc->sjac", sig_yn, self.X)
-        PoxX_IP = (
-            batch_trace(pt.einsum("sjab,sjbc->sjac", dagger(self.P), 1j * ox_X)) / dim
-        )
-        PoyX_IP = (
-            batch_trace(pt.einsum("sjab,sjbc->sjac", dagger(self.P), 1j * oy_X)) / dim
-        )
+        ox_X = pt.einsum("ab,sjbc->sjac", sig_xn, X)
+        oy_X = pt.einsum("ab,sjbc->sjac", sig_yn, X)
+        PoxX_IP = batch_trace(pt.einsum("sjab,sjbc->sjac", dagger(P), 1j * ox_X)) / dim
+        PoyX_IP = batch_trace(pt.einsum("sjab,sjbc->sjac", dagger(P), 1j * oy_X)) / dim
         del ox_X, oy_X
 
         Re_IP_x = -2 * pt.real(pt.einsum("sj,sj->sj", PoxX_IP, XP_IP))
@@ -1245,6 +1269,13 @@ class GrapeESR(Grape):
         time_grad += time.time() - t0
 
         return Phi, dPhi
+
+    def fidelity(self, device=default_device):
+        """
+        Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
+        """
+        self.propagate(device=device)
+        return self.fidelity_from_X_and_P(self.X, self.P, self.x_cf, self.y_cf, self.nq)
 
     # class FieldOptimiser(object):
     """
