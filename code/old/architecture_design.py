@@ -1137,7 +1137,7 @@ if __name__ == '__main__':
     couplers=False
 
 
-    #make_HS_array(plt.subplot(), 5)
+    make_HS_array(plt.subplot(), 5)
     #surface_code_defects(np.array([[2,2], ]), distance=5)
 
     #plt.subplot().add_patch(mpl.patches.Polygon([[0,0],[1,2],[2,3]]))
@@ -1151,7 +1151,6 @@ if __name__ == '__main__':
     #make_HS_qubit_array(plt.subplot(), 5)
     #make_conventional_square_array()
 
-    HS_11_single_square()
     #HS_11()
 
 

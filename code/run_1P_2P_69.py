@@ -24,8 +24,6 @@ from data import (
     default_device,
     gamma_e,
     gamma_n,
-    A_P,
-    A_2P,
 )
 from visualisation import visualise_Hw, plot_psi, show_fidelity, fidelity_bar_plot
 from hamiltonians import get_U0, get_H0, get_X_from_H
@@ -55,27 +53,25 @@ def run_2P_1P_CNOTs(
     N,
     nS=15,
     Bz=0,
-    A=None,
-    J=None,
     max_time=24 * 3600,
     lam=0,
     prev_grape_fn=None,
     verbosity=2,
     reverse_CX=False,
     kappa=1,
-    simulate_spectators=True,
+    simulate_spectators=False,
+    Grape=GrapeESR,
 ):
 
     nq = 2
-    if A is None:
-        A = get_A_1P_2P(nS)
-    if J is None:
-        J = get_J_1P_2P(nS)
+    A = get_A_1P_2P(nS)
+    J = get_J_1P_2P(nS)
+
     target = CNOT_targets(nS, nq)
     if reverse_CX:
         target = CXr_targets(nS)
     if prev_grape_fn is None:
-        grape = GrapeESR(
+        grape = Grape(
             J,
             A,
             tN,
@@ -84,81 +80,40 @@ def run_2P_1P_CNOTs(
             target=target,
             max_time=max_time,
             lam=lam,
+            kappa=kappa,
             verbosity=verbosity,
             simulate_spectators=simulate_spectators,
-            kappa=kappa,
         )
     else:
         grape = load_grape(
             prev_grape_fn,
             max_time=max_time,
-            Grape=GrapeESR,
+            Grape=Grape,
             verbosity=verbosity,
             kappa=kappa,
-            simulate_spectators=simulate_spectators,
             lam=lam,
+            simulate_spectators=simulate_spectators,
         )
-
+    # grape.plot_E_A_J();plt.show()
     grape.run()
+    grape.plot_result()
     grape.print_result()
-    if not pt.cuda.is_available():
-        grape.plot_result()
-        plt.show()
     grape.save()
-
-
-def run_1P_2P_uniform_J_CNOTs(
-    tN,
-    N,
-    nS,
-    A=None,
-    J=np.float64(100) * unit.MHz,
-    max_time=60,
-    kappa=1,
-    lam=0,
-    prev_grape_fp=None,
-    simulate_spectators=True,
-):
-
-    A = get_A_1P_2P_uniform_J(nS)
-    J = get_J_1P_2P_uniform_J(nS, J=J)
-    run_2P_1P_CNOTs(
-        tN,
-        N,
-        nS,
-        A=A,
-        J=J,
-        max_time=max_time,
-        kappa=kappa,
-        lam=lam,
-        simulate_spectators=simulate_spectators,
-        prev_grape_fn=prev_grape_fp,
-    )
 
 
 if __name__ == "__main__":
 
-    # run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=48, max_time = 23.5*3600, lam=1e8, prev_grape_fn='fields/g254_48S_2q_5000ns_10000step', reverse_CX=False, kappa=1e2)
     run_2P_1P_CNOTs(
-        2000 * unit.ns,
-        200,
+        3000 * unit.ns,
+        5000,
         nS=1,
-        max_time=23.5*3600,
-        lam=1e8,
-        kappa=1e-1,
+        max_time=23.5 * 3600,
+        lam=1e7,
+        kappa=1,
         simulate_spectators=True,
-        prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
+        Grape=GrapeESR_AJ_Modulation,
+        # prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
     )
-    # run_1P_2P_uniform_J_CNOTs(
-    #     1000 * unit.ns,
-    #     400,
-    #     nS=9,
-    #     J=10 * unit.MHz,
-    #     lam=1e8,
-    #     max_time=360,
-    #     kappa=1e4,
-    #     simulate_spectators=True,
-    #     prev_grape_fp="fields/c1183_9S_2q_1000ns_400step",
-    # )
+    # run_2P_1P_CNOTs(500*unit.ns, 1000, nS=2, max_time = 10, lam=0, reverse_CX=True); plt.show()
     # grape_48S_fid_bars(); plt.show()
 

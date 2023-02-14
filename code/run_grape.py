@@ -3,6 +3,7 @@ import torch as pt
 import numpy as np
 import matplotlib
 import pickle
+from scipy import fftpack
 
 
 if not pt.cuda.is_available():
@@ -25,13 +26,33 @@ from data import (
     gamma_e,
     gamma_n,
 )
-from visualisation import visualise_Hw, plot_psi, show_fidelity, fidelity_bar_plot
+from visualisation import *
 from hamiltonians import get_U0, get_H0, get_X_from_H
 from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation, load_grape
 from electrons import get_electron_X
-
+from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
 from pdb import set_trace
+
+
+def analyse_grape_pulse(fp="fields/c1095_1S_2q_300ns_2000step"):
+    grape = load_grape(fp)
+    Bx, By = grape.sum_XY_fields()
+    Bx *= unit.T
+    By *= unit.T
+    rf = get_multi_system_resonant_frequencies(grape.get_H0())
+    T = linspace(0, grape.tN, grape.N)
+    fig, ax = plt.subplots(1, 1)
+    # plot_fields(Bx, By, T=T, ax=ax[0])
+    dt = T[-1] / len(T)
+    freq = np.fft.fftfreq(T.shape[-1]) / dt
+    fBx = np.fft.fft(Bx)
+    fBy = np.fft.fft(Bx)
+    ax.plot(freq / unit.MHz, np.imag(fBx), color="blue")
+    # ax[1].plot(freq / unit.MHz, np.real(fBy), color='orange')
+
+    for w in rf:
+        ax.axvline(w / (2 * np.pi) / unit.MHz, color="red", linestyle="--", linewidth=1)
 
 
 def inspect_system():
@@ -116,16 +137,17 @@ def run_CNOTs(
     ensemble_size=1,
     run_optimisation=True,
     cost_momentum=0,
+    simulate_spectators=False,
+    verbosity=2
 ):
 
-    div = 71
-    Jmax = 1.87 * unit.MHz
     J1_low = J_100_18nm / 50
-    J2_low = J_100_18nm * Jmax / pt.max(pt.real(J_100_18nm))
+    J2_low = get_J_low(nS, nq)
+    J_low = J2_low
     if A is None:
         A = get_A(nS, nq)
     if J is None:
-        J = get_J(nS, nq) / div
+        J = get_J(nS, nq)
 
     H0 = get_H0(A, J)
     H0_phys = get_H0(A, J, B0)
@@ -135,10 +157,10 @@ def run_CNOTs(
     rf = None
     u0 = None
 
-    target = CNOT_targets(nS, nq, native=True)
+    target = CNOT_targets(nS, nq, native=False)
     if prev_grape_fn is None:
         grape = GrapeESR(
-            J,
+            J2_low,
             A,
             tN,
             N,
@@ -153,9 +175,11 @@ def run_CNOTs(
             kappa=kappa,
             ensemble_size=ensemble_size,
             cost_momentum=cost_momentum,
+            simulate_spectators=simulate_spectators,
+            verbosity=verbosity,
         )
     else:
-        grape = load_grape(prev_grape_fn, max_time=max_time)
+        grape = load_grape(prev_grape_fn, max_time=max_time, kappa=kappa, lam=lam, simulate_spectators=simulate_spectators, verbosity=verbosity)
 
     if run_optimisation:
         grape.run()
@@ -167,24 +191,54 @@ def run_CNOTs(
 
 if __name__ == "__main__":
 
-    lam = 1e11
 
-    # run_CNOTs(tN = 2000.0*unit.ns, N = 2500, nq = 2, nS = 15, max_time = 3600, save_data = True, lam=0, kappa=1, noise_model = None, ensemble_size=1)
-    # run_CNOTs(prev_grape_fn='fields/c965_15S_2q_2000ns_2500step', max_time=1, run_optimisation=False)
     run_CNOTs(
-        tN=500.0 * unit.ns,
-        N=1000,
+        200 * unit.ns,
+        N=2000,
+        nS=2,
         nq=2,
-        nS=1,
-        max_time=100,
-        save_data=False,
-        lam=1e8,
-        alpha=0,
-        prev_grape_fn=None,
-        kappa=1e-1,
-        noise_model=NoiseModels.delta_correlated_exchange,
-        ensemble_size=100,
-        cost_momentum=0.99,
+        max_time=200,
+        lam=0,
+        kappa=1,
+        simulate_spectators=True,
+        prev_grape_fn='fields/g287_69S_2q_3000ns_5000step',
+        run_optimisation=False,
+        verbosity = 0,
+        save_data=False
     )
+    #analyse_grape_pulse("fields/c1196_2S_2q_200ns_2000step")
+
+    # run_CNOTs(
+    #     tN=2000.0 * unit.ns,
+    #     N=2500,
+    #     nq=2,
+    #     nS=15,
+    #     J=get_J(15, 2),
+    #     max_time=60,
+    #     save_data=True,
+    #     lam=0,
+    #     kappa=1,
+    #     noise_model=None,
+    #     ensemble_size=1,
+    # prev_grape_fn="fields/c1009_15S_2q_2000ns_2500step"
+    # run_optimisation=False
+    # )
+    # run_CNOTs(prev_grape_fn='fields/c965_15S_2q_2000ns_2500step', max_time=1, run_optimisation=False)
+    # run_CNOTs(
+    #     tN=200.0 * unit.ns,
+    #     N=500,
+    #     nq=2,
+    #     nS=1,
+    #     max_time=10,
+    #     save_data=False,
+    #     lam=0,
+    #     alpha=0,
+    #     prev_grape_fn=None,
+    #     kappa=1,
+    #     noise_model=None,
+    #     ensemble_size=1,
+    #     cost_momentum=0,
+    # )
+
     plt.show()
 

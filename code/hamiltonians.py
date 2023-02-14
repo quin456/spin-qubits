@@ -12,8 +12,21 @@ from utils import *
 #####################################################################################
 
 
-def single_electron_H0(Bz, A):
+def single_electron_H0(Bz, A, J=None):
     return (0.5 * gamma_e * Bz + A) * gate.Z
+
+
+def multi_sys_single_electron_H0(Bz, A):
+    return pt.einsum("s,ab->sab", (0.5 * gamma_e * Bz + A), gate.Z)
+
+
+def single_J_coupled_electron_H0(Bz, A, J):
+    try:
+        J_up_down = pt.cat((J, -J))
+    except:
+        J_up_down = pt.tensor([J, -J], dtype=cplx_dtype)
+    w0 = (gamma_e * Bz + 2 * A) * pt.ones(len(J_up_down)) + 2 * J_up_down
+    return pt.einsum("i,ab->iab", w0 / 2, gate.Z)
 
 
 #####################################################################################
@@ -21,7 +34,7 @@ def single_electron_H0(Bz, A):
 #####################################################################################
 
 
-def get_H0(A, J, Bz=0, device=default_device):
+def get_H0(A, J, Bz=np.float64(0), device=default_device):
     """
     Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
     
@@ -56,7 +69,6 @@ def get_H0(A, J, Bz=0, device=default_device):
             )
             + pt.einsum("s,ab->sab", pt.ones(nS, device=device), HZ)
         )
-
     H0 = H0.to(device)
     if reshaped:
         return H0[0]
@@ -82,18 +94,6 @@ def get_1S_HJ(J):
         return J * gate.sigDotSig
     elif nq == 3:
         return J[0] * gate.o12 + J[1] * gate.o23
-
-
-def get_U0(H0, tN, N):
-    if len(H0.shape) == 2:
-        H0 = H0.reshape(1, *H0.shape)
-        reshaped = True
-    U0 = pt.matrix_exp(
-        -1j * pt.einsum("j,sab->sjab", linspace(0, tN, N, dtype=cplx_dtype), H0)
-    )
-    if reshaped:
-        return U0[0]
-    return U0
 
 
 # def get_Hw(J,A,tN,N):
@@ -239,7 +239,7 @@ def sum_H0_Hw(H0, Hw):
     return H
 
 
-def get_U0(H0, N, T=None, tN=None):
+def get_U0(H0, N=None, T=None, tN=None):
     if T is None:
         if tN is None:
             raise Exception("No time specified for get_U0.")
@@ -266,8 +266,8 @@ def get_X_from_H(H, tN=None, N=None, T=None, H0_IP=None):
     return X
 
 
-def get_IP_X(X, H0, tN, N):
-    U0 = get_U0(H0, tN, N)
+def get_IP_X(X, H0, T=None, tN=None, N=None):
+    U0 = get_U0(H0, N=N, T=T, tN=tN)
     return pt.matmul(dagger(U0), X)
 
 

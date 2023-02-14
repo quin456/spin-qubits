@@ -1,1 +1,1 @@
-scp -r code qa4681@gadi.nci.org.au:spin-qubits
+scp -r code/GRAPE.py code/run_grape.py code/run_couplers.py code/run_1P_2P.py code/run_1P_2P_69.py qa4681@gadi.nci.org.au:spin-qubits/code
