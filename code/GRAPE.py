@@ -202,9 +202,7 @@ def get_control_fields(omega, phase, tN, N, device=default_device):
     """
     Returns x_cf, y_cf, which relate to transverse control field, and have units of joules so that 'u' can be unitless.
     """
-    x_cf, y_cf = get_unit_CFs(
-        omega, phase, tN, N, device=device
-    )
+    x_cf, y_cf = get_unit_CFs(omega, phase, tN, N, device=device)
     x_cf *= 0.5 * g_e * mu_B * (1 * unit.T)
     y_cf *= 0.5 * g_e * mu_B * (1 * unit.T)
     return x_cf, y_cf
@@ -369,9 +367,7 @@ class Grape:
             self.rf = self.get_control_frequencies()
         self.omega, self.phi = config_90deg_phase_fields(self.rf)
         self.m = len(self.omega)
-        self.x_cf, self.y_cf = get_control_fields(
-            self.omega, self.phi, self.tN, self.N
-        )
+        self.x_cf, self.y_cf = get_control_fields(self.omega, self.phi, self.tN, self.N)
         if self.u is None:
             self.u = self.init_u()
 
@@ -1173,7 +1169,6 @@ class GrapeESR(Grape):
         simulate_spectators=False,
         X0=None,
         simulation_steps=False,
-
     ):
 
         # save data first running super() initialisation function
@@ -1310,7 +1305,9 @@ class GrapeESR(Grape):
         # this line only supports nq=2
         if nS == 1:
             H0 = (
-                pt.einsum("jq,qab->jab", A.to(device), gate.get_PZ_vec(nq).to(device))
+                pt.einsum(
+                    "q,qab->jab", self.A.to(device), gate.get_PZ_vec(nq).to(device)
+                )
                 + pt.einsum(
                     "j,ab->jab", J.to(device), gate.get_coupling_matrices(nq).to(device)
                 )
@@ -1320,7 +1317,9 @@ class GrapeESR(Grape):
             )
         else:
             H0 = (
-                pt.einsum("sjq,qab->sjab", A.to(device), gate.get_PZ_vec(nq).to(device))
+                pt.einsum(
+                    "sq,qab->sjab", self.A.to(device), gate.get_PZ_vec(nq).to(device)
+                )
                 + pt.einsum(
                     "sj,ab->sjab",
                     J.to(device),
