@@ -102,7 +102,6 @@ def NE_swap_2q(N_e, N_n):
     print(f"abs fid = {fid}")
 
     plot_psi(psi, T=T)
-    set_trace()
     # project_to_qubit_space(X[-1])
     # print(pt.sum(pt.abs(X[-1]) - gate.NE_swap_2q))
 

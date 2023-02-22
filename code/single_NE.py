@@ -40,8 +40,6 @@ from hamiltonians import (
 from GRAPE import Grape
 
 
-from pdb import set_trace
-
 Sz = 0.5 * gate.IZ
 Sy = 0.5 * gate.IY
 Sx = 0.5 * gate.IX
@@ -539,8 +537,6 @@ def IP_NE_SWAP_things(A=get_A(1, 1), tN_e=100 * unit.ns, tN_n=12000 * unit.ns, N
     w_res_n = D[1, 1] - D[3, 3]
     Bx_n, By_n = pi_pulse_square(w_res_n, c_n, tN_n, N, 0)
     T_n = linspace(0, tN_n, N)
-
-    set_trace()
 
     Bx = Bx_n
     By = By_n

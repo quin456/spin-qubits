@@ -32,7 +32,6 @@ from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation, load_grape
 from electrons import get_electron_X
 from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
-from pdb import set_trace
 
 
 def analyse_grape_pulse(fp="fields/c1095_1S_2q_300ns_2000step"):
@@ -138,7 +137,9 @@ def run_CNOTs(
     run_optimisation=True,
     cost_momentum=0,
     simulate_spectators=False,
-    verbosity=2
+    verbosity=2,
+    Grape=GrapeESR,
+    simulation_steps=False,
 ):
 
     J1_low = J_100_18nm / 50
@@ -159,7 +160,7 @@ def run_CNOTs(
 
     target = CNOT_targets(nS, nq, native=False)
     if prev_grape_fn is None:
-        grape = GrapeESR(
+        grape = Grape(
             J2_low,
             A,
             tN,
@@ -177,9 +178,19 @@ def run_CNOTs(
             cost_momentum=cost_momentum,
             simulate_spectators=simulate_spectators,
             verbosity=verbosity,
+            simulation_steps=simulation_steps,
         )
     else:
-        grape = load_grape(prev_grape_fn, max_time=max_time, kappa=kappa, lam=lam, simulate_spectators=simulate_spectators, verbosity=verbosity)
+        grape = load_grape(
+            prev_grape_fn,
+            max_time=max_time,
+            kappa=kappa,
+            lam=lam,
+            simulate_spectators=simulate_spectators,
+            verbosity=verbosity,
+            Grape=Grape,
+            simulation_steps=simulation_steps,
+        )
 
     if run_optimisation:
         grape.run()
@@ -191,22 +202,23 @@ def run_CNOTs(
 
 if __name__ == "__main__":
 
-
     run_CNOTs(
-        200 * unit.ns,
-        N=2000,
-        nS=2,
+        300 * unit.ns,
+        N=500,
+        nS=1,
         nq=2,
-        max_time=200,
+        max_time=10,
         lam=0,
         kappa=1,
-        simulate_spectators=True,
-        prev_grape_fn='fields/g287_69S_2q_3000ns_5000step',
-        run_optimisation=False,
-        verbosity = 0,
-        save_data=False
+        simulate_spectators=False,
+        # prev_grape_fn="fields/g279_69S_2q_3000ns_5000step",
+        run_optimisation=True,
+        verbosity=0,
+        save_data=False,
+        Grape=GrapeESR,
+        simulation_steps=True,
     )
-    #analyse_grape_pulse("fields/c1196_2S_2q_200ns_2000step")
+    # analyse_grape_pulse("fields/c1196_2S_2q_200ns_2000step")
 
     # run_CNOTs(
     #     tN=2000.0 * unit.ns,

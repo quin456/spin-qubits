@@ -95,16 +95,44 @@ def get_single_spin_X(
     return X
 
 
-def test_grape_pulse_on_non_res_spin(
+def test_grape_pulse_with_varied_J(
     fp="fields/c1095_1S_2q_300ns_2000step_XY", Bx=None, By=None, T=None
 ):
+
+    n=100
+    J = pt.linspace(0*unit.kHz,4*unit.kHz, n)
+    fids = pt.zeros(n)
     if Bx is None:
         Bx, By, T = load_total_field(fp)
-    X = get_single_spin_X(Bx=Bx, By=By, T=T)
+        print(f"Max field = {get_max_field(Bx, By)/unit.mT} mT")
+    for i in range(n):
+        X = get_single_spin_X(Bx=Bx, By=By, T=T, A=get_A(1,1)+2*J[i])
+        fids[i] = fidelity(X[-1], gate.Id)
+    ax = plt.subplot()
+    ax.plot(J/unit.kHz, fids)
+    ax.set_xlabel('J (kHz)')
+    ax.set_ylabel("Fidelity")
+
+def test_grape_pulse_on_non_res_spin(
+    fp="fields/c1095_1S_2q_300ns_2000step_XY", Bx=None, By=None, T=None, ax=None
+):
+    A = get_A(1, 1)
+    if Bx is None:
+        Bx, By, T = load_total_field(fp)
+    X = get_single_spin_X(Bx=Bx, By=By, T=T, A=A)
+    fids = fidelity_progress(X, gate.Id)
+    
+    plot_fidelity(fids, T=T, ax=ax)
+
     print_rank2_tensor(X[-1])
     print(f"tested fidelity = {fidelity(X[-1], gate.Id)}")
-    plot_fields(Bx, By, T=T)
+    #plot_fields(Bx, By, T=T)
 
+def test_multi_grape_pulse_on_non_res_spin():
+    fps=["fields/c1095_1S_2q_300ns_2000step_XY"]
+    ax = plt.subplot()
+    for fp in fps:
+        test_grape_pulse_on_non_res_spin(fp=fp, ax=ax)
 
 class SingleElectronGRAPE(Grape):
     def __init__(
@@ -334,13 +362,14 @@ def J_coupled_X(
 if __name__ == "__main__":
 
     # show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
-    run_single_electron_grape(A=get_A(1, 2), kappa=1, tN=200 * unit.ns, N=500)
+    # run_single_electron_grape(A=get_A(1, 2), kappa=1, tN=200 * unit.ns, N=500)
     # J_coupled_X(
     #     nS=15, N=1000, tN=200 * unit.ns, max_time=None, kappa=1e5, lam=0
     # )  # This one gives high fidelity for all 30 systems
     # J_coupled_X(nS=15, N=1000, tN=500 * unit.ns, max_time=None, kappa=1e6, lam=1e9)
     # identity_hyperfines(2000, 1000 * unit.ns, nS=1, kappa=1e4, max_time=10)
-    test_grape_pulse_on_non_res_spin(fp="fields/single_electron_XY")
+    test_grape_pulse_on_non_res_spin(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
+    #test_grape_pulse_with_varied_J(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
 
-    plt.show()
+    # plt.show()
 

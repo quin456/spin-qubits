@@ -4,7 +4,6 @@ import torch as pt
 
 if not pt.cuda.is_available():
     matplotlib.use("Qt5Agg")
-from pdb import set_trace
 
 from matplotlib import pyplot as plt
 
@@ -443,7 +442,6 @@ def examine_electron_eigensystem(
     alpha2 = pt.tensor([get_alpha(A[j], J[j]) for j in range(500)], dtype=real_dtype)
     beta2 = pt.tensor([get_beta(A[j], J[j]) for j in range(500)], dtype=real_dtype)
 
-    set_trace()
     fig, ax = plt.subplots(1, 2)
     ax[1].plot(J / unit.MHz, alpha ** 2, label="$α^2$")
     ax[1].plot(J / unit.MHz, beta ** 2, label="$ß^2$")

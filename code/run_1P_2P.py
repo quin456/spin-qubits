@@ -39,7 +39,6 @@ from GRAPE import (
 from electrons import get_electron_X
 
 from pulse_maker import get_smooth_E
-from pdb import set_trace
 
 
 def grape_48S_fid_bars():
@@ -140,14 +139,14 @@ if __name__ == "__main__":
 
     # run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=48, max_time = 23.5*3600, lam=1e8, prev_grape_fn='fields/g254_48S_2q_5000ns_10000step', reverse_CX=False, kappa=1e2)
     run_2P_1P_CNOTs(
-        2000 * unit.ns,
-        200,
-        nS=1,
-        max_time=23.5*3600,
-        lam=1e8,
-        kappa=1e-1,
+        300 * unit.ns,
+        2000,
+        nS=2,
+        max_time=10,
+        lam=1e4,
+        kappa=1,
         simulate_spectators=True,
-        prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
+        # prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
     )
     # run_1P_2P_uniform_J_CNOTs(
     #     1000 * unit.ns,

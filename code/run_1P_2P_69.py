@@ -37,7 +37,6 @@ from GRAPE import (
 from electrons import get_electron_X
 
 from pulse_maker import get_smooth_E
-from pdb import set_trace
 
 
 def grape_48S_fid_bars():

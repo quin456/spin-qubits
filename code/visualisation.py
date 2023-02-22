@@ -15,9 +15,6 @@ from hamiltonians import get_H0, multi_NE_H0, get_NE_H0
 from data import get_A, get_J, gamma_n, gamma_e, B0, cplx_dtype, default_device
 
 
-from pdb import set_trace
-
-
 color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 
@@ -247,7 +244,9 @@ def visualise_Hw(Hw, tN, eigs=None):
             ax[i, j].plot(T, pt.imag(y))
 
 
-def plot_fidelity(ax, fids, T=None, tN=None, legend=True, printfid=False):
+def plot_fidelity(fids, ax=None, T=None, tN=None, legend=True, printfid=False):
+    if ax is None:
+        ax=plt.subplot()
     if len(fids.shape) == 1:
         fids = fids.reshape(1, *fids.shape)
     nS = len(fids)

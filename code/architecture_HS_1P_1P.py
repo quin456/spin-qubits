@@ -3,7 +3,6 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 from matplotlib import pyplot as plt
-from pdb import set_trace
 
 
 from old.architecture_design import place_wire, place_qubit

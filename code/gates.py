@@ -445,6 +445,5 @@ def get_2E_H0(A, J):
 
 
 if __name__ == "__main__":
-    from pdb import set_trace
 
-    set_trace()
+    breakpoint()

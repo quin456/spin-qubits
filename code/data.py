@@ -4,7 +4,6 @@ import atomic_units as unit
 from atomic_units import hbar, qE, mE
 import numpy as np
 
-from pdb import set_trace
 
 cplx_dtype = pt.complex128
 real_dtype = pt.float64
@@ -184,6 +183,7 @@ def get_J_1P_2P(nS):
 def J_HF(R, a=1.8 * unit.nm):
     return (R / a) ** (5 / 2) * np.exp(-2 * R / a)
 
+
 def get_A_1P_2P_uniform_J(nS):
     if nS > 9:
         raise Exception("Only 9 2P hyperfines to be optimised in parallel.")
@@ -200,6 +200,7 @@ def get_J_1P_2P_uniform_J(nS, J=100 * unit.MHz):
     if len(J) == 1:
         return J[0]
     return J
+
 
 J_1s3q = J = get_J(1, 3, J1=J_100_18nm, J2=J_100_14nm[8:])
 
@@ -232,4 +233,4 @@ if __name__ == "__main__":
     for i in range(len(A_2P_1P_fab)):
         print(f"J_2P_1P_{i} = {J_2P_1P_fab[i].item()/unit.MHz:.2f} MHz")
 
-    set_trace()
+    breakpoint()

@@ -15,8 +15,6 @@ from data import default_device, cplx_dtype
 import atomic_units as unit
 
 
-from pdb import set_trace
-
 color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 
@@ -424,6 +422,10 @@ def rise_ones_fall(N, rise_prop):
     )
 
 
+def get_max_field(Bx, By):
+    return pt.sqrt(maxreal(Bx ** 2 + By ** 2))
+
+
 def sqrtm(T):
     return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
 
@@ -434,4 +436,4 @@ class NoiseModels(str, Enum):
 
 
 if __name__ == "__main__":
-    set_trace()
+    breakpoint()

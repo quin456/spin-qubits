@@ -29,8 +29,6 @@ from pulse_maker import pi_pulse_square
 from multi_NE import *
 
 
-from pdb import set_trace
-
 
 color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
@@ -330,8 +328,6 @@ def triple_NE_free_evolution(tN=15000 * unit.ns, N=5000, A=get_A(1, 1), J=get_J(
 
     psi0 = pt.zeros_like(S[:, 0])
     psi0[15] = 1
-
-    set_trace()
 
     U0 = get_U0(H0, tN=tN, N=N)
     # psi = U0@psi0

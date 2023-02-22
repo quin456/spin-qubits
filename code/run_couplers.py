@@ -8,6 +8,7 @@ from visualisation import *
 from pulse_maker import load_XY
 from electrons import get_electron_X
 from utils import batch_fidelity
+from run_grape import run_CNOTs
 
 
 def test_coupler_pulse(fp="fields/c1212_1S_3q_100ns_500step"):
@@ -27,7 +28,7 @@ def test_coupler_pulse(fp="fields/c1212_1S_3q_100ns_500step"):
     # plot_psi_with_phase(psi, T)
 
 
-def run_coupler_grape(tN, N, nS, max_time=10, kappa=1, lam=0):
+def run_coupler_grape(tN, N, nS, max_time=10, kappa=1, lam=0, prev_grape_fp=None):
 
     J = get_J(nS, 3, J1=J_100_18nm[:9], J2=J_100_18nm[:9] / 2.3)
     A = get_A(nS, 3)

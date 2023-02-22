@@ -49,6 +49,7 @@ MHz = np.float64(1e6 * Hz)
 kHz = np.float64(1e3 * Hz)
 GHz = np.float64(1e9 * Hz)
 mT = np.float64(1e-3 * T)
+uT = np.float64(1e-6 * T)
 Mrps = np.float64(1e6 * rps)
 um = np.float64(1e-6 * m)
 nm = np.float64(1e-9 * m)
@@ -58,6 +59,4 @@ kB = np.float64(1.38e-23 * m ** 2 * kg / (s ** 2 * K))
 
 if __name__ == "__main__":
     # Doing some unit conversions
-    from pdb import set_trace
-
-    set_trace()
+    breakpoint()
