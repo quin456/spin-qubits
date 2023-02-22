@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 from scipy import linalg
 from enum import Enum
+from typing import Tuple, Union
 
 if not pt.cuda.is_available():
     matplotlib.use("Qt5Agg")
@@ -18,9 +19,16 @@ import atomic_units as unit
 color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 
-def zeros_like_reshape(tensor, shape):
+def zeros_like_reshape(tensor: pt.Tensor, shape: Tuple) -> pt.Tensor:
     """
-    Returns array of zeros of specified shape with dtype and device of tensor.
+    Instantiates tensor of zeros with the same device and dtype as the input tensor, but 
+    with a different shape.
+
+    Args:
+        tensor: Tensor whose dtype and device to replicate.
+        shape:  Shape of new tensor.
+
+    Return: Zeros tensor.
     """
     return pt.zeros(*shape, dtype=tensor.dtype, device=tensor.device)
 
@@ -43,7 +51,14 @@ def normalise(v):
 
 
 def dagger(A):
-    """  Returns the conjugate transpose of a matrix or batch of matrices.  """
+    """
+    Determines the conjugate transpose of a matrix or batch of matrices.
+
+    Args:
+        A: A matrix or array of matrices.
+    Returns: 
+        The conjugate transpose of A or each matrix in A  """
+
     return pt.conj(pt.transpose(A, -2, -1))
 
 
@@ -283,6 +298,7 @@ def map_psi(A, psi):
 
 
 def print_eigenstates(S):
+    """ Prints quantum states corresponding to the columns of matrix S. """
     for j in range(len(S)):
         print(f"|E{j}> = {psi_to_string(S[:,j])}")
 
@@ -304,12 +320,26 @@ def remove_duplicates(A):
 
 
 def clean_vector(v, tol=1e-8):
-    for i in range(len(v)):
-        if pt.abs(v[i]) < tol:
-            v[i] = 0
+    """
+    Determines a 'cleaned' verision of a vector, in which elements considered
+    negligibly small are set to zero.
+
+    Inputs:
+        v (pt.Tensor): vector to be cleaned.
+        tol (float):   tolerance. v[j] < tol is replaced with zero
+    Returns
+        A new vector (pt.Tensor) corresponding to the cleaned version of v.
+    """
+    return pt.einsum("i,i->i", (pt.abs(v) > tol).to(int), v)
 
 
 def print_rank2_tensor(T):
+    """
+    Prints a rank 2 tensor (ie a matrix) so as to be easily readable.
+
+    Input: 
+        T (pt.Tensor / np.ndarray): input matrix to be printed.
+    """
     m, n = T.shape
     for i in range(m):
         if i == 0:
@@ -329,9 +359,16 @@ def print_rank2_tensor(T):
             print("|")
 
 
-def label_axis(
-    ax, label, x_offset=-0.10, y_offset=-0.10, projection="2D", z_offset=0, fontsize=16
-):
+def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, fontsize=16):
+    """
+    Labels an axis, eg with an (a) for reference in a paper. 
+
+    Inputs:
+        ax (matplotlib AxesSubplot): Axis to be labelled.
+        label (str): Label for axis.
+        x_offset (float): x position of label relative to bottom left corner.
+        y_offset (float): y position of label relative to bottom left corner. 
+    """
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     dx = xlim[1] - xlim[0]
@@ -340,23 +377,22 @@ def label_axis(
     x = xlim[0] + x_offset * dx
     y = ylim[0] + y_offset * dy
 
-    # if offset<0:
-    #     ax.set_xlim(offset, xlim[1])
-    #     ax.set_ylim(offset, ylim[1])
-    if projection == "3D":
-        zlim = ax.get_ylim()
-        dz = zlim[1] - zlim[0]
-        z = zlim[0] + z_offset * dz
-        ax.text(
-            x, y, z, label, fontsize=fontsize, fontweight="bold", va="bottom", ha="left"
-        )
-    else:
-        ax.text(
-            x, y, label, fontsize=fontsize, fontweight="bold", va="bottom", ha="left"
-        )
+    ax.text(x, y, label, fontsize=fontsize, fontweight="bold", va="bottom", ha="left")
 
 
 def get_rec_min_N(rf, tN, N_period=100, verbosity=0):
+    """
+    Determines appropriate number of timesteps needed to simulate all 
+    frequencies.
+
+    Inputs:
+        rf: Array of frequencies. 
+        tN: Duration of pulse.
+        N_period: Number of timesteps needed to similate one rotation.
+
+    Returns:
+        rec_min_N: The suggested minimum number of timesteps.
+    """
     T = 1 / rf
     max_w = pt.max(pt.abs(rf)).item()
     rec_min_N = int(np.ceil(real(N_period * max_w * tN) / (2 * np.pi)))
@@ -367,7 +403,23 @@ def get_rec_min_N(rf, tN, N_period=100, verbosity=0):
     return rec_min_N
 
 
-def evaluate_timestep_inputs(T, tN, N):
+def evaluate_timestep_inputs(
+    T: Union(pt.Tensor, None), tN: Union(np.float64, None), N: Union(int, None)
+):
+    """
+    Assesses provided timestep information.
+
+    Args:
+        T: 1D array corresponding to time axis.
+        tN: Pulse duration.
+        N: Number of timesteps in pulse.
+
+    Returns:
+        T. If input T is None, T is calculated from tN, N.
+
+    Raises:
+        Exception: if T is None and either of tN and N are also None.
+    """
     if T is None:
         if tN is None:
             raise Exception("No time information provided.")
@@ -388,16 +440,15 @@ def get_dT(T):
 
 
 def linspace(start, end, N, dtype=cplx_dtype, device=default_device):
-    # return pt.linspace(start, end, N, dtype=dtype, device=device)
+    """
+    Similar to pt.linspace, but instead of array starting at start, it starts at
+    start + d where d is the spacing between adjacent elements.
+    """
     start = np.float64(start)
     end = np.float64(end)
     return pt.linspace(
         start + (end - start) / np.float64(N), end, N, dtype=dtype, device=device
     )
-
-
-def maxreal(T):
-    return pt.max(pt.real(T))
 
 
 def real(z):
@@ -407,30 +458,64 @@ def real(z):
         return z
 
 
+def maxreal(T):
+    return pt.max(real(T))
+
+
 def minreal(T):
-    return pt.min(pt.real(T))
+    return pt.min(real(T))
 
 
-def rise_ones_fall(N, rise_prop):
+def minabs(T):
+    return pt.min(abs(T))
+
+
+def maxabs(T):
+    return pt.max(abs(T))
+
+
+def rise_ones_fall(p0, N, rise_prop, fall_prop=None, device=default_device):
+    """
+    Returns array with values linearly rising from 0<p0<1 up to 1, staying 
+    constant at 1, and then falling back down to p0.
+
+    Inputs:
+        p0: value at start and end of vector.
+        N: length of vector.
+        rise_prop: proportion of vector length spent on initial rise.
+        fall_prop: proportion of vector length spent on final fall.
+    """
+    if fall_prop is None:
+        fall_prop = rise_prop
     N_rise = int((N * rise_prop) // 1)
+    N_fall = int((N * fall_prop) // 1)
     return pt.cat(
         (
-            linspace(0, 1, N_rise, device=default_device),
-            pt.ones(N - 2 * N_rise, device=default_device),
-            linspace(1, 0, N_rise, device=default_device),
+            linspace(p0, 1, N_rise, device=device),
+            pt.ones(N - N_rise - N_fall, device=device),
+            linspace(1, p0, N_fall, device=device),
         )
     )
 
 
 def get_max_field(Bx, By):
+    """ 
+    Determines the maximum value of the total magnetic field |(Bx, By)|.
+    """
     return pt.sqrt(maxreal(Bx ** 2 + By ** 2))
 
 
 def sqrtm(T):
+    """ Determines matrix square root of torch tensor using np.linalg """
     return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
 
 
 class NoiseModels(str, Enum):
+    """
+    Noise model tags to be passed to Grape object as an indicator of the type 
+    of noise to simulate.
+    """
+
     delta_correlated_exchange = "delta-exchange"
     dephasing = "dephasing"
 

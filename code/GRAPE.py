@@ -360,13 +360,17 @@ class Grape:
         raise NotImplementedError("Not implemented for base GRAPE class.")
 
     def initialise_control_fields(self):
-
+        """
+        Initialises arrays omega and phi describing the frequency and phase of
+        control fields modulated by control vector, 'u'. Also initialises u if
+        required.
+        """
         if self.rf is None:
             self.rf = self.get_control_frequencies()
-        self.omega, self.phase = config_90deg_phase_fields(self.rf)
+        self.omega, self.phi = config_90deg_phase_fields(self.rf)
         self.m = len(self.omega)
         self.x_cf, self.y_cf = get_control_fields(
-            self.omega, self.phase, self.tN, self.N
+            self.omega, self.phi, self.tN, self.N
         )
         if self.u is None:
             self.u = self.init_u()
@@ -406,6 +410,14 @@ class Grape:
             print("}")
 
     def get_control_frequencies(self, device=default_device):
+        """
+        Gets all unique control frequencies to be used for control fields.
+        These are taken as the resonant frequencies corresponding to all two-
+        qubit systems, as well as for single qubit spectators if required.
+
+        Arg: 
+            device (pt.device): The device onto which
+        """
         rf = get_multi_system_resonant_frequencies(self.H0, device=device)
         if self.simulate_spectators:
             rf_spectators = get_multi_system_resonant_frequencies(
@@ -803,6 +815,7 @@ class Grape:
                 print(f"All spectator fidelities = {spectator_fidelities}")
         X_field, Y_field = self.sum_XY_fields()
         max_field = get_max_field(X_field, Y_field)
+
         print(f"Max field = {max_field*1e3:.2f} mT")
         if verbosity >= 3:
             print(f"GPUs requested = {ngpus}")
@@ -816,14 +829,14 @@ class Grape:
         Sum contributions of all control fields along x and y axes
         """
         x_cf_unit, y_cf_unit = get_unit_CFs(
-            self.omega, self.phase, self.tN, self.N, device=device
+            self.omega, self.phi, self.tN, self.N, device=device
         )
         X_field2 = pt.einsum("kj,kj->j", self.u_mat(device=device), x_cf_unit)
         Y_field2 = pt.einsum("kj,kj->j", self.u_mat(device=device), y_cf_unit)
         return X_field2, Y_field2
         T = linspace(0, self.tN, self.N, device=default_device)
         wt = pt.einsum("k,j->kj", self.omega, T)
-        phase = self.phase
+        phase = self.phi
         cos_wt = pt.cos(wt + phase)
         sin_wt = pt.sin(wt + phase)
         X_field = pt.real(pt.sum(pt.einsum("kj,kj->kj", self.u_mat(), cos_wt), 0))
@@ -897,7 +910,7 @@ class Grape:
     def plot_control_fields(self, ax):
 
         T = np.linspace(0, self.tN / unit.ns, self.N)
-        x_cf, y_cf = get_unit_CFs(self.omega, self.phase, self.tN, self.N)
+        x_cf, y_cf = get_unit_CFs(self.omega, self.phi, self.tN, self.N)
         x_cf = x_cf.cpu().numpy()
         y_cf = y_cf.cpu().numpy()
 
@@ -1272,18 +1285,9 @@ class GrapeESR(Grape):
         # define proportion of time to spend on of rise and fall
         rise_prop = 0.1
         fall_prop = rise_prop
-        N_rise = self.N // rise_prop
-        N_fall = self.N // fall_prop
-
-        modulator = pt.cat(
-            (
-                pt.linspace(J0_prop, 1, self.N // rise_prop, device=device),
-                pt.ones(self.N - N_rise - N_fall, device=device),
-                pt.linspace(1, J0_prop, N_fall, device=device),
-            )
-        )
-
+        modulator = rise_ones_fall(J0_prop, self.N, rise_prop, fall_prop)
         J_modulated = pt.einsum("j,...,j...", modulator, J)
+        return J_modulated
 
     def get_H0_J_modulated(self, Bz=0, device=default_device):
         """
