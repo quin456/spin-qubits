@@ -1,5 +1,5 @@
 # coding tools
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 import time
 import warnings
 
@@ -208,7 +208,7 @@ def get_control_fields(omega, phase, tN, N, device=default_device):
     return x_cf, y_cf
 
 
-class Grape:
+class Grape(ABC):
     """
     Runs gradient ascent pulse engineering (GRAPE) optimisation on a quantum 
     system.
@@ -226,7 +226,6 @@ class Grape:
         N,
         target=None,
         rf=None,
-        nS=1,
         u0=None,
         cost_hist=[],
         max_time=9999999,
@@ -255,8 +254,6 @@ class Grape:
                                 desired effect of pulse on system(s).
             rf      (pt.tensor[float64] / None):
                                 1D array of frequencies for control fields.
-            nS      (int):      Number of distinct systems for which pulse is
-                                being optimised.
             u0      (pt.tensor[float64] / None):
                                 Initial value for control vector, u.
             cost_hist (List[float64]):
@@ -298,8 +295,7 @@ class Grape:
         self.tN = np.float64(tN)
         self.N = N
         self.dt = np.float64(self.tN / self.N)
-        self.nS = nS
-        self.target = target
+        self.target = target if target is not None else self.get_default_targets()
         self.max_time = max_time
         self.start_time = time.time()
         self.u = uToVector(u0)
@@ -319,8 +315,6 @@ class Grape:
             self.H0 = self.H0.reshape(1, *self.H0.shape)
             self.target = self.target.reshape(1, *self.target.shape)
             self.reshaped = True
-
-        self.nS = len(self.H0)
 
         self.sp_count = 0
         self.sp_distance = sp_distance
@@ -351,11 +345,16 @@ class Grape:
         else:
             self.sim_steps = 1
         self.print_setup_info()
+        self.status = "UC"
         # self.propagate()
 
     @abstractmethod
+    def get_default_targets(self):
+        pass
+
+    @abstractmethod
     def get_H0(self):
-        raise NotImplementedError("Not implemented for base GRAPE class.")
+        pass
 
     def initialise_control_fields(self):
         """
@@ -1144,69 +1143,32 @@ class Grape:
         return filename
 
 
+class ESR_system(object):
+    def __init__(self, J, A, Bz):
+
+        self.J = J
+        self.A = A
+        self.Bz = Bz
+
+
 class GrapeESR(Grape):
-    def __init__(
-        self,
-        J,
-        A,
-        tN,
-        N,
-        Bz=0,
-        J_modulated=False,
-        target=None,
-        rf=None,
-        u0=None,
-        cost_hist=[],
-        max_time=9999999,
-        lam=0,
-        alpha=0,
-        kappa=1,
-        operation="Setting up",
-        verbosity=1,
-        noise_model=None,
-        ensemble_size=1,
-        cost_momentum=0,
-        simulate_spectators=False,
-        X0=None,
-        simulation_steps=False,
-    ):
+    def __init__(self, tN, N, J, A, Bz=np.float64(0), J_modulated=False, **kwargs):
 
         # save data first running super() initialisation function
         self.J = J
         self.A = A
         self.nS, self.nq = self.get_nS_nq()
         self.Bz = Bz
-        self.tN = tN
-        self.N = N
-        self.alpha = alpha
-        self.target = target if target is not None else CNOT_targets(self.nS, self.nq)
-        self.status = "UC"
         self.J_modulated = J_modulated
         self.n_J = self.count_exchange_values()
 
-        super().__init__(
-            tN,
-            N,
-            self.target,
-            rf,
-            self.nS,
-            u0,
-            cost_hist,
-            max_time=max_time,
-            operation=operation,
-            verbosity=verbosity,
-            lam=lam,
-            kappa=kappa,
-            noise_model=noise_model,
-            ensemble_size=ensemble_size,
-            cost_momentum=cost_momentum,
-            simulate_spectators=simulate_spectators,
-            X0=X0,
-            simulation_steps=simulation_steps,
-        )
+        super().__init__(tN, N, **kwargs)
+
         # perform calculations last
-        self.rf = self.get_control_frequencies() if rf is None else rf
-        self.alpha = alpha
+        self.rf = self.get_control_frequencies() if self.rf is None else self.rf
+
+    def get_default_targets(self):
+        return CNOT_targets(self.nS, self.nq)
 
     def count_exchange_values(self):
         if len(self.J.shape) == 0:
@@ -1787,48 +1749,12 @@ def get_2q_freqs(J, A, all_freqs=True, device=default_device):
 
 
 class GrapeESR_AJ_Modulation(GrapeESR):
-    def __init__(
-        self,
-        J,
-        A,
-        tN,
-        N,
-        Bz=0,
-        target=None,
-        rf=None,
-        u0=None,
-        cost_hist=[],
-        max_time=9999999,
-        save_data=False,
-        alpha=0,
-        lam=0,
-        operation="Setting up",
-        verbosity=1,
-        kappa=1,
-        simulate_spectators=False,
-    ):
+    def __init__(self, tN, N, J, A, Bz=0, **kwargs):
 
         self.rise_time = 10 * unit.ns
         self.E = get_smooth_E(tN, N).to(default_device)
         # self.E = get_simple_E(tN, N).to(default_device)
-        super().__init__(
-            J,
-            A,
-            tN,
-            N,
-            Bz=Bz,
-            target=target,
-            rf=rf,
-            u0=u0,
-            cost_hist=cost_hist,
-            max_time=max_time,
-            save_data=save_data,
-            lam=lam,
-            operation=operation,
-            verbosity=verbosity,
-            kappa=kappa,
-            simulate_spectators=simulate_spectators,
-        )
+        super().__init__(J, A, tN, N, Bz=Bz, **kwargs)
 
     def print_setup_info(self):
         Grape.print_setup_info(self)
@@ -2120,49 +2046,12 @@ class CouplerGrape(GrapeESR):
     GRAPE class dedicated to paralel optimisation of triple-donor systems.
     """
 
-    def __init__(
-        self,
-        J,
-        A,
-        tN,
-        N,
-        Bz=0,
-        rf=None,
-        u0=None,
-        cost_hist=[],
-        max_time=9999999,
-        save_data=False,
-        alpha=0,
-        lam=0,
-        operation="Setting up",
-        verbosity=1,
-        kappa=1,
-        X0=gate.coupler_Id,
-        target=None,
-    ):
+    def __init__(self, tN, N, J, A, Bz=np.float64(0), **kwargs):
+        self.nS, self.nq = get_nS_nq_from_A(A)
+        super().__init__(tN, N, J, A, Bz=Bz, **kwargs)
 
-        nS, nq = get_nS_nq_from_A(A)
-        if target is None:
-            target = coupler_CX_targets(nS)
-        super().__init__(
-            J=J,
-            A=A,
-            tN=tN,
-            N=N,
-            Bz=Bz,
-            target=target,
-            rf=rf,
-            u0=u0,
-            cost_hist=cost_hist,
-            max_time=max_time,
-            save_data=save_data,
-            alpha=alpha,
-            lam=lam,
-            operation=operation,
-            verbosity=verbosity,
-            kappa=kappa,
-            X0=X0,
-        )
+    def get_default_targets(self, device=default_device):
+        return coupler_CX_targets(self.nS, device=device)
 
 
 ################################################################################################################

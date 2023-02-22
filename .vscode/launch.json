@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "run_grape",
+            "type": "python",
+            "request": "launch",
+            "program": "code/run_grape.py"
+        },
+        {
+            "name": "run_1P_2P",
+            "type": "python",
+            "request": "launch",
+            "program": "code/run_1P_2P.py"
+        }
+    ]
+}
