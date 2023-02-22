@@ -2,4 +2,6 @@
 fields
 plots
 __pycache__
-.vscode
+.vscode/*
+.vscode/launch.json
+
