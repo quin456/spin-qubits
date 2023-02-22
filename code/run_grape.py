@@ -161,10 +161,10 @@ def run_CNOTs(
     target = CNOT_targets(nS, nq, native=False)
     if prev_grape_fn is None:
         grape = Grape(
-            J2_low,
-            A,
             tN,
             N,
+            J2_low,
+            A=A,
             Bz=Bz,
             target=target,
             rf=rf,

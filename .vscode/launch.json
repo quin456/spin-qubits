@@ -11,6 +11,18 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "run_grape",
+            "type": "python",
+            "request": "launch",
+            "program": "code/run_grape.py"
+        },
+        {
+            "name": "run_1P_2P",
+            "type": "python",
+            "request": "launch",
+            "program": "code/run_1P_2P.py"
         }
     ]
 }
