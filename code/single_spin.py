@@ -99,19 +99,20 @@ def test_grape_pulse_with_varied_J(
     fp="fields/c1095_1S_2q_300ns_2000step_XY", Bx=None, By=None, T=None
 ):
 
-    n=100
-    J = pt.linspace(0*unit.kHz,4*unit.kHz, n)
+    n = 100
+    J = pt.linspace(0 * unit.kHz, 4 * unit.kHz, n)
     fids = pt.zeros(n)
     if Bx is None:
         Bx, By, T = load_total_field(fp)
         print(f"Max field = {get_max_field(Bx, By)/unit.mT} mT")
     for i in range(n):
-        X = get_single_spin_X(Bx=Bx, By=By, T=T, A=get_A(1,1)+2*J[i])
+        X = get_single_spin_X(Bx=Bx, By=By, T=T, A=get_A(1, 1) + 2 * J[i])
         fids[i] = fidelity(X[-1], gate.Id)
     ax = plt.subplot()
-    ax.plot(J/unit.kHz, fids)
-    ax.set_xlabel('J (kHz)')
+    ax.plot(J / unit.kHz, fids)
+    ax.set_xlabel("J (kHz)")
     ax.set_ylabel("Fidelity")
+
 
 def test_grape_pulse_on_non_res_spin(
     fp="fields/c1095_1S_2q_300ns_2000step_XY", Bx=None, By=None, T=None, ax=None
@@ -121,39 +122,23 @@ def test_grape_pulse_on_non_res_spin(
         Bx, By, T = load_total_field(fp)
     X = get_single_spin_X(Bx=Bx, By=By, T=T, A=A)
     fids = fidelity_progress(X, gate.Id)
-    
+
     plot_fidelity(fids, T=T, ax=ax)
 
     print_rank2_tensor(X[-1])
     print(f"tested fidelity = {fidelity(X[-1], gate.Id)}")
-    #plot_fields(Bx, By, T=T)
+    # plot_fields(Bx, By, T=T)
+
 
 def test_multi_grape_pulse_on_non_res_spin():
-    fps=["fields/c1095_1S_2q_300ns_2000step_XY"]
+    fps = ["fields/c1095_1S_2q_300ns_2000step_XY"]
     ax = plt.subplot()
     for fp in fps:
         test_grape_pulse_on_non_res_spin(fp=fp, ax=ax)
 
+
 class SingleElectronGRAPE(Grape):
-    def __init__(
-        self,
-        tN,
-        N,
-        target,
-        rf=None,
-        u0=None,
-        hist0=[],
-        max_time=60,
-        save_data=False,
-        Bz=0,
-        A=get_A(1, 1),
-        J=None,
-        lam=0,
-        noise_model=None,
-        ensemble_size=1,
-        cost_momentum=0,
-        kappa=1e12,
-    ):
+    def __init__(self, tN, N, Bz=0, A=get_A(1, 1), J=None, **kwargs):
         if J is not None:
             print("J != None: assume this is for SWAP X-gates.")
             self.target = pt.cat(
@@ -162,27 +147,17 @@ class SingleElectronGRAPE(Grape):
                     pt.einsum("k,ab->kab", pt.ones(len(J)), gate.Id),
                 )
             )
+        self.nS = self.get_nS(A, J)
         self.nq = 1
         self.Bz = Bz
         self.A = A
         self.J = J
-        super().__init__(
-            tN,
-            N,
-            target,
-            rf=rf,
-            nS=self.get_nS(A, J),
-            u0=u0,
-            max_time=max_time,
-            kappa=kappa,
-            lam=lam,
-            noise_model=noise_model,
-            ensemble_size=ensemble_size,
-            cost_momentum=cost_momentum,
-            minus_phase=False,
-        )
+        super().__init__(tN, N, **kwargs)
         self.Hw = self.get_Hw()
         self.fun = self.cost
+
+    def get_default_targets(self):
+        return gate.H
 
     def get_nS(self, A, J):
         try:
@@ -260,7 +235,7 @@ class SingleElectronGRAPE(Grape):
 
 
 def run_single_electron_grape(
-    A=get_A(1, 1), fp=None, tN=100 * unit.ns, N=100, kappa=1e6, lam=0
+    A=get_A(1, 1), fp=None, tN=100 * unit.ns, N=100, kappa=1, lam=0
 ):
     target = gate.Id
     Bz = 0
@@ -270,9 +245,9 @@ def run_single_electron_grape(
     grape = SingleElectronGRAPE(
         tN,
         N,
-        target,
         Bz=Bz,
         A=A,
+        target=target,
         u0=u0,
         kappa=kappa,
         lam=lam,
@@ -362,14 +337,15 @@ def J_coupled_X(
 if __name__ == "__main__":
 
     # show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
-    # run_single_electron_grape(A=get_A(1, 2), kappa=1, tN=200 * unit.ns, N=500)
+    run_single_electron_grape(A=get_A(1, 1), kappa=1e7, tN=400 * unit.ns, N=500)
     # J_coupled_X(
     #     nS=15, N=1000, tN=200 * unit.ns, max_time=None, kappa=1e5, lam=0
     # )  # This one gives high fidelity for all 30 systems
     # J_coupled_X(nS=15, N=1000, tN=500 * unit.ns, max_time=None, kappa=1e6, lam=1e9)
     # identity_hyperfines(2000, 1000 * unit.ns, nS=1, kappa=1e4, max_time=10)
-    test_grape_pulse_on_non_res_spin(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
-    #test_grape_pulse_with_varied_J(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
+    # test_grape_pulse_on_non_res_spin(fp="fields/c1224_2S_2q_500ns_1000step_XY")
+    plt.show()
+    # test_grape_pulse_with_varied_J(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
 
     # plt.show()
 
