@@ -179,7 +179,6 @@ class SingleElectronGRAPE(Grape):
             noise_model=noise_model,
             ensemble_size=ensemble_size,
             cost_momentum=cost_momentum,
-            minus_phase=False,
         )
         self.Hw = self.get_Hw()
         self.fun = self.cost
@@ -362,13 +361,13 @@ def J_coupled_X(
 if __name__ == "__main__":
 
     # show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
-    # run_single_electron_grape(A=get_A(1, 2), kappa=1, tN=200 * unit.ns, N=500)
+    run_single_electron_grape(A=get_A(1, 2), kappa=1, tN=200 * unit.ns, N=500)
     # J_coupled_X(
     #     nS=15, N=1000, tN=200 * unit.ns, max_time=None, kappa=1e5, lam=0
     # )  # This one gives high fidelity for all 30 systems
     # J_coupled_X(nS=15, N=1000, tN=500 * unit.ns, max_time=None, kappa=1e6, lam=1e9)
     # identity_hyperfines(2000, 1000 * unit.ns, nS=1, kappa=1e4, max_time=10)
-    test_grape_pulse_on_non_res_spin(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
+    #test_grape_pulse_on_non_res_spin(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
     #test_grape_pulse_with_varied_J(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
 
     # plt.show()

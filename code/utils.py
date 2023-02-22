@@ -404,7 +404,7 @@ def get_rec_min_N(rf, tN, N_period=100, verbosity=0):
 
 
 def evaluate_timestep_inputs(
-    T: Union(pt.Tensor, None), tN: Union(np.float64, None), N: Union(int, None)
+    T: Union[pt.Tensor, None], tN: Union[np.float64, None], N: Union[int, None]
 ):
     """
     Assesses provided timestep information.

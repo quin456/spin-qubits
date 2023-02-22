@@ -7,6 +7,7 @@ import atomic_units as unit
 import gates as gate
 from utils import *
 from data import *
+from hamiltonians import get_H0
 from pulse_maker import pi_pulse_field_strength
 
 
@@ -317,13 +318,4 @@ def map_time_dep_operator(A, U):
 
 
 if __name__ == "__main__":
-    from hamiltonians import get_H0
-
-    A = get_A(1, 2)
-    J = get_J(1, 2)
-    Bz = 0.001 * unit.T
-    rf_num = get_resonant_frequencies(get_H0(A, J, Bz))
-    rf_anal = get_2E_rf_analytic(J, A, Bz)
-
-    print(f"rf_num = {rf_num/unit.MHz} MHz")
-    print(f"rf_anal = {rf_anal/unit.MHz} MHz")
+    pass
