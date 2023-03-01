@@ -23,6 +23,12 @@
             "type": "python",
             "request": "launch",
             "program": "code/run_1P_2P.py"
+        },
+        {
+            "name": "run_couplers",
+            "type": "python",
+            "request": "launch",
+            "program": "code/run_couplers.py"
         }
     ]
 }
