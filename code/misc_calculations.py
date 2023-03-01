@@ -451,7 +451,7 @@ def HS_SQR_rabi_probs():
 
 
 
-def similar_frequencies(w_ac, w_res, B_ac, c, maxp=0.01, print_info = True):
+def frequencies_are_similar(w_ac, w_res, B_ac, c, maxp=0.01, print_info = True):
     p=get_rabi_prob(w_ac, w_res, B_ac, c)
     if print_info:
         print(f"Field B_ac = {B_ac/unit.mT} mT, w_ac = {pt.real(w_ac/unit.MHz):.1f} MHz has probability p={p:.4f} of exciting transition with w_res = {pt.real(w_res/unit.MHz):.1f} MHz, coupling = {pt.real(c*unit.T/unit.MHz):.1f} MHz/T")
@@ -459,6 +459,7 @@ def similar_frequencies(w_ac, w_res, B_ac, c, maxp=0.01, print_info = True):
     if p > maxp:
         return False 
     return True
+
 
 def system_comparison(w_ac, rf,  B_ac, C):
     Pr = []
@@ -507,7 +508,7 @@ def graph_frequency_similarity(rf_mat, C, B_ac=1*unit.T, pmax=0.01):
     C_vec = flatten_rf_mat(C)
     for i in range(len(rf)):
         for j in range(0,len(rf)):
-            if similar_frequencies(rf[i], rf[j], B_ac, C_vec[j]) or similar_frequencies(rf[j], rf[i], B_ac, C_vec[i], maxp=pmax):
+            if frequencies_are_similar(rf[i], rf[j], B_ac, C_vec[j]) or frequencies_are_similar(rf[j], rf[i], B_ac, C_vec[i], maxp=pmax):
                 edges.append((i,j))
     G = nx.Graph()  # or DiGraph, MultiGraph, MultiDiGraph, etc
     G = nx.Graph(name="transitions")
@@ -672,7 +673,7 @@ if __name__ == '__main__':
 
     #approximate_full_NE_optimisation_time()
 
-    placement_symmetries_1P_2P(delta_x = 52, delta_y = 10, save=True)
+    #placement_symmetries_1P_2P(delta_x = 52, delta_y = 10, save=True)
     #swap_exchange_rabi_prob(B_ac = 1*unit.mT)
     #compare_3E_frequencies()
 
@@ -682,6 +683,6 @@ if __name__ == '__main__':
 
     #print(f"A = {hyperfine_calculation(8.69e-12+2.3820e-11)/unit.MHz} MHz")
 
-    #visualise_frequency_overlap()
+    visualise_frequency_overlap()
     #check_system_overlap(H0, 10*unit.mT)
     plt.show()

@@ -27,7 +27,10 @@ def my_func(x: List[int])->float:
     return float(x)
 
 if __name__ == "__main__":
+    from collections import defaultdict 
+    def f(): return 0
+    di = defaultdict(f)
+    di[1]=2
     breakpoint()
-    print(my_func(float(3)))
 
 

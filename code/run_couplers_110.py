@@ -40,8 +40,8 @@ def run_coupler_grape(
     save_data=True,
     run_optimisation=True,
 ):
-    J = get_J(nS, 3, J1=J_100_18nm[:9], J2=J_100_18nm[:9] / 2.3)
-    A = get_A(nS, 3)
+    J = get_J(nS, 3, J1=J_100_18nm[:9], J2=J_100_18nm[:9])
+    A = get_A(nS, 3, NucSpin=[0, 0, 1])
 
     run_CNOTs(
         tN=tN,
@@ -65,22 +65,22 @@ def run_coupler_grape(
 if __name__ == "__main__":
     run_coupler_grape(
         tN=2500 * unit.ns,
-        N=8000,
+        N=4000,
         nS=81,
         max_time=23.5 * 3600,
         kappa=1,
         lam=1e9,
         J_modulated=False,
-        prev_grape_fp="fields/g310_81S_3q_4000ns_8000step",
     )
     # run_coupler_grape(
     #     tN=700 * unit.ns,
     #     N=1000,
     #     nS=2,
-    #     max_time=10,
+    #     max_time=30,
     #     kappa=1,
     #     lam=1e8,
     #     run_optimisation=True,
+    #     save_grape=False,
     #     J_modulated=True,
     # )
     # test_coupler_pulse()

@@ -119,14 +119,15 @@ def run_CNOTs(
     N=2500,
     nq=2,
     nS=15,
-    Bz=0,
+    Bz=np.float64(0),
     max_time=24 * 3600,
     J=None,
     A=None,
+    target=None,
     save_data=True,
     show_plot=True,
     rf=None,
-    prev_grape_fn=None,
+    prev_grape_fp=None,
     kappa=1,
     minprint=False,
     mergeprop=False,
@@ -140,6 +141,7 @@ def run_CNOTs(
     verbosity=2,
     Grape=GrapeESR,
     simulation_steps=False,
+    J_modulated=False,
 ):
 
     J1_low = J_100_18nm / 50
@@ -158,18 +160,16 @@ def run_CNOTs(
     rf = None
     u0 = None
 
-    target = CNOT_targets(nS, nq, native=False)
-    if prev_grape_fn is None:
+    if prev_grape_fp is None:
         grape = Grape(
             tN,
             N,
-            J2_low,
+            J,
             A=A,
             Bz=Bz,
             target=target,
             rf=rf,
             u0=u0,
-            max_time=max_time,
             lam=lam,
             alpha=alpha,
             noise_model=noise_model,
@@ -179,21 +179,22 @@ def run_CNOTs(
             simulate_spectators=simulate_spectators,
             verbosity=verbosity,
             simulation_steps=simulation_steps,
+            J_modulated=J_modulated,
         )
     else:
         grape = load_grape(
-            prev_grape_fn,
-            max_time=max_time,
+            prev_grape_fp,
             kappa=kappa,
             lam=lam,
             simulate_spectators=simulate_spectators,
             verbosity=verbosity,
             Grape=Grape,
             simulation_steps=simulation_steps,
+            J_modulated=J_modulated,
         )
 
     if run_optimisation:
-        grape.run()
+        grape.run(max_time=max_time)
     grape.print_result()
     grape.plot_result()
     if save_data:
@@ -207,7 +208,7 @@ if __name__ == "__main__":
         N=500,
         nS=1,
         nq=2,
-        max_time=10,
+        max_time=5,
         lam=0,
         kappa=1,
         simulate_spectators=False,

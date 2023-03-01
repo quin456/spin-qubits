@@ -25,7 +25,7 @@ def get_allowed_transitions(
     else:
         E = pt.diag(D)
 
-    S_T = pt.transpose(S, 0, 1)
+    S_T = pt.transpose(S, -2, -1)
     d = len(E)
 
     if Hw_shape is None:

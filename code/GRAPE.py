@@ -45,7 +45,6 @@ mergeprop_g = False
 jac = True  # keep as True unless testing cost grad function
 save_mem = False  # save mem in Hamiltonian arrays.
 work_in_eigenbasis = False  # Should be set to False unless testing
-interaction_picture = False  # Should be set to False unless testing
 """ save_mem incompatible with work_in_eigenbasis and interaction picture """
 
 
@@ -217,7 +216,13 @@ class Grape(ABC):
     multiplied by the appropriate unit from the atomic_units module.
 
     Attributes:
-        tN (float64)
+        tN (float64):   Duration of pulse.
+        N (int):        Number of timesteps.
+        u (pt.Tensor):  Control vector of shape (m,N) to be optimised, which 
+                        modulates amplitudes of m control fields over N timesteps.
+        omega (pt.Tensor): (m,) vector containing frequencies of m control fields
+        phase (pt.Tensor): (m,) vector containing phases of m control fields.
+
     """
 
     def __init__(
@@ -228,7 +233,6 @@ class Grape(ABC):
         rf=None,
         u0=None,
         cost_hist=[],
-        max_time=9999999,
         sp_distance=99999 * 3600,
         verbosity=1,
         filename=None,
@@ -242,6 +246,7 @@ class Grape(ABC):
         simulate_spectators=False,
         X0=None,
         simulation_steps=False,
+        interaction_picture = False,
     ):
         """
         Contructor for Grape class
@@ -292,17 +297,14 @@ class Grape(ABC):
 
 
         """
+
+        # Store initial class attributes
         self.tN = np.float64(tN)
         self.N = N
         self.dt = np.float64(self.tN / self.N)
         self.target = target if target is not None else self.get_default_targets()
-        self.max_time = max_time
-        self.start_time = time.time()
         self.u = uToVector(u0)
-
-        # never save data automatically now that grape.save exists.
-        self.save_data = False
-
+        self.interaction_picture = interaction_picture
         self.H0 = self.get_H0(Bz=self.Bz)
         self.rf = rf
         self.simulate_spectators = simulate_spectators
@@ -394,10 +396,10 @@ class Grape(ABC):
             f"Found {len(self.rf)} resonant frequencies: rf_max = {pt.max(self.rf)/unit.MHz} MHz, rf_min = {pt.min(self.rf)/unit.MHz} MHz"
         )
 
-        print(f"Amplitude penalisation: lam = {self.lam}")
+        print(f"Amplitude penalisation: lam = {self.lam:.1e}")
         if self.verbosity >= 1:
-            print(f"Variation penalisation: alpha = {self.alpha}")
-        print(f"Cost gradient modulator: kappa = {self.kappa}")
+            print(f"Variation penalisation: alpha = {self.alpha:.1e}")
+        print(f"Cost gradient modulator: kappa = {self.kappa:.1e}")
         if self.verbosity >= 2:
             print("{", end=" ")
             for freq in self.rf:
@@ -413,13 +415,16 @@ class Grape(ABC):
         Arg: 
             device (pt.device): The device onto which
         """
-        rf = get_multi_system_resonant_frequencies(self.H0, device=device)
+        rf = self.get_control_frequencies(device=device)
         if self.simulate_spectators:
             rf_spectators = get_multi_system_resonant_frequencies(
                 self.spectator_H0(), device=device
             )
             rf = pt.cat((rf, rf_spectators))
         return rf
+
+    def get_control_frequencies(self, device=default_device):
+        return get_multi_system_resonant_frequencies(self.H0, device=device)
 
     def u_mat(self, device=default_device):
         return uToMatrix(self.u, self.m).to(device)
@@ -460,7 +465,7 @@ class Grape(ABC):
         H_control = pt.einsum("kj,skjab->sjab", self.u_mat(), Hw)
         self.Hc = H_control
 
-        if interaction_picture:
+        if self.interaction_picture:
             H = H_control
         else:
             H = H_control + H0
@@ -504,8 +509,6 @@ class Grape(ABC):
         N = len(U[0])
         dim = U[0].shape[1]  # forward propagated time evolution operator
         nq = get_nq_from_dim(dim)
-        if target is None:
-            target = CNOT_targets(nS, nq)
         if X0 is None:
             X0 = gate.get_Id(nq)
         X = pt.zeros((nS, N, *X0.shape), dtype=cplx_dtype, device=device)
@@ -533,16 +536,23 @@ class Grape(ABC):
         return self.X, self.P
 
     def check_time(self, xk):
+        """
+        Checks how long optimisation has been running for on each call to the 
+        cost function. Terminates optimisation when max time is exceeded, and
+        saves current grape object state when a save point is reached.
+
+        Args:
+            xk (ndarray[np.float64]): Partially optimised control vector, u. 
+
+        Raises:
+            TimeoutError:   If the optimisation has run for longer than the 
+                            max_time set on grape object instantiation.
+        """
         time_passed = time.time() - self.start_time
         if time_passed > (self.sp_count + 1) * self.sp_distance:
             self.sp_count += 1
             print(f"Save point {self.sp_count} reached, time passed = {time_passed}.")
-            if self.save_data:
-                pt.save(
-                    pt.tensor(xk, dtype=real_dtype),
-                    self.filename + "_SP" + str(self.sp_count),
-                )
-                pt.save(np.array(self.cost_hist), self.filename + "_cost_hist")
+            self.save()
         if time_passed > self.max_time:
             global u_opt_timeout
             u_opt_timeout = xk
@@ -743,7 +753,19 @@ class Grape(ABC):
 
         return J, dJ
 
-    def run(self):
+    def run(self, max_time=None):
+        """
+        Runs GRAPE optimisaiton. Passes the cost function self.cost and current 
+        control vector self.u to scipy.minimize. Conjugate gradient is the best
+        method for GRAPE optimisations, and jac=True since self.cost calculates
+        the gradient. Callback function monitors time spent on optimisation.
+
+        Args:
+            max_time (int): Maximum time in seconds to be spent on optimisation 
+                            before manual termination.
+        """
+        self.start_time = time.time()
+        self.max_time = max_time
         callback = self.check_time if self.max_time is not None else None
         print("\n+++++  RUNNING OPTIMISATION  +++++")
         if self.max_time is None:
@@ -757,6 +779,7 @@ class Grape(ABC):
             self.u = pt.tensor(opt.x, device=default_device)
             self.status = "C"  # complete
         except TimeoutError:
+            # max_time exceeded
             global u_opt_timeout
             self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
             self.status = "UC"  # uncomplete
@@ -765,7 +788,11 @@ class Grape(ABC):
             print(f"Time taken = {self.time_taken}")
 
     def save(self, fp=None):
-        # save_system_data will overwrite previous file if job was not terminated by gadi
+        """
+        Saves data to files. Calls functions to save system couplings, fields,
+        control vector, and history of cost function over the course of the 
+        optimisation.
+        """
         if fp is None:
             self.ID = self.get_next_ID()
             with open(ID_fn, "a") as f:
@@ -953,7 +980,7 @@ class Grape(ABC):
         ax.plot(self.dJ_hist, label="CNOT cost")
         ax.plot(self.dJ_spec_hist, label="spectator")
 
-    def plot_result(self, show_plot=False):
+    def plot_result(self, show_plot=False, save_plot=False):
         u = self.u
         X = self.X
         omegas = self.omega
@@ -974,7 +1001,7 @@ class Grape(ABC):
         plot_fidelity(fids=fids, ax=ax[1, 0], tN=tN, legend=True)
         ax[0, 0].set_xlabel("Time (ns)")
 
-        if self.save_data:
+        if save_plot:
             fig.savefig(f"{dir}plots/{self.filename}")
         if show_plot:
             plt.show()
@@ -1024,7 +1051,7 @@ class Grape(ABC):
         t_axis = np.linspace(0, self.tN / unit.ns, self.N)
         ax.plot(t_axis, X_field * 1e3, label="$B_x$ (mT)", color=xcol)
         if twinx is None:
-            ax.plot(t_axis, Y_field * 1e3, label="$B_y$ (mT)")
+            ax.plot(t_axis, Y_field * 1e3, label="$B_y$ (mT)", color=ycol)
         else:
             twinx.plot(t_axis, Y_field * 1e3, label="$B_y$ (mT)", color=ycol)
         ax.set_xlabel(time_axis_label)
@@ -1152,6 +1179,11 @@ class ESR_system(object):
 
 
 class GrapeESR(Grape):
+    """
+    Class for running GRAPE optimisations on electron spin systems (ESR: Electron
+    Spin Resonance). 
+    """
+
     def __init__(self, tN, N, J, A, Bz=np.float64(0), J_modulated=False, **kwargs):
 
         # save data first running super() initialisation function
@@ -1188,7 +1220,6 @@ class GrapeESR(Grape):
             self.u,
             self.cost_hist,
             self.max_time,
-            self.save_data,
             self.alpha,
             self.lam,
             operation="Copying",
@@ -1243,8 +1274,20 @@ class GrapeESR(Grape):
         rise_prop = 0.1
         fall_prop = rise_prop
         modulator = rise_ones_fall(J0_prop, self.N, rise_prop, fall_prop)
-        J_modulated = pt.einsum("j,...,j...", modulator, J)
+        if self.nS == 1:
+            J_modulated = pt.einsum("j,...->j...", modulator, self.J)
+        else:
+            J_modulated = pt.einsum("j,s...->sj...", modulator, self.J)
+
         return J_modulated
+
+    def get_control_frequencies(self, device=default_device):
+        if self.J_modulated:
+            return get_multi_system_resonant_frequencies(
+                self.H0[:, self.N // 2], device=device
+            )
+        else:
+            return super().get_control_frequencies(device=device)
 
     def get_H0_J_modulated(self, Bz=0, device=default_device):
         """
@@ -1266,29 +1309,59 @@ class GrapeESR(Grape):
 
         # this line only supports nq=2
         if nS == 1:
-            H0 = (
-                pt.einsum(
-                    "q,qab->jab", self.A.to(device), gate.get_PZ_vec(nq).to(device)
-                )
-                + pt.einsum(
-                    "j,ab->jab", J.to(device), gate.get_coupling_matrices(nq).to(device)
-                )
-                + pt.einsum("j,ab->jab", pt.ones(self.N, device=device), HZ).reshape(
-                    1, self.N, dim, dim
-                )
+            H_A = pt.einsum(
+                "j,q,qab->jab",
+                pt.ones(self.N, dtype=self.A.dtype, device=device),
+                self.A.to(device),
+                gate.get_PZ_vec(nq).to(device),
             )
-        else:
-            H0 = (
-                pt.einsum(
-                    "sq,qab->sjab", self.A.to(device), gate.get_PZ_vec(nq).to(device)
+            if self.nq == 2:
+                H0 = (
+                    H_A
+                    + pt.einsum(
+                        "j,ab->jab",
+                        J.to(device),
+                        gate.get_coupling_matrices(nq).to(device),
+                    )
+                    + pt.einsum(
+                        "j,ab->jab", pt.ones(self.N, device=device), HZ
+                    ).reshape(1, self.N, dim, dim)
                 )
-                + pt.einsum(
-                    "sj,ab->sjab",
+
+            else:
+                H0 = (
+                    H_A
+                    + pt.einsum(
+                        "jp,pab->jab",
+                        J.to(device),
+                        gate.get_coupling_matrices(nq).to(device),
+                    )
+                    + pt.einsum(
+                        "j,ab->jab", pt.ones(self.N, device=device), HZ
+                    ).reshape(1, self.N, dim, dim)
+                )
+
+        else:
+            HZ = pt.einsum("sj,ab->sjab", pt.ones(nS, self.N, device=device), HZ)
+            HA = pt.einsum(
+                "j,sq,qab->sjab",
+                pt.ones(self.N, dtype=self.A.dtype, device=device),
+                self.A.to(device),
+                gate.get_PZ_vec(nq).to(device),
+            )
+            if self.nq == 2:
+                HJ = pt.einsum(
+                    "sj,sab->jab",
                     J.to(device),
                     gate.get_coupling_matrices(nq).to(device),
                 )
-                + pt.einsum("sj,ab->sjab", pt.ones(nS, self.N, device=device), HZ)
-            )
+            else:
+                HJ = pt.einsum(
+                    "sjp,pab->sjab",
+                    J.to(device),
+                    gate.get_coupling_matrices(nq).to(device),
+                )
+            H0 = HA + HJ + HZ
 
         return H0.to(device)
 
@@ -1324,9 +1397,11 @@ class GrapeESR(Grape):
         u_mat = u_mat
         x_sum = pt.einsum("kj,kj->j", u_mat, x_cf)
         y_sum = pt.einsum("kj,kj->j", u_mat, y_cf)
-        H = pt.einsum(
-            "j,sab->sjab", pt.ones(N, device=device), H0.to(device)
-        ) + pt.einsum(
+        if len(H0.shape) == 4:
+            H0_t_ax = H0
+        else:
+            H0_t_ax = pt.einsum("j,sab->sjab", pt.ones(N, device=device), H0.to(device))
+        H = H0_t_ax + pt.einsum(
             "s,jab->sjab",
             pt.ones(nS, device=device),
             pt.einsum("j,ab->jab", x_sum, sig_xn)
@@ -1450,25 +1525,6 @@ class GrapeESR(Grape):
     optimisation once predefined time limit is reached.
     """
 
-    def check_time(self, xk):
-        time_passed = time.time() - self.start_time
-        if time_passed > (self.sp_count + 1) * self.sp_distance:
-            self.sp_count += 1
-            print(f"Save point {self.sp_count} reached, time passed = {time_passed}.")
-            if self.save_data:
-                pt.save(
-                    pt.tensor(xk, dtype=real_dtype),
-                    self.filename + "_SP" + str(self.sp_count),
-                )
-                pt.save(np.array(self.cost_hist), self.filename + "_cost_hist")
-        if time_passed > self.max_time:
-            global u_opt_timeout
-            u_opt_timeout = xk
-            print(
-                f"Max time of {self.max_time} has been reached. Optimisation terminated."
-            )
-            raise TimeoutError
-
 
 def process_u_file(filename, SP=None, save_SP=False):
     """
@@ -1481,16 +1537,7 @@ def process_u_file(filename, SP=None, save_SP=False):
     grape.plot_result()
 
 
-def load_system_data(
-    fp,
-    Grape=GrapeESR,
-    max_time=None,
-    verbosity=1,
-    lam=0,
-    kappa=1,
-    simulate_spectators=False,
-    simulation_steps=False,
-):
+def load_system_data(fp, Grape=GrapeESR, **kwargs):
     """
     Retrieves system data (exchange, hyperfine, pulse length, target, fidelity) from file.
     """
@@ -1524,21 +1571,16 @@ def load_system_data(
             fid = None
     u0, cost_hist = load_u(fp)
     grape = Grape(
-        J=J,
-        A=A,
         tN=tN,
         N=N,
+        J=J,
+        A=A,
         Bz=0,
-        target=target,
-        operation="Loading ",
-        max_time=max_time,
-        verbosity=verbosity,
-        lam=lam,
-        kappa=kappa,
-        simulate_spectators=simulate_spectators,
         u0=u0,
         cost_hist=cost_hist,
-        simulation_steps=simulation_steps,
+        target=target,
+        operation="Loading ",
+        **kwargs,
     )
     grape.time_taken = None
     return grape
@@ -2048,7 +2090,8 @@ class CouplerGrape(GrapeESR):
 
     def __init__(self, tN, N, J, A, Bz=np.float64(0), **kwargs):
         self.nS, self.nq = get_nS_nq_from_A(A)
-        super().__init__(tN, N, J, A, Bz=Bz, **kwargs)
+        X0 = gate.coupler_Id
+        super().__init__(tN, N, J, A, Bz=Bz, X0=X0, **kwargs)
 
     def get_default_targets(self, device=default_device):
         return coupler_CX_targets(self.nS, device=device)
@@ -2097,26 +2140,8 @@ def load_u(fp=None, SP=None):
     return u, cost_hist
 
 
-def load_grape(
-    fp,
-    Grape=GrapeESR,
-    max_time=None,
-    verbosity=1,
-    lam=0,
-    kappa=1,
-    simulate_spectators=False,
-    simulation_steps=False,
-):
-    grape = load_system_data(
-        fp,
-        Grape=Grape,
-        max_time=max_time,
-        verbosity=verbosity,
-        lam=lam,
-        kappa=kappa,
-        simulate_spectators=simulate_spectators,
-        simulation_steps=simulation_steps,
-    )
+def load_grape(fp, Grape=GrapeESR, **kwargs):
+    grape = load_system_data(fp, Grape=Grape, **kwargs)
     grape.propagate()
     return grape
 
