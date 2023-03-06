@@ -41,7 +41,7 @@ def run_coupler_grape(
     run_optimisation=True,
 ):
     J = get_J(nS, 3, J1=J_100_18nm[:9], J2=J_100_18nm[:9])
-    A = get_A(nS, 3, NucSpin=[0, 0, 1])
+    A = get_A(nS, 3, NucSpin=[0, 1, 1])
 
     run_CNOTs(
         tN=tN,
@@ -64,10 +64,10 @@ def run_coupler_grape(
 
 if __name__ == "__main__":
     run_coupler_grape(
-        tN=2500 * unit.ns,
-        N=4000,
+        tN=4000 * unit.ns,
+        N=8000,
         nS=81,
-        max_time=23.5 * 3600,
+        max_time=1 * 3600,
         kappa=1,
         lam=1e9,
         J_modulated=False,
@@ -76,12 +76,13 @@ if __name__ == "__main__":
     #     tN=700 * unit.ns,
     #     N=1000,
     #     nS=2,
-    #     max_time=30,
+    #     max_time=120,
     #     kappa=1,
-    #     lam=1e8,
-    #     run_optimisation=True,
-    #     save_grape=False,
-    #     J_modulated=True,
+    #     lam=1e9,
+    #     run_optimisation=False,
+    #     save_data=False,
+    #     J_modulated=False,
+    #     prev_grape_fp="fields/g321_81S_3q_4000ns_8000step",
     # )
     # test_coupler_pulse()
     if not pt.cuda.is_available():

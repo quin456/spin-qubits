@@ -64,24 +64,26 @@ def run_coupler_grape(
 
 if __name__ == "__main__":
     run_coupler_grape(
-        tN=2500 * unit.ns,
+        tN=4000 * unit.ns,
         N=8000,
         nS=81,
-        max_time=23.5 * 3600,
+        max_time=1 * 3600,
         kappa=1,
         lam=1e9,
         J_modulated=False,
-        prev_grape_fp="fields/g310_81S_3q_4000ns_8000step",
+        run_optimisation=True,
     )
     # run_coupler_grape(
     #     tN=700 * unit.ns,
     #     N=1000,
     #     nS=2,
-    #     max_time=10,
+    #     max_time=120,
     #     kappa=1,
     #     lam=1e8,
-    #     run_optimisation=True,
+    #     run_optimisation=False,
     #     J_modulated=True,
+    #     save_data=True,
+    #     prev_grape_fp='fields/g316_2S_3q_700ns_1000step'
     # )
     # test_coupler_pulse()
     if not pt.cuda.is_available():
