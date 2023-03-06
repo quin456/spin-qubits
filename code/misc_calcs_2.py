@@ -1,7 +1,11 @@
 from data import *
 import atomic_units as unit
 from hamiltonians import get_H0
-from eigentools import get_multi_system_resonant_frequencies
+from eigentools import (
+    get_multi_system_resonant_frequencies,
+    get_multi_ordered_eigensystems,
+    get_rf_matrix,
+)
 from utils import real
 
 
@@ -105,11 +109,22 @@ def frequencies_are_similar(w_ac, w_res, B_ac, c, maxp=0.01, print_info=True):
 
 
 def partition_frequencies(
-    A=get_A(81, 3, NucSpin=[0, 1, 0]), J=get_J(81, 3, J1=J_100_18nm, J2=J_100_14nm)
+    A=get_A(2, 2, NucSpin=[0, 1, 0]), J=get_J(2, 2, J1=J_100_18nm, J2=J_100_14nm)
 ):
 
     H0 = get_H0(A=A, J=J)
-    rf = get_multi_system_resonant_frequencies(H0).sort().values
+    S, D = get_multi_ordered_eigensystems(H0, H0_phys=get_H0(Bz=2 * unit.T, A=A, J=J))
+    rf_mat = get_rf_matrix(S, D)
+    dim = S.shape[-1]
+    nS = len(S)
+
+    rf, transitions = get_multi_system_resonant_frequencies(
+        S=S, D=D, return_transitions=True
+    )
+    rf_sort = get_multi_system_resonant_frequencies(H0).sort()
+    rf = rf_sort.values
+    idxs = rf_sort.indices
+
     n_freqs = len(rf)
 
     # Iterate over sorted frequency list. Partitions will already be grouped
@@ -119,8 +134,13 @@ def partition_frequencies(
     partition_idxs = [0]
 
     for j in range(1, n_freqs):
-        if not frequencies_are_similar(rf[j - 1], rf[j], 0.01 * unit.mT, gamma_e, 0.0001):
+        if not frequencies_are_similar(rf[j - 1], rf[j], 10 * unit.uT, gamma_e, 0.0001):
             partition_idxs.append(j)
+
+    M = pt.zeros(len(partition_idxs), n_freqs, dim, dim, dtype=real_dtype)
+    for i in range(1, len(partition_idxs)):
+        for k in range(partition_idxs[i - 1], partition_idxs[i]):
+            M[(i, *transitions[k])] = 1
 
     print(f"{n_freqs} frequencies, {len(partition_idxs)} partitions.")
     print(partition_idxs)
@@ -128,9 +148,9 @@ def partition_frequencies(
     # print frequency span of each partition
     d_freqs = []
     for k in range(1, len(partition_idxs)):
-        min_freq = rf[partition_idxs[k-1]]
-        max_freq = rf[partition_idxs[k]-1]
-        d_freq = max_freq - min_freq 
+        min_freq = rf[partition_idxs[k - 1]]
+        max_freq = rf[partition_idxs[k] - 1]
+        d_freq = max_freq - min_freq
         d_freqs.append(d_freq)
 
     print(f"Frequency spans:")

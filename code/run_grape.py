@@ -28,7 +28,13 @@ from data import (
 )
 from visualisation import *
 from hamiltonians import get_U0, get_H0, get_X_from_H
-from GRAPE import GrapeESR, CNOT_targets, GrapeESR_AJ_Modulation, load_grape
+from GRAPE import (
+    GrapeESR,
+    CNOT_targets,
+    GrapeESR_AJ_Modulation,
+    load_grape,
+    CouplerGrape,
+)
 from electrons import get_electron_X
 from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
@@ -53,6 +59,14 @@ def analyse_grape_pulse(fp="fields/c1095_1S_2q_300ns_2000step"):
     for w in rf:
         ax.axvline(w / (2 * np.pi) / unit.MHz, color="red", linestyle="--", linewidth=1)
 
+
+def run_grape_pulse_on_system(A, J, fp="fields/g329_81S_3q_4000ns_8000step"):
+    grape = load_grape(fp, Grape=CouplerGrape)
+    Bx, By = grape.sum_XY_fields()
+    Bx *= unit.T
+    By *= unit.T
+    X = get_electron_X(grape.tN, grape.N, Bz=np.float64(0), A=A, J=J, Bx=Bx, By=By)
+    print_rank2_tensor(X[-1])
 
 def inspect_system():
     J = get_J(3, 3)[2:3]
@@ -195,30 +209,45 @@ def run_CNOTs(
 
     if run_optimisation:
         grape.run(max_time=max_time)
+    else:
+        grape.propagate()
     grape.print_result()
     grape.plot_result()
     if save_data:
         grape.save()
 
+    if not pt.cuda.is_available():
+        plt.show()
+
 
 if __name__ == "__main__":
 
+    #run_grape_pulse_on_system(get_A(1,3,[0,1,1]), get_J(1,3,J1=J_100_18nm, J2=J_100_18nm))
+
     run_CNOTs(
-        300 * unit.ns,
-        N=500,
-        nS=1,
-        nq=2,
-        max_time=5,
-        lam=0,
-        kappa=1,
-        simulate_spectators=False,
-        # prev_grape_fn="fields/g279_69S_2q_3000ns_5000step",
-        run_optimisation=True,
-        verbosity=0,
-        save_data=False,
-        Grape=GrapeESR,
-        simulation_steps=True,
+        prev_grape_fp="fields/g329_81S_3q_4000ns_8000step",
+        run_optimisation=False,
+        max_time = 30,
+        Grape=CouplerGrape,
+        save_data=False
     )
+
+    # run_CNOTs(
+    #     300 * unit.ns,
+    #     N=500,
+    #     nS=2,
+    #     nq=2,
+    #     max_time=120,
+    #     lam=1e8,
+    #     kappa=1,
+    #     simulate_spectators=False,
+    #     prev_grape_fp="fields/g315_2S_2q_300ns_500step",
+    #     run_optimisation=False,
+    #     verbosity=0,
+    #     save_data=True,
+    #     Grape=GrapeESR,
+    #     simulation_steps=False,
+    # )
     # analyse_grape_pulse("fields/c1196_2S_2q_200ns_2000step")
 
     # run_CNOTs(
@@ -252,6 +281,4 @@ if __name__ == "__main__":
     #     ensemble_size=1,
     #     cost_momentum=0,
     # )
-
-    plt.show()
 

@@ -27,10 +27,8 @@ def my_func(x: List[int])->float:
     return float(x)
 
 if __name__ == "__main__":
-    from collections import defaultdict 
-    def f(): return 0
-    di = defaultdict(f)
-    di[1]=2
-    breakpoint()
+    
+    A = np.array([1, 4, 4, 4, 60, 44, 2, 1, 1, 60, 0, 1])
+    B = [500, 6000, 300, 500, 900, 100, 210]
 
 

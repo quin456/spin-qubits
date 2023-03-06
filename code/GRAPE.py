@@ -30,7 +30,7 @@ import gates as gate
 from utils import *
 from eigentools import *
 from data import *
-from hamiltonians import get_H0, single_electron_H0, get_pulse_hamiltonian
+from hamiltonians import get_H0, single_electron_H0, get_pulse_hamiltonian, get_U0
 from visualisation import *
 from pulse_maker import get_smooth_E, get_simple_E
 
@@ -246,7 +246,7 @@ class Grape(ABC):
         simulate_spectators=False,
         X0=None,
         simulation_steps=False,
-        interaction_picture = False,
+        interaction_picture=False,
     ):
         """
         Contructor for Grape class
@@ -365,7 +365,10 @@ class Grape(ABC):
         required.
         """
         if self.rf is None:
+            # self.rf = self.get_control_frequencies().sort().values
             self.rf = self.get_control_frequencies()
+        else:
+            self.rf = real(self.rf).sort().values
         self.omega, self.phi = config_90deg_phase_fields(self.rf)
         self.m = len(self.omega)
         self.x_cf, self.y_cf = get_control_fields(self.omega, self.phi, self.tN, self.N)
@@ -415,16 +418,13 @@ class Grape(ABC):
         Arg: 
             device (pt.device): The device onto which
         """
-        rf = self.get_control_frequencies(device=device)
+        rf = get_multi_system_resonant_frequencies(self.H0, device=device)
         if self.simulate_spectators:
             rf_spectators = get_multi_system_resonant_frequencies(
                 self.spectator_H0(), device=device
             )
             rf = pt.cat((rf, rf_spectators))
         return rf
-
-    def get_control_frequencies(self, device=default_device):
-        return get_multi_system_resonant_frequencies(self.H0, device=device)
 
     def u_mat(self, device=default_device):
         return uToMatrix(self.u, self.m).to(device)
@@ -1243,9 +1243,14 @@ class GrapeESR(Grape):
         print(
             f"{len(self.get_spectator_A())} hyperfine values, with A_min = {minreal(self.A)/unit.MHz:.2f} MHz, A_max = {maxreal(self.A)/unit.MHz:.2f} MHz"
         )
-        print(
-            f"{self.n_J} exchange values, with A_min = {minreal(self.J)/unit.MHz:.2f} MHz, A_max = {maxreal(self.J)/unit.MHz:.2f} MHz"
-        )
+        print(f"{self.n_J} exchange value", end="")
+        if self.n_J == 1:
+            print(f": J = {(real(self.J/unit.MHz)).item():.2f} MHz")
+        else:
+            print(
+                f"s, with J_min = {minreal(self.J)/unit.MHz:.2f} MHz, J_max = {maxreal(self.J)/unit.MHz:.2f} MHz"
+            )
+
         if self.verbosity >= 2:
             print(f"Hyperfine: A (MHz) = {real(self.A/unit.MHz)}")
             print(f"Exchange: J (MHz) = {real(self.J/unit.MHz)}")
@@ -1962,51 +1967,14 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         plot_J(T, J, ax[2])
 
 
-class GrapeESR_IP(GrapeESR):
+class GrapeRWA(GrapeESR):
     """
-    ESR Grape optimiser that runs simulations in interaction picture to reduce required timesteps using rotating wave approximation.
+    GRAPE class using rotating wave approximation (RWA) to reduce simulation load.
     """
 
-    def __init__(
-        self,
-        J,
-        A,
-        tN,
-        N,
-        Bz=0,
-        target=None,
-        rf=None,
-        u0=None,
-        cost_hist=[],
-        max_time=9999999,
-        alpha=0,
-        lam=0,
-        operation="Setting up",
-        verbosity=1,
-        kappa=1,
-    ):
+    def __init__(self, *args, **kwargs):
 
-        super().__init__(
-            J,
-            A,
-            tN,
-            N,
-            Bz=0,
-            target=target,
-            rf=rf,
-            u0=u0,
-            cost_hist=[],
-            max_time=max_time,
-            alpha=alpha,
-            lam=lam,
-            operation=operation,
-            verbosity=verbosity,
-            kappa=kappa,
-        )
-
-        # perform calculations last
-        self.rf = self.get_control_frequencies() if rf is None else rf
-        self.alpha = alpha
+        super().__init__(*args, **kwargs)
 
         # Get eigensystem
         self.S, self.D = get_multi_ordered_eigensystems(
@@ -2022,6 +1990,11 @@ class GrapeESR_IP(GrapeESR):
 
     def map_matrix_to_eigenbasis(self, A):
         return pt.einsum("sab,sbd->sad", self.S_T, pt.einsum("bc,scd->sbd", A, self.S))
+
+    def get_default_targets(self):
+        target = CNOT_targets(self.nS, self.nq)
+        U0 = get_U0(self.H0, N=self.N, tN=self.tN)
+        return pt.einsum("sab,sbc->sac", dagger(U0[-1]), target)
 
     def fidelity(self, device=default_device):
         """

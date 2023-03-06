@@ -1,4 +1,3 @@
-from email.policy import default
 import torch as pt
 import numpy as np
 
@@ -47,12 +46,19 @@ def get_allowed_transitions(
 
 
 def get_resonant_frequencies(
-    H0, Hw_shape=None, S=None, D=None, device=default_device, return_transitions=False
+    H0=None,
+    Hw_shape=None,
+    S=None,
+    D=None,
+    device=default_device,
+    return_transitions=False,
 ):
     """
     Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
     Useful for >2qubit systems where analytically determining frequencies becomes difficult. 
     """
+    if H0 == None and (S == None or D == None):
+        raise Exception("No Hamiltonian provided")
     if D is None:
         eig = pt.linalg.eig(H0)
         E = eig.eigenvalues
@@ -60,7 +66,9 @@ def get_resonant_frequencies(
     allowed_transitions = get_allowed_transitions(
         H0, S=S, D=D, Hw_shape=Hw_shape, device=device
     )
-    transition_freqs = get_transition_freqs(allowed_transitions, E=E, device=device)
+    transition_freqs = get_transition_freqs(
+        allowed_transitions, E=pt.diagonal(D), device=device
+    )
     if return_transitions:
         return transition_freqs, allowed_transitions
     return transition_freqs
@@ -150,7 +158,33 @@ def get_all_low_J_rf_u0(S, D, tN, N, device=default_device):
     return rf
 
 
+def get_multi_system_resonant_frequencies_and_transitions(
+    H0=None, S=None, D=None, return_transitions=False, device=default_device
+):
+
+    if S is None:
+        S, D = get_multi_ordered_eigensystems(H0)
+    nS = len(S)
+    nq = get_nq_from_dim(S.shape[-1])
+    Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq)) / np.sqrt(2)
+    if len(S.shape) == 2:
+        return get_resonant_frequencies(S=S, D=D, Hw_shape=Hw_shape)
+    rf = pt.tensor([], dtype=real_dtype, device=device)
+    transitions = []
+    for q in range(nS):
+        rf_q, transitions_q = get_resonant_frequencies(
+            Hw_shape=Hw_shape, S=S[q], D=D[q], return_transitions=True
+        )
+        transitions_q = [(q, *transition) for transition in transitions_q]
+        transitions += transitions_q
+        rf = pt.cat((rf, rf_q))
+    if return_transitions:
+        return rf, transitions
+    return rf
+
+
 def get_multi_system_resonant_frequencies(H0s, device=default_device):
+    S, D = get_multi_ordered_eigensystems(H0s)
     nS = len(H0s)
     nq = get_nq_from_dim(H0s.shape[-1])
     Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq)) / np.sqrt(2)
@@ -158,7 +192,7 @@ def get_multi_system_resonant_frequencies(H0s, device=default_device):
         return get_resonant_frequencies(H0s, Hw_shape)
     rf = pt.tensor([], dtype=real_dtype, device=device)
     for q in range(nS):
-        rf_q = get_resonant_frequencies(H0s[q], Hw_shape)
+        rf_q = get_resonant_frequencies(H0=H0s[q], Hw_shape=Hw_shape)
         rf = pt.cat((rf, rf_q))
     return rf
 
