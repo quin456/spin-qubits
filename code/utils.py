@@ -349,7 +349,9 @@ def print_rank2_tensor(T):
         else:
             print("|", end="")
         for j in range(n):
-            print(f"{T[i,j].item():>8.2f}", end="  ")
+            if pt.real(T[i, j]) > 0:
+                print(" ", end="")
+            print(f"{T[i,j].item():>6.2f}", end="  ")
 
         if i == 0:
             print("⌉")
@@ -508,6 +510,8 @@ def get_max_field(Bx, By):
 def sqrtm(T):
     """ Determines matrix square root of torch tensor using np.linalg """
     return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
+
+
 
 
 class NoiseModels(str, Enum):

@@ -888,7 +888,7 @@ def HSquare(chapter = 'HS-'):
 
 if __name__=='__main__':
     #intro_and_review()
-    #HHex()
+    HHex()
     pulse_design()
     HSquare()
 

@@ -115,7 +115,7 @@ def test_grape_pulse_with_varied_J(
 
 
 def test_grape_pulse_on_non_res_spin(
-    fp="fields/c1095_1S_2q_300ns_2000step_XY", Bx=None, By=None, T=None, ax=None
+    fp="fields/g338_69S_2q_4000ns_8000step", Bx=None, By=None, T=None, ax=None
 ):
     A = get_A(1, 1)
     if Bx is None:
@@ -123,7 +123,10 @@ def test_grape_pulse_on_non_res_spin(
     X = get_single_spin_X(Bx=Bx, By=By, T=T, A=A)
     fids = fidelity_progress(X, gate.Id)
 
-    plot_fidelity(fids, T=T, ax=ax)
+    #plot_fidelity(fids, T=T, ax=ax)
+
+    psi0 = (gate.spin_0 + gate.spin_1)/np.sqrt(2)
+    plot_psi_with_phase(X@psi0, T=T)
 
     print_rank2_tensor(X[-1])
     print(f"tested fidelity = {fidelity(X[-1], gate.Id)}")
@@ -337,13 +340,13 @@ def J_coupled_X(
 if __name__ == "__main__":
 
     # show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
-    run_single_electron_grape(A=get_A(1, 1), kappa=1e7, tN=400 * unit.ns, N=500)
+    #run_single_electron_grape(A=get_A(1, 1), kappa=1e7, tN=400 * unit.ns, N=500)
     # J_coupled_X(
     #     nS=15, N=1000, tN=200 * unit.ns, max_time=None, kappa=1e5, lam=0
     # )  # This one gives high fidelity for all 30 systems
     # J_coupled_X(nS=15, N=1000, tN=500 * unit.ns, max_time=None, kappa=1e6, lam=1e9)
     # identity_hyperfines(2000, 1000 * unit.ns, nS=1, kappa=1e4, max_time=10)
-    # test_grape_pulse_on_non_res_spin(fp="fields/c1224_2S_2q_500ns_1000step_XY")
+    test_grape_pulse_on_non_res_spin(fp="fields/g337_100S_3q_4000ns_8000step_XY")
     plt.show()
     # test_grape_pulse_with_varied_J(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
 

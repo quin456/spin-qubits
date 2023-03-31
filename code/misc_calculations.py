@@ -197,10 +197,6 @@ def draw_square(x, y, L, ax, color='black'):
     ax.plot([x-L/2, x-L/2], [y+L/2, y-L/2], color=color)
     
 
-def plot_spheres(sites, color = 'blue', radius = 0.4, ax=None, alpha=1, zorder=0):
-    for site in sites:
-        circle = plt.Circle(site, radius=radius, color=color, alpha=alpha, zorder=zorder)
-        ax.add_patch(circle)
 def plot_squares(sites, color='gray', L=1, ax=None):
     if ax is None: ax=plt.subplot()
     n = len(sites)
@@ -214,35 +210,8 @@ def plot_sites(sites, ax, color='red'):
         circle = plt.Circle(site, radius=0.1, color=color)
         ax.add_patch(circle)
 
-def get_all_sites(x_range, y_range, padding):
-    X = np.linspace(x_range[0]-padding, x_range[1]+padding, int(x_range[1]-x_range[0]+2*padding+1))
-    Y = np.linspace(y_range[0]-padding, np.ceil(y_range[1])+padding, int(np.ceil(y_range[1]-y_range[0]+2*padding+1)))
-    all_sites = []
-    for x in X:
-        for y in Y:
-            all_sites.append(np.array([x,y]))
-    return all_sites 
 
 
-def plot_9_sites(x_target, y_target, ax=None, round_func=None, neighbour_color = 'lightblue', alpha=0.5):
-    if round_func is not None:
-        x_target = round_func(x_target)
-        y_target = round_func(y_target)
-    sites_x = np.linspace(-1,1,3)
-    sites_y = np.linspace(-1,1,3)
-    sites= []
-
-
-    for x in sites_x:
-        for y in sites_y:
-            sites.append((x + x_target, y + y_target))
-
-            
-    if ax is None: ax = plt.subplot()
-    plot_spheres(sites, ax=ax, alpha=alpha, color=neighbour_color)
-    #plot_spheres([(x_target, y_target)], ax=ax, color='black', alpha=1)
-    ax.set_aspect('equal')
-    ax.axis('off')
 
 def plot_donor_placement(sites_2P_upper, sites_2P_lower, sites_1P, delta_x, delta_y, d=1, i=3, j=1, k=4):
 

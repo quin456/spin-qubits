@@ -246,7 +246,7 @@ def visualise_Hw(Hw, tN, eigs=None):
 
 def plot_fidelity(fids, ax=None, T=None, tN=None, legend=True, printfid=False):
     if ax is None:
-        ax=plt.subplot()
+        ax = plt.subplot()
     if len(fids.shape) == 1:
         fids = fids.reshape(1, *fids.shape)
     nS = len(fids)
@@ -451,6 +451,7 @@ def fidelity_bar_plot(
     ax=None,
     f=[0.9999, 0.99, 0.98],
     colours=["green", "orange", "red", "darkred"],
+    labels=None,
     legend_loc="best",
 ):
     """
@@ -479,8 +480,9 @@ def fidelity_bar_plot(
             i_bin = nbins - 1
         fids_binned[i_bin].append(fids[j])
         sys_binned[i_bin].append(j)
-
-    labels = [f">{fj*100}%" for fj in f] + [f"<{f[-1]*100}%"]
+    i = 2
+    if labels == None:
+        labels = [f">{fj*100:.2f}%" for fj in f] + [f"<{f[-1]*100:.2f}%"]
     for i in range(nbins):
         ax.bar(sys_binned[i], fids_binned[i], color=colours[i], label=labels[i])
     color = [get_fid_color(fid) for fid in fids]
@@ -638,6 +640,82 @@ def color_bar(
     else:
         ax.set_yticks([])
         ax.set_xticks(ticks=ticks, labels=tick_labels)
+
+
+def plot_spheres(sites, color="blue", radius=0.4, ax=None, alpha=1, zorder=0):
+    for site in sites:
+        circle = plt.Circle(
+            site, radius=radius, color=color, alpha=alpha, zorder=zorder
+        )
+        ax.add_patch(circle)
+
+
+def get_all_sites(x_range, y_range, padding):
+    X = np.linspace(
+        x_range[0] - padding,
+        x_range[1] + padding,
+        int(x_range[1] - x_range[0] + 2 * padding + 1),
+    )
+    Y = np.linspace(
+        y_range[0] - padding,
+        np.ceil(y_range[1]) + padding,
+        int(np.ceil(y_range[1] - y_range[0] + 2 * padding + 1)),
+    )
+    all_sites = []
+    for x in X:
+        for y in Y:
+            all_sites.append(np.array([x, y]))
+    return all_sites
+
+
+def plot_6_sites(
+    x_target, y_target, ax=None, round_func=None, color="lightblue", alpha=0.5, orientation='flat'
+):
+    if round_func is not None:
+        x_target = round_func(x_target)
+        y_target = round_func(y_target)
+    long = np.linspace(0, 1, 2)
+    short = np.linspace(0, 2, 3)
+    if orientation == 'flat':
+        sites_x = short
+        sites_y = long 
+    else:
+        sites_x = long 
+        sites_y = short
+
+    sites = []
+
+    for x in sites_x:
+        for y in sites_y:
+            sites.append((x + x_target, y + y_target))
+
+    if ax is None:
+        ax = plt.subplot()
+    plot_spheres(sites, ax=ax, alpha=alpha, color=color)
+    # plot_spheres([(x_target, y_target)], ax=ax, color='black', alpha=1)
+    ax.set_aspect("equal")
+    ax.axis("off")
+
+def plot_9_sites(
+    x_target, y_target, ax=None, round_func=None, neighbour_color="lightblue", alpha=0.5
+):
+    if round_func is not None:
+        x_target = round_func(x_target)
+        y_target = round_func(y_target)
+    sites_x = np.linspace(-1, 1, 3)
+    sites_y = np.linspace(-1, 1, 3)
+    sites = []
+
+    for x in sites_x:
+        for y in sites_y:
+            sites.append((x + x_target, y + y_target))
+
+    if ax is None:
+        ax = plt.subplot()
+    plot_spheres(sites, ax=ax, alpha=alpha, color=neighbour_color)
+    # plot_spheres([(x_target, y_target)], ax=ax, color='black', alpha=1)
+    ax.set_aspect("equal")
+    ax.axis("off")
 
 
 if __name__ == "__main__":

@@ -13,7 +13,24 @@ from pulse_maker import pi_pulse_field_strength
 def get_allowed_transitions(
     H0=None, Hw_shape=None, S=None, D=None, device=default_device
 ):
+    """
+    Determines which eigenstate transitions for system described by Hamiltonian
+    H0 can be drectly excited.
 
+    Args:
+        H0 (torch.Tensor[complex128]): Hamiltonian of system.
+        Hw_shape (torch.Tensor): Describes shape of control Hamiltonian used to
+                                 excite transitions. Will have non-zero elements
+                                 in same positions as control Hamiltonian.
+        S: (torch.Tensor[complex128]): Contains eigenvectors of H0 as columns.
+        D: (torch.Tensor[complex128]): Contains eigenvalues of H0 on diagonal.
+        device (String): indicates whether to use cpu or gpu for matrix 
+                         operations.
+    Returns:
+        allowed_transitions: List of tuples, where each tuple (i,j) indicates 
+        transition i,j can be excited directly by application of control 
+        Hamiltonian of shape Hw_shape applied at appropriate resonant frequency.
+    """
     if S is None:
         if H0 is None:
             raise Exception("No Hamiltonian information provided.")

@@ -423,11 +423,12 @@ def visualise_3E_Hw(A=get_A(1, 3), J=get_J(1, 3), Bz=0, tN=10 * unit.ns, N=1000)
 
 
 def examine_electron_eigensystem(
-    Bz=B0, NucSpin=[0, 1], A_mags=[A_P, A_P], n=500, dim=4
+    Bz=B0, NucSpin=[0, 1], A_mags=[A_P, A_P], n=5000, dim=4
 ):
 
     A = get_A(n, 2, NucSpin, A_mags)
-    J = linspace(0.1, 50, n) * unit.MHz
+    print(A[0] / unit.MHz)
+    J = linspace(0.1, 30, n) * unit.MHz
     S = pt.zeros(n, dim, dim, dtype=cplx_dtype, device=default_device)
     D = pt.zeros_like(S)
 
@@ -436,29 +437,42 @@ def examine_electron_eigensystem(
 
     S, D = get_multi_ordered_eigensystems(H0, H0_phys)
 
+    rf = pt.zeros(4,n)
+    for k in range(n):
+        rf[:,k] = get_resonant_frequencies(H0[k])
+
     alpha = pt.real(S[:, 1, 1])
     beta = pt.real(S[:, 1, 2])
+
+    fig, ax = plt.subplots(1, 3)
+    for i in range(4):
+        ax[2].plot(real(J) / unit.MHz, real(rf[i])/unit.MHz, label=f'$\omega_{i}$')
+    ax[2].plot(real(J) / unit.MHz, 4*real(J) / unit.MHz, label='4J')
+    ax[2].legend()
 
     alpha2 = pt.tensor([get_alpha(A[j], J[j]) for j in range(500)], dtype=real_dtype)
     beta2 = pt.tensor([get_beta(A[j], J[j]) for j in range(500)], dtype=real_dtype)
 
-    fig, ax = plt.subplots(1, 2)
-    ax[1].plot(J / unit.MHz, alpha ** 2, label="$α^2$")
-    ax[1].plot(J / unit.MHz, beta ** 2, label="$ß^2$")
+    ax[1].plot(real(J) / unit.MHz, alpha ** 2, label="$α^2$")
+    ax[1].plot(real(J) / unit.MHz, beta ** 2, label="$ß^2$")
     ax[1].set_xlabel("J (MHz)")
 
-    ax[0].plot(J / unit.MHz, D[:, 0, 0] / unit.MHz, label="$|T^+>$")
-    ax[0].plot(J / unit.MHz, D[:, 1, 1] / unit.MHz, label="$|S_0>$")
-    ax[0].plot(J / unit.MHz, D[:, 2, 2] / unit.MHz, label="$|T_0>$")
-    ax[0].plot(J / unit.MHz, D[:, 3, 3] / unit.MHz, label="$|T_->$")
+    ax[0].plot(real(J) / unit.MHz, real(D[:, 0, 0]) / unit.MHz, label="$|T^+>$")
+    ax[0].plot(real(J) / unit.MHz, real(D[:, 1, 1]) / unit.MHz, label="$|S_0>$")
+    ax[0].plot(real(J) / unit.MHz, real(D[:, 2, 2]) / unit.MHz, label="$|T_0>$")
+    ax[0].plot(real(J) / unit.MHz, real(D[:, 3, 3]) / unit.MHz, label="$|T_->$")
     ax[0].legend()
     i = 0
-    while alpha[i] ** 2 > 0.99:
+    while alpha[i] ** 2 > 0.999:
         i += 1
 
     print(f"alpha[{i}]^2 = {alpha[i]**2} at J[{i}] = {J[i]/unit.MHz} MHz")
     ax[1].axvline(
-        J[i] / unit.MHz, linestyle="--", color="red", label="Low J cutoff", linewidth=1
+        real(J[i]) / unit.MHz,
+        linestyle="--",
+        color="red",
+        label="Low J cutoff",
+        linewidth=1,
     )
     ax[1].legend()
 
@@ -480,7 +494,7 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
     """
     Attempts to perform dynamical dycoupling of exchange between two 1P electrons by applying π-pulses to one of them.
     """
-    Bz = np.float64(0)
+    Bz = np.float64(0.1*unit.T)
     A = get_A(1, 2)
     J = get_J(1, 2) * 0
     H0 = get_H0(A, J, Bz)
@@ -505,7 +519,7 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
     Hw = get_pulse_hamiltonian(Bx, By, gamma_e, X=gate.get_Xn(2), Y=gate.get_Yn(2))
     HA_Hw = sum_H0_Hw(HA, Hw)
     X0 = get_X_from_H(HA_Hw, T=T)
-    #X = dagger(X0) @ X
+    # X = dagger(X0) @ X
     psi0 = (
         gate.spin_00
     )  # (gate.spin_00 + gate.spin_01 + gate.spin_10 + gate.spin_11) / 2
@@ -513,6 +527,6 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
 
 
 if __name__ == "__main__":
-    # examine_electron_eigensystem()
-    J_dynamical_decoupling_2E(tN=1000 * unit.ns)
+    examine_electron_eigensystem(NucSpin=[0, 0], A_mags=[30 * unit.MHz, 35 * unit.MHz])
+    # J_dynamical_decoupling_2E(tN=1000 * unit.ns)
     plt.show()

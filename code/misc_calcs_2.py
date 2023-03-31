@@ -8,17 +8,34 @@ from eigentools import (
 )
 from utils import real
 
+import matplotlib as mpl
+mpl.use("Qt5Agg")
+from matplotlib import pyplot as plt
 
 def extrapolate_exchange():
-    x = np.array([2, 0, -2])
+    x = np.array([10**2, 10**0, 10**(-2)]) * 1e9
     y = np.array([9, 15, 21])
-    X = np.stack((np.ones(len(x)), x)).T
+    X = np.stack((np.ones(len(x)), np.log2(x))).T
 
     theta = np.linalg.inv(X.T @ X) @ (X.T @ y)
+    def get_x(J):
+        return theta[0] + theta[1] * np.log2((J))
     print(f"theta = {theta}")
-    x0 = theta[0] + theta[1] * (-6)
+    x0 = get_x(1e3)
+
+    J = 10**(np.linspace(3,9,1000))
+    x = get_x(J)
+    for k in range(len(J)):
+        print(f"{x[k]:.1f} nm: {J[k]:.2e} Hz")
 
     print(f"Separation for 1 kHz exchange is {x0} nm")
+
+    ax = plt.subplot()
+    ax.plot(x,J)
+    ax.set_xlabel('Separation (nm)')
+    ax.set_ylabel("Exchange (Hz)")
+    ax.set_yscale('log')
+    plt.show()
 
 
 def hyperfine_modulation_E_field_strength():
@@ -162,7 +179,7 @@ def partition_frequencies(
 if __name__ == "__main__":
     # hyperfine_modulation_E_field_strength()
     # print(f"Pr = {rabi_prob(2*unit.MHz, 1*unit.mT)}")
-    # extrapolate_exchange()
+    extrapolate_exchange()
     # coupler_unique_configs()
-    partition_frequencies()
+    #partition_frequencies()
 

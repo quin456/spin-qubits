@@ -39,6 +39,7 @@ def run_coupler_grape(
     J_modulated=False,
     save_data=True,
     run_optimisation=True,
+    matrix_exp_batches = 1
 ):
     J = get_J(nS, 3, J1=J_100_18nm[:9], J2=J_100_18nm[:9])
     A = get_A(nS, 3, NucSpin=[0, 1, 1])
@@ -59,6 +60,7 @@ def run_coupler_grape(
         run_optimisation=run_optimisation,
         Grape=CouplerGrape,
         J_modulated=J_modulated,
+        matrix_exp_batches = matrix_exp_batches
     )
 
 
@@ -71,6 +73,7 @@ if __name__ == "__main__":
         kappa=1,
         lam=1e9,
         J_modulated=False,
+        matrix_exp_batches = 2
     )
     # run_coupler_grape(
     #     tN=700 * unit.ns,

@@ -40,30 +40,19 @@ from pulse_maker import get_smooth_E
 from run_grape import run_CNOTs
 
 
-def grape_48S_fid_bars():
-    grape = load_grape(
-        "fields-gadi/fields/g228_48S_2q_5000ns_10000step", Grape=GrapeESR_AJ_Modulation
-    )
-    fids = grape.fidelity()[0]
-    fidelity_bar_plot(fids)
-
-
-def run_2P_1P_CNOTs(
-    tN,
-    N,
-    nS=15,
+def run_2P_1P_N_entangle(
+    tN=3000 * unit.ns,
+    N=6000,
+    nS=69,
     Bz=0,
     max_time=24 * 3600,
-    lam=0,
+    lam=1e9,
     prev_grape_fn=None,
-    verbosity=2,
-    reverse_CX=False,
     kappa=1,
     simulate_spectators=False,
     Grape=GrapeESR,
     A_spec=None,
     prev_grape_fp=None,
-    J_modulated=False,
     save_data=True,
     run_optimisation=True,
 ):
@@ -72,9 +61,14 @@ def run_2P_1P_CNOTs(
     A = get_A_1P_2P(nS, NucSpin=[1, -1])
     J = get_J_1P_2P(nS)
 
-    target = CNOT_targets(nS, nq)
-    if reverse_CX:
-        target = CXr_targets(nS)
+    X0 = pt.tensor(
+        [[1, 0], [0, 0], [0, 0], [0, 1]], dtype=cplx_dtype, device=default_device
+    )
+
+    target = pt.tensor(
+        [[0, 1], [0, 0], [0, 0], [1, 0]], dtype=cplx_dtype, device=default_device
+    )
+
     run_CNOTs(
         tN=tN,
         N=N,
@@ -90,26 +84,14 @@ def run_2P_1P_CNOTs(
         kappa=kappa,
         run_optimisation=run_optimisation,
         Grape=GrapeESR,
-        J_modulated=J_modulated,
         simulate_spectators=simulate_spectators,
         A_spec=A_spec,
+        target=target,
+        X0=X0,
     )
 
 
 if __name__ == "__main__":
 
-    run_2P_1P_CNOTs(
-        4000 * unit.ns,
-        8000,
-        nS=69,
-        max_time=23.5 * 3600,
-        lam=1e9,
-        kappa=1,
-        simulate_spectators=True,
-        Grape=GrapeESR,
-        A_spec=pt.tensor([get_A(1, 1)], device=default_device)
-        # prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
-    )
-    # run_2P_1P_CNOTs(500*unit.ns, 1000, nS=2, max_time = 10, lam=0, reverse_CX=True); plt.show()
-    # grape_48S_fid_bars(); plt.show()
+    run_2P_1P_N_entangle(tN=200 * unit.ns, N=500, nS=1)
 

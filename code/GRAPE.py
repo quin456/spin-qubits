@@ -247,6 +247,7 @@ class Grape(ABC):
         X0=None,
         simulation_steps=False,
         interaction_picture=False,
+        matrix_exp_batches=1,
     ):
         """
         Contructor for Grape class
@@ -303,13 +304,13 @@ class Grape(ABC):
         self.N = N
         self.dt = np.float64(self.tN / self.N)
         self.target = target if target is not None else self.get_default_targets()
+        # self.target = self.get_target(target)
         self.u = uToVector(u0)
         self.interaction_picture = interaction_picture
         self.H0 = self.get_H0(Bz=self.Bz)
         self.rf = rf
         self.simulate_spectators = simulate_spectators
-        if simulate_spectators:
-            self.nS_spec = len(self.get_spectator_A())
+        self.initialise_spectators()
         self.initialise_control_fields()
         # allow for H0 with no systems axis
         self.reshaped = False
@@ -338,6 +339,7 @@ class Grape(ABC):
         self.dJ_hist = []
         self.dJ_spec_hist = []
         self.X0 = X0
+        self.matrix_exp_batches = matrix_exp_batches
         self.N_rec = get_rec_min_N(
             rf=self.get_control_frequencies(), tN=self.tN, verbosity=0
         )
@@ -350,12 +352,24 @@ class Grape(ABC):
         self.status = "UC"
         # self.propagate()
 
-    @abstractmethod
     def get_default_targets(self):
         pass
 
-    @abstractmethod
+    def get_target(self, target):
+        target = target if target is not None else self.get_default_targets()
+        if self.nS > 1 and len(target.shape) == 2:
+            # single target needs to be applied to all systems
+            target = pt.einsum(
+                "s,ab->sab",
+                pt.ones(self.nS, dtype=cplx_dtype, device=default_device),
+                target,
+            )
+        return target
+
     def get_H0(self):
+        pass
+
+    def initialise_spectators(self):
         pass
 
     def initialise_control_fields(self):
@@ -1184,15 +1198,18 @@ class GrapeESR(Grape):
     Spin Resonance). 
     """
 
-    def __init__(self, tN, N, J, A, Bz=np.float64(0), J_modulated=False, **kwargs):
+    def __init__(
+        self, tN, N, J, A, Bz=np.float64(0), J_modulated=False, A_spec=None, **kwargs
+    ):
 
-        # save data first running super() initialisation function
+        # save data before running super() initialisation function
         self.J = J
         self.A = A
         self.nS, self.nq = self.get_nS_nq()
         self.Bz = Bz
         self.J_modulated = J_modulated
         self.n_J = self.count_exchange_values()
+        self.A_spec = A_spec
 
         super().__init__(tN, N, **kwargs)
 
@@ -1201,6 +1218,12 @@ class GrapeESR(Grape):
 
     def get_default_targets(self):
         return CNOT_targets(self.nS, self.nq)
+
+    def initialise_spectators(self):
+        if self.A_spec == None:
+            self.A_spec = self.get_spectator_A()
+        if self.simulate_spectators:
+            self.nS_spec = len(self.A_spec)
 
     def count_exchange_values(self):
         if len(self.J.shape) == 0:
@@ -1393,7 +1416,9 @@ class GrapeESR(Grape):
         Hw = get_pulse_hamiltonian()
 
     @staticmethod
-    def get_U(u_mat, x_cf, y_cf, H0, nq, dt, device=default_device):
+    def get_U(
+        u_mat, x_cf, y_cf, H0, nq, dt, matrix_exp_batches=1, device=default_device
+    ):
         nS = len(H0)
         m, N = u_mat.shape
         dim = 2 ** nq
@@ -1413,7 +1438,13 @@ class GrapeESR(Grape):
             + pt.einsum("j,ab->jab", y_sum, sig_yn),
         )
         H = pt.reshape(H, (nS * N, dim, dim))
-        U = pt.matrix_exp(-1j * H * dt)
+        if matrix_exp_batches == 2:
+            half = len(H) // 2
+            U = pt.cat(
+                (pt.matrix_exp(-1j * H[:half] * dt), pt.matrix_exp(-1j * H[half:] * dt))
+            )
+        else:
+            U = pt.matrix_exp(-1j * H * dt)
         del H
         U = pt.reshape(U, (nS, N, dim, dim))
         return U
@@ -1423,7 +1454,14 @@ class GrapeESR(Grape):
         Determines U. Calculates Hw on the fly.
         """
         return self.get_U(
-            self.u_mat(), self.x_cf, self.y_cf, self.H0, self.nq, self.dt, device=device
+            self.u_mat(),
+            self.x_cf,
+            self.y_cf,
+            self.H0,
+            self.nq,
+            self.dt,
+            matrix_exp_batches=self.matrix_exp_batches,
+            device=device,
         )
 
     def update_H0(self):
@@ -1440,8 +1478,7 @@ class GrapeESR(Grape):
         return pt.unique(real(pt.flatten(self.A)))
 
     def spectator_H0(self):
-        A_spec = self.get_spectator_A()
-        H0 = pt.einsum("s,ab->sab", 0.5 * gamma_e * self.Bz + A_spec, gate.Z)
+        H0 = pt.einsum("s,ab->sab", 0.5 * gamma_e * self.Bz + self.A_spec, gate.Z)
         return H0
 
     def spectator_fidelity(self, device=default_device):
@@ -1464,7 +1501,7 @@ class GrapeESR(Grape):
         Phi_spec, dPhi_spec_avg = self.spectator_fidelity()
         Phi_spec_avg = pt.sum(Phi_spec, 0) / len(self.A)
         J_spec, dJ_spec = self.cost_from_fidelity(Phi_spec_avg, dPhi_spec_avg)
-        return J_spec, dJ_spec
+        return J_spec, dJ_spec / 1e2
 
     @staticmethod
     def fidelity_from_X_and_P(X, P, x_cf, y_cf, device=default_device):
@@ -2120,7 +2157,7 @@ def load_grape(fp, Grape=GrapeESR, **kwargs):
 
 
 def load_total_field(fp):
-    field = pt.load(fp)
+    field = pt.load(fp, map_location=pt.device("cpu"))
     Bx = field[0] * unit.T
     By = field[1] * unit.T
     T = field[2] * unit.ns

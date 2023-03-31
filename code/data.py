@@ -1,3 +1,11 @@
+"""
+Data file, responsible for reading in and defining values of data used in 
+spin simulations and optimisations, particularly exchange and hyperfine data.
+Includes functions which allow data to be retrieved in formats appropriate for
+usage in GRAPE optimisation.
+"""
+
+
 import pickle
 import torch as pt
 import atomic_units as unit
@@ -16,9 +24,16 @@ dir = "./"
 exch_filename = f"exchange_data_updated.p"
 exch_data_folder = "exchange_data_fab/"
 exch_data = pickle.load(open(exch_filename, "rb"))
+
+# max J for low J regime, ensuring 99.9% spin-state eigenstate similarity
+J_low_max = 1.9 * unit.MHz
+
 J_100_18nm = (
     pt.tensor(exch_data["100_18"], dtype=cplx_dtype, device=default_device) * unit.MHz
 )
+
+J_low = J_100_18nm * J_low_max / pt.max(pt.real(J_100_18nm))
+
 J_100_14nm = (
     pt.tensor(exch_data["100_14"], dtype=cplx_dtype, device=default_device) * unit.MHz
 )
@@ -102,7 +117,7 @@ def get_A(nS, nq, NucSpin=None, A_mags=None, device=default_device):
         # map 0->1, 1->-1
         NucSpin = [1 - 2 * ns for ns in NucSpin]
     if nq == 1:
-        return A_P
+        return pt.tensor(A_P, device=default_device)
     if A_mags is None:
         A_mags = nq * [A_P]
     if nq == 2:

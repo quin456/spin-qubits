@@ -39,6 +39,7 @@ from GRAPE import (
 from electrons import get_electron_X
 
 from pulse_maker import get_smooth_E
+from run_grape import run_CNOTs
 
 
 def grape_48S_fid_bars():
@@ -63,6 +64,11 @@ def run_2P_1P_CNOTs(
     reverse_CX=False,
     kappa=1,
     simulate_spectators=True,
+    A_spec=None,
+    prev_grape_fp=None,
+    J_modulated=False,
+    save_data=True,
+    run_optimisation=True,
 ):
 
     nq = 2
@@ -73,37 +79,26 @@ def run_2P_1P_CNOTs(
     target = CNOT_targets(nS, nq)
     if reverse_CX:
         target = CXr_targets(nS)
-    if prev_grape_fn is None:
-        grape = GrapeESR(
-            J,
-            A,
-            tN,
-            N,
-            Bz=Bz,
-            target=target,
-            max_time=max_time,
-            lam=lam,
-            verbosity=verbosity,
-            simulate_spectators=simulate_spectators,
-            kappa=kappa,
-        )
-    else:
-        grape = load_grape(
-            prev_grape_fn,
-            max_time=max_time,
-            Grape=GrapeESR,
-            verbosity=verbosity,
-            kappa=kappa,
-            simulate_spectators=simulate_spectators,
-            lam=lam,
-        )
 
-    grape.run()
-    grape.print_result()
-    if not pt.cuda.is_available():
-        grape.plot_result()
-        plt.show()
-    grape.save()
+    run_CNOTs(
+        tN=tN,
+        N=N,
+        nq=3,
+        nS=nS,
+        max_time=max_time,
+        J=J,
+        A=A,
+        save_data=save_data,
+        prev_grape_fp=prev_grape_fp,
+        alpha=0,
+        lam=lam,
+        kappa=kappa,
+        run_optimisation=run_optimisation,
+        Grape=GrapeESR,
+        J_modulated=J_modulated,
+        simulate_spectators=simulate_spectators,
+        A_spec = A_spec
+    )
 
 
 def run_1P_2P_uniform_J_CNOTs(
@@ -140,12 +135,13 @@ if __name__ == "__main__":
     # run_2P_1P_CNOTs(5000*unit.ns, 10000, nS=48, max_time = 23.5*3600, lam=1e8, prev_grape_fn='fields/g254_48S_2q_5000ns_10000step', reverse_CX=False, kappa=1e2)
     run_2P_1P_CNOTs(
         300 * unit.ns,
-        2000,
+        500,
         nS=2,
         max_time=10,
         lam=1e4,
         kappa=1,
         simulate_spectators=True,
+        A_spec=pt.tensor([get_A(1, 1)])
         # prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
     )
     # run_1P_2P_uniform_J_CNOTs(
