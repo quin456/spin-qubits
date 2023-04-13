@@ -253,16 +253,15 @@ def fidelity_progress(X, target):
     if len(X.shape) == 3:
         X = X.reshape(1, *X.shape)
         multisys = False
-    if len(target.shape) == 2:
-        target = target.reshape(1, *target.shape)
     nS = len(X)
     N = len(X[0])
     fid = pt.zeros(nS, N)
     for q in range(nS):
         for j in range(N):
-            IP = innerProd(target[q], X[q, j])
-            # fid[q, j] = np.real(IP * np.conj(IP))
-            fid[q, j] = fidelity(target[q], X[q, j])
+            if len(target.shape) == 2:
+                fid[q, j] = fidelity(target, X[q, j])
+            else:
+                fid[q, j] = fidelity(target[q], X[q, j])
 
     if not multisys:
         fid = fid[0]
@@ -510,8 +509,6 @@ def get_max_field(Bx, By):
 def sqrtm(T):
     """ Determines matrix square root of torch tensor using np.linalg """
     return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
-
-
 
 
 class NoiseModels(str, Enum):

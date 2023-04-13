@@ -244,6 +244,7 @@ class Grape(ABC):
         ensemble_size=1,
         cost_momentum=0,
         simulate_spectators=False,
+        target_spec = gate.Id,
         X0=None,
         simulation_steps=False,
         interaction_picture=False,
@@ -304,12 +305,13 @@ class Grape(ABC):
         self.N = N
         self.dt = np.float64(self.tN / self.N)
         self.target = target if target is not None else self.get_default_targets()
-        # self.target = self.get_target(target)
+        self.target = self.get_target(target)
         self.u = uToVector(u0)
         self.interaction_picture = interaction_picture
         self.H0 = self.get_H0(Bz=self.Bz)
         self.rf = rf
         self.simulate_spectators = simulate_spectators
+        self.target_spec = target_spec
         self.initialise_spectators()
         self.initialise_control_fields()
         # allow for H0 with no systems axis
@@ -357,13 +359,6 @@ class Grape(ABC):
 
     def get_target(self, target):
         target = target if target is not None else self.get_default_targets()
-        if self.nS > 1 and len(target.shape) == 2:
-            # single target needs to be applied to all systems
-            target = pt.einsum(
-                "s,ab->sab",
-                pt.ones(self.nS, dtype=cplx_dtype, device=default_device),
-                target,
-            )
         return target
 
     def get_H0(self):
@@ -431,7 +426,7 @@ class Grape(ABC):
 
         Arg: 
             device (pt.device): The device onto which
-        """
+        """ 
         rf = get_multi_system_resonant_frequencies(self.H0, device=device)
         if self.simulate_spectators:
             rf_spectators = get_multi_system_resonant_frequencies(
@@ -1488,11 +1483,10 @@ class GrapeESR(Grape):
         """
         nq_spec = 1
         H0_spec = self.spectator_H0()
-        target_spec = gate.Id  # X_targets(nS_spec, nq_spec)
         U_spec = self.get_U(
             self.u_mat(), self.x_cf, self.y_cf, H0_spec, nq_spec, self.dt, device=device
         )
-        self.X_spec, self.P_spec = self.get_X_and_P(U_spec, target_spec)
+        self.X_spec, self.P_spec = self.get_X_and_P(U_spec, self.target_spec)
         return self.fidelity_from_X_and_P(
             self.X_spec, self.P_spec, self.x_cf, self.y_cf, device=device
         )

@@ -40,15 +40,30 @@ from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
 
 
-def get_fids_from_fp(fp, **kwargs):
+def get_fids_and_field_from_fp(fp, **kwargs):
     fp_fids = fp + "_fids"
+    fp_fields = fp + "_fields"
     if os.path.isfile(fp_fids):
         fids = pt.load(fp_fids)
+        fields = pt.load(fp_fields)
+
+        # grape = load_grape(fp=fp, **kwargs)
+        # Bx, By = grape.sum_XY_fields()
+        # Bx *= unit.mT
+        # By *= unit.mT
+        # T = linspace(0, grape.tN, grape.N)
+        # fields = pt.stack((Bx, By, T))
     else:
         grape = load_grape(fp=fp, **kwargs)
         fids = grape.fidelity()[0]
+        Bx, By = grape.sum_XY_fields()
+        Bx *= unit.mT
+        By *= unit.mT
+        T = linspace(0, grape.tN, grape.N)
+        fields = pt.stack((Bx, By, T))
         pt.save(fids, fp_fids)
-    return fids
+        pt.save(fields, fp_fields)
+    return fids, fields
 
 
 def analyse_grape_pulse(fp="fields/c1095_1S_2q_300ns_2000step", Grape=CouplerGrape):
@@ -172,6 +187,8 @@ def run_CNOTs(
     matrix_exp_batches=1,
     A_spec=None,
     X0=None,
+    plot_results=False,
+    **kwargs
 ):
 
     J1_low = J_100_18nm / 50
@@ -213,6 +230,7 @@ def run_CNOTs(
             matrix_exp_batches=matrix_exp_batches,
             A_spec=A_spec,
             X0=X0,
+            **kwargs
         )
     else:
         grape = load_grape(
@@ -226,6 +244,7 @@ def run_CNOTs(
             J_modulated=J_modulated,
             A_spec=A_spec,
             X0=X0,
+            **kwargs
         )
 
     if run_optimisation:
@@ -233,48 +252,36 @@ def run_CNOTs(
     else:
         grape.propagate()
     grape.print_result()
-    grape.plot_result()
+    if plot_results:
+        grape.plot_result()
     if save_data:
         grape.save()
 
-    if not pt.cuda.is_available():
-        plt.show()
+    return grape
 
 
 if __name__ == "__main__":
 
-    run_grape_pulse_on_system(
-        get_A_1P_2P(1, [0, 0]),
-        get_J_1P_2P(1),
-        fp="fields/g287_69S_2q_3000ns_5000step",
-        simulate_spectators=True,
+    # run_grape_pulse_on_system(
+    #     get_A_1P_2P(1),
+    #     get_J_1P_2P(1),
+    #     fp="fields/g342_69S_2q_4000ns_8000step",
+    #     simulate_spectators=True,
+    #     #A_spec = pt.tensor([get_A(1,1)], dtype=cplx_dtype),
+    #     Grape=GrapeESR,
+    # )
+
+    run_CNOTs(
+        prev_grape_fp="fields/g359_69S_2q_3000ns_6000step",
+        run_optimisation=False,
         Grape=GrapeESR,
+        save_data=False,
+        simulate_spectators=False,
+        A_spec=pt.tensor([get_A(1, 1)], dtype=cplx_dtype),
+        A=get_A_1P_2P(1),
+        J=get_J_1P_2P(1),
     )
 
-    # run_CNOTs(
-    #     prev_grape_fp="fields/g339_81S_3q_4000ns_8000step",
-    #     run_optimisation=False,
-    #     Grape=CouplerGrape,
-    #     save_data=False,
-    #     simulate_spectators=True,
-    # )
-
-    # run_CNOTs(
-    #     300 * unit.ns,
-    #     N=500,
-    #     nS=2,
-    #     nq=2,
-    #     max_time=120,
-    #     lam=1e8,
-    #     kappa=1,
-    #     simulate_spectators=False,
-    #     prev_grape_fp="fields/g315_2S_2q_300ns_500step",
-    #     run_optimisation=False,
-    #     verbosity=0,
-    #     save_data=True,
-    #     Grape=GrapeESR,
-    #     simulation_steps=False,
-    # )
     # run_CNOTs(
     #     tN=2000.0 * unit.ns,
     #     N=2500,

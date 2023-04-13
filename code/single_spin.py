@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 
 
 import gates as gate
-from pulse_maker import pi_pulse_square
+from pulse_maker import pi_pulse_square, frame_transform_pulse
 import atomic_units as unit
 from gates import spin_up, spin_down
 from visualisation import plot_fields, plot_psi, show_fidelity, plot_phases
@@ -123,10 +123,10 @@ def test_grape_pulse_on_non_res_spin(
     X = get_single_spin_X(Bx=Bx, By=By, T=T, A=A)
     fids = fidelity_progress(X, gate.Id)
 
-    #plot_fidelity(fids, T=T, ax=ax)
+    # plot_fidelity(fids, T=T, ax=ax)
 
-    psi0 = (gate.spin_0 + gate.spin_1)/np.sqrt(2)
-    plot_psi_with_phase(X@psi0, T=T)
+    psi0 = (gate.spin_0 + gate.spin_1) / np.sqrt(2)
+    plot_psi_with_phase(X @ psi0, T=T)
 
     print_rank2_tensor(X[-1])
     print(f"tested fidelity = {fidelity(X[-1], gate.Id)}")
@@ -257,10 +257,9 @@ def run_single_electron_grape(
         noise_model=None,
         ensemble_size=1,
         cost_momentum=0,
-        max_time=0.001,
     )
 
-    # grape.run()
+    grape.run(max_time=2)
     grape.print_result()
     grape.save_field("fields/single_electron")
     # ax = grape.plot_result()
@@ -337,16 +336,44 @@ def J_coupled_X(
     ax = grape.plot_result()
 
 
+def test_pulse_frame_change():
+    tN = 200 * unit.ns
+    N = 4000
+    Bz = 2 * unit.T
+    A = get_A(1, 1)
+    w0 = gamma_e * Bz + 2 * A
+    tN = lock_to_frequency(A, tN)
+    T = linspace(0, tN, N)
+    Hz = (0.5 * gamma_e * Bz) * gate.Z 
+    HA = A * gate.Z
+
+    Uz = get_U0(Hz, T=T)
+
+    Bx, By = pi_pulse_square(2*A, gamma_e, tN, N)
+    Bx, By = frame_transform_pulse(Bx, By, T, gamma_e*Bz)
+
+    Hw = get_pulse_hamiltonian(Bx, By, gamma_e)
+    Hw = pt.einsum('jab,jbc,jcd->jad', dagger(Uz), Hw, Uz)
+    H = sum_H0_Hw(HA, Hw)
+    X = get_X_from_H(H, T=T)
+
+    plot_fields(Bx, By, T=T)
+
+    print_rank2_tensor(X[-1])
+    print(f"fidelity = {fidelity(gate.X,X[-1])}")
+
+
 if __name__ == "__main__":
 
     # show_single_spin_evolution(N=500, tN=100*unit.ns); plt.show()
-    #run_single_electron_grape(A=get_A(1, 1), kappa=1e7, tN=400 * unit.ns, N=500)
+    # run_single_electron_grape(A=get_A(1, 1), kappa=1e7, tN=400 * unit.ns, N=500)
     # J_coupled_X(
     #     nS=15, N=1000, tN=200 * unit.ns, max_time=None, kappa=1e5, lam=0
     # )  # This one gives high fidelity for all 30 systems
     # J_coupled_X(nS=15, N=1000, tN=500 * unit.ns, max_time=None, kappa=1e6, lam=1e9)
     # identity_hyperfines(2000, 1000 * unit.ns, nS=1, kappa=1e4, max_time=10)
-    test_grape_pulse_on_non_res_spin(fp="fields/g337_100S_3q_4000ns_8000step_XY")
+    # test_grape_pulse_on_non_res_spin(fp="fields/g337_100S_3q_4000ns_8000step_XY")
+    test_pulse_frame_change()
     plt.show()
     # test_grape_pulse_with_varied_J(fp="fields/c1224_2S_2q_500ns_1000step_XY"); plt.show()
 

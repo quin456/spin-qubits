@@ -423,7 +423,7 @@ def visualise_3E_Hw(A=get_A(1, 3), J=get_J(1, 3), Bz=0, tN=10 * unit.ns, N=1000)
 
 
 def examine_electron_eigensystem(
-    Bz=B0, NucSpin=[0, 1], A_mags=[A_P, A_P], n=5000, dim=4
+    Bz=B0, NucSpin=[0, 1], A_mags=[A_P, A_P], n=5000, dim=4, pmin=0.997
 ):
 
     A = get_A(n, 2, NucSpin, A_mags)
@@ -437,17 +437,17 @@ def examine_electron_eigensystem(
 
     S, D = get_multi_ordered_eigensystems(H0, H0_phys)
 
-    rf = pt.zeros(4,n)
+    rf = pt.zeros(4, n)
     for k in range(n):
-        rf[:,k] = get_resonant_frequencies(H0[k])
+        rf[:, k] = get_resonant_frequencies(H0[k])
 
     alpha = pt.real(S[:, 1, 1])
     beta = pt.real(S[:, 1, 2])
 
     fig, ax = plt.subplots(1, 3)
     for i in range(4):
-        ax[2].plot(real(J) / unit.MHz, real(rf[i])/unit.MHz, label=f'$\omega_{i}$')
-    ax[2].plot(real(J) / unit.MHz, 4*real(J) / unit.MHz, label='4J')
+        ax[2].plot(real(J) / unit.MHz, real(rf[i]) / unit.MHz, label=f"$\omega_{i}$")
+    ax[2].plot(real(J) / unit.MHz, 4 * real(J) / unit.MHz, label="4J")
     ax[2].legend()
 
     alpha2 = pt.tensor([get_alpha(A[j], J[j]) for j in range(500)], dtype=real_dtype)
@@ -463,7 +463,7 @@ def examine_electron_eigensystem(
     ax[0].plot(real(J) / unit.MHz, real(D[:, 3, 3]) / unit.MHz, label="$|T_->$")
     ax[0].legend()
     i = 0
-    while alpha[i] ** 2 > 0.999:
+    while alpha[i] ** 2 > pmin:
         i += 1
 
     print(f"alpha[{i}]^2 = {alpha[i]**2} at J[{i}] = {J[i]/unit.MHz} MHz")
@@ -494,7 +494,7 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
     """
     Attempts to perform dynamical dycoupling of exchange between two 1P electrons by applying π-pulses to one of them.
     """
-    Bz = np.float64(0.1*unit.T)
+    Bz = np.float64(0.1 * unit.T)
     A = get_A(1, 2)
     J = get_J(1, 2) * 0
     H0 = get_H0(A, J, Bz)
@@ -527,6 +527,11 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
 
 
 if __name__ == "__main__":
-    examine_electron_eigensystem(NucSpin=[0, 0], A_mags=[30 * unit.MHz, 35 * unit.MHz])
+    examine_electron_eigensystem(
+        NucSpin=[0, 0], A_mags=[60 * unit.MHz, 29.25 * unit.MHz], pmin=0.995
+    )
     # J_dynamical_decoupling_2E(tN=1000 * unit.ns)
+
+    # print(get_alpha([5*unit.MHz, 0], .2*unit.MHz)**2)
+
     plt.show()

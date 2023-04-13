@@ -10,7 +10,7 @@ from visualisation import *
 from pulse_maker import load_XY
 from electrons import get_electron_X
 from utils import batch_fidelity
-from run_grape import run_CNOTs, get_fids_from_fp
+from run_grape import run_CNOTs, get_fids_and_field_from_fp
 
 
 def test_coupler_pulse(fp="fields/c1212_1S_3q_100ns_500step"):

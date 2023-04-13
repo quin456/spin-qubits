@@ -19,13 +19,11 @@ from visualisation import *
 from single_spin import show_single_spin_evolution
 from data import dir, cplx_dtype, gamma_e, gamma_n, J_100_14nm, J_100_18nm, get_A, get_J
 import atomic_units as unit
-from architecture_design import *
+from old.architecture_design import *
 from electrons import plot_free_electron_evolution, get_free_electron_evolution
-from transition_visualisation import visualise_E_transitions
 from single_NE import *
 from multi_NE import *
 from misc_calculations import *
-from voltage_plot import plot_CNOTs
 from electrons import investigate_3E_resfreqs
 from single_spin import *
 
@@ -876,8 +874,8 @@ def HSquare(chapter = 'HS-'):
 
     #plot_lattice_sites(fp = f'{plots_folder}{chapter}1P-2P-lattice-placement.pdf')
     #all_48_1P_2P_CNOTs(fp = f'{plots_folder}{chapter}all-48-1P-2P-pulse-and-fidelity-bars.pdf')
-    compare_symmetry()
-    #draw_HS_architecture(fp = f'{plots_folder}{chapter}architecture_layout.pdf', fp2=f'{plots_folder}{chapter}architecture-layout-sideon.pdf', orientation='stoopy')
+    #compare_symmetry()
+    draw_HS_architecture(fp = f'{plots_folder}{chapter}architecture_layout.pdf', fp2=f'{plots_folder}{chapter}architecture-layout-sideon.pdf', orientation='stoopy')
     #illustrative_configs(3, fp=f'{plots_folder}{chapter}illustrative-configs.pdf')
     #voltage_scale()
     #save_HS_array(fp=f'{plots_folder}{chapter}array.pdf')
@@ -888,8 +886,8 @@ def HSquare(chapter = 'HS-'):
 
 if __name__=='__main__':
     #intro_and_review()
-    HHex()
-    pulse_design()
+    #HHex()
+    #pulse_design()
     HSquare()
 
     #no_coupler()

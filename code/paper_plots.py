@@ -1,8 +1,10 @@
 from GRAPE import GrapeESR, load_grape
-from architecture_HS_1P_1P import HS_side_view, make_HS_array, HS_array_configs
+from architecture_2P_coupler import HS_side_view, make_HS_array
 from visualisation import *
 from utils import *
-from run_couplers import coupler_fidelity_bars, get_fids_from_fp
+from run_couplers import coupler_fidelity_bars
+from run_grape import get_fids_and_field_from_fp
+from run_n_entangle import get_2P_EE_swap_kwargs
 
 
 folder = "paper-plots/"
@@ -147,6 +149,33 @@ def plot_1P_1P_placement(fn="placement-1P-1P.pdf", ax=None):
     fig.savefig(folder + fn)
 
 
+def control_coupler_E_flip(fp="fields/g366_138S_2q_6000ns_8000step"):
+
+    kwargs_2P_EE = get_2P_EE_swap_kwargs()
+
+    fids, fields = get_fids_and_field_from_fp(fp, **kwargs_2P_EE)
+
+    fig, ax = plt.subplots(2, 1)
+    # fig, ax = plt.subplots(2,1, gridspec_kw={'height_ratios': [3,  2]})
+    fidelity_bar_plot(fids, f=[0.9999, 0.999, 0.99], ax=ax[1])
+    ax[1].set_ylim(0.99, 1.002)
+    ax[1].set_yticks([0.99, 0.995, 1.00])
+    ax[1].set_xticks([0, 137], [1, 138])
+    axt = ax[0].twinx()
+
+    Bx, By, T = fields
+    xcol = color_cycle[0]
+    ycol = color_cycle[1]
+    ax[0].plot(T / unit.ns, 1e3 * Bx / unit.mT, color=xcol)
+    axt.plot(T / unit.ns, 1e3 * By / unit.mT, color=ycol)
+    ax[0].set_yticks([-0.3, 0.8], color=xcol)
+    ax[0].set_ylabel('Bx (mT)', color=xcol)
+    ax[0].set_xlabel("time (ns)")
+    axt.set_ylabel('By (mT)', color=ycol)
+    axt.set_yticks([-0.8, 0.3], color=ycol)
+    fig.tight_layout()
+
+
 if __name__ == "__main__":
     # parallel_1P_1P_CNOTs()
     # draw_HS_architecture(fp=f'{folder}HS-distance-5.pdf')
@@ -154,6 +183,8 @@ if __name__ == "__main__":
     # HS_array_configs(fp=f'{folder}voltage-configs.pdf')
     # coupler_CNOTs()
     # CNOTs_1P_2P()
-    plot_1P_1P_placement()
+    # plot_1P_1P_placement()
+    #control_coupler_E_flip()
+    HS_side_view()
     plt.show()
 

@@ -186,9 +186,13 @@ def get_J_low(nS, nq):
     return get_J(nS, nq, J1=J_low)
 
 
-def get_A_1P_2P(nS, NucSpin=[0, 0]):
-    A = A_2P_69[:nS] if nS > 1 else A_2P_69[0]
-    return A
+def get_A_1P_2P(nS, NucSpin=[0, 1]):
+    # 0 -> 1, 1 -> -1
+    NucSpin = pt.tensor([1 - 2 * ns for ns in NucSpin], device=default_device)
+    NucSpin[1] *= -1  # because 1P A is down by default
+    A = pt.einsum("sq,q->sq", A_2P_69[:nS], NucSpin)
+
+    return A if nS > 1 else A[0]
 
 
 def get_J_1P_2P(nS):
