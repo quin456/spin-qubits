@@ -355,9 +355,12 @@ def test_pulse_frame_change():
     Hw = get_pulse_hamiltonian(Bx, By, gamma_e)
     Hw = pt.einsum('jab,jbc,jcd->jad', dagger(Uz), Hw, Uz)
     H = sum_H0_Hw(HA, Hw)
+
+    visualise_Hw(H, tN)
+
     X = get_X_from_H(H, T=T)
 
-    plot_fields(Bx, By, T=T)
+    #plot_fields(Bx, By, T=T)
 
     print_rank2_tensor(X[-1])
     print(f"fidelity = {fidelity(gate.X,X[-1])}")

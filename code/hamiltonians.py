@@ -33,6 +33,12 @@ def single_J_coupled_electron_H0(Bz, A, J):
 #####################################################################################
 
 
+def get_electron_HZ(Bz, nq):
+    """
+    Negative sign because |0> = spin-down = ground state
+    """
+    return 0.5 * gamma_e * Bz * gate.get_Zn(nq)
+
 def get_H0(A, J, Bz=np.float64(0), device=default_device):
     """
     Free hamiltonian of each system. Reduced because it doesn't multiply by N timesteps, which is a waste of memory.
@@ -50,7 +56,7 @@ def get_H0(A, J, Bz=np.float64(0), device=default_device):
         J = J.reshape(1, *J.shape)
         reshaped = True
 
-    HZ = 0.5 * gamma_e * Bz * gate.get_Zn(nq)
+    HZ = get_electron_HZ(Bz, nq)
 
     if nq == 3:
         H0 = (
@@ -236,7 +242,6 @@ def sum_H0_Hw(H0, Hw):
     N = len(Hw)
     H = pt.einsum("j,ab->jab", pt.ones_like(Hw[:, 0, 0]), H0) + Hw
     return H
-
 
 def get_U0(H0, N=None, T=None, tN=None):
     if T is None:

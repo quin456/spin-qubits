@@ -112,10 +112,16 @@ def get_A_from_num_P_donors(num_P_donors):
         return A_2P
 
 
+def get_A_spec_single():
+    return pt.tensor([get_A(1, 1)], device=default_device)
+
+
 def get_A(nS, nq, NucSpin=None, A_mags=None, device=default_device):
-    if NucSpin is not None:
-        # map 0->1, 1->-1
-        NucSpin = [1 - 2 * ns for ns in NucSpin]
+    try:
+        if 0 in NucSpin:
+            raise Exception("Use +1, -1 for NucSpin, not computational state.")
+    except:
+        pass
     if nq == 1:
         return pt.tensor(A_P, device=default_device)
     if A_mags is None:
@@ -186,17 +192,43 @@ def get_J_low(nS, nq):
     return get_J(nS, nq, J1=J_low)
 
 
-def get_A_1P_2P(nS, NucSpin=[0, 1]):
-    # 0 -> 1, 1 -> -1
-    NucSpin = pt.tensor([1 - 2 * ns for ns in NucSpin], device=default_device)
-    NucSpin[1] *= -1  # because 1P A is down by default
-    A = pt.einsum("sq,q->sq", A_2P_69[:nS], NucSpin)
+def get_A_1P_2P(nS, NucSpin=[1, -1], donor_composition=[1, 2], fp="A_70"):
+    if fp is None:
+        A_data = A_2P_69
+        NucSpin[1] *= -1  # because 1P A is down by default
+    else:
+        A_data = (
+            pt.load(f"exchange_data_fab/{fp}").to(
+                dtype=cplx_dtype, device=default_device
+            )
+            * unit.MHz
+        )
+    try:
+        if 0 in NucSpin:
+            raise Exception("Use +1, -1 for NucSpin, not computational state.")
+    except:
+        pass
+    A = pt.einsum("sq,q->sq", A_data[:nS], pt.tensor(NucSpin, device=default_device))
+    A[:, 1] *= 2
+    if donor_composition == [2, 1] and fp is not None:
+        A = pt.flip(A, (1,))
+    elif donor_composition != [1, 2]:
+        raise Exception("Invalid donor composition: must be [1,2] or [2,1].")
 
     return A if nS > 1 else A[0]
 
 
-def get_J_1P_2P(nS):
-    return get_J(nS, 2, J1=J_69)
+def get_J_1P_2P(nS, fp="J_70"):
+    if fp is None:
+        J_data = J_69
+    else:
+        J_data = (
+            pt.load(f"exchange_data_fab/{fp}").to(
+                dtype=cplx_dtype, device=default_device
+            )
+            * unit.MHz
+        )
+    return get_J(nS, 2, J1=J_data)
 
 
 def J_HF(R, a=1.8 * unit.nm):

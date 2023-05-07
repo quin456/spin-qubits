@@ -176,10 +176,16 @@ def partition_frequencies(
     print(f"Maximum frequency span is {max(d_freqs)/unit.MHz} MHz")
 
 
+def plot_exchange():
+    from data import J_2P_1P_fab
+    J=J_2P_1P_fab
+    plt.scatter(pt.linspace(0,len(J)-1,len(J)),real(J)/unit.MHz)
+
 if __name__ == "__main__":
     # hyperfine_modulation_E_field_strength()
     # print(f"Pr = {rabi_prob(2*unit.MHz, 1*unit.mT)}")
-    extrapolate_exchange()
+    # extrapolate_exchange()
     # coupler_unique_configs()
     #partition_frequencies()
+    plot_exchange(); plt.show()
 

@@ -511,6 +511,11 @@ def sqrtm(T):
     return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
 
 
+def remove_leading_phase(X):
+    x0 = X.flatten()[0]
+    return X * pt.abs(x0) / x0
+
+
 class NoiseModels(str, Enum):
     """
     Noise model tags to be passed to Grape object as an indicator of the type 
@@ -519,6 +524,8 @@ class NoiseModels(str, Enum):
 
     delta_correlated_exchange = "delta-exchange"
     dephasing = "dephasing"
+
+
 
 
 if __name__ == "__main__":

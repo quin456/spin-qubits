@@ -235,13 +235,16 @@ def forward_prop(U, device=default_device):
         return X[0]
 
 
-def get_electron_X(tN, N, Bz, A, J, Bx=None, By=None):
+def get_electron_X(tN, N, Bz, A, J, Bx=None, By=None, T=None, IP=False):
     if Bx is None:
         Bx = pt.zeros(N, dtype=cplx_dtype, device=default_device)
     if By is None:
         By = pt.zeros(N, dtype=cplx_dtype, device=default_device)
 
     _nS, nq = get_nS_nq_from_A(A)
+    if T == None:
+        T = linspace(0, tN, N)
+
     H0 = get_H0(A, J, Bz)
 
     # print("Printing RF's:")
@@ -250,7 +253,12 @@ def get_electron_X(tN, N, Bz, A, J, Bx=None, By=None):
     #     print(f"{w/Mhz} MHz")
 
     Hw = get_pulse_hamiltonian(Bx, By, gamma_e, X=gate.get_Xn(nq), Y=gate.get_Yn(nq))
-    H = sum_H0_Hw(H0, Hw)
+    if IP:
+        U0 = get_U0(H0, T=T)
+        Hw = pt.einsum("jab,jbc,jcd->jad", dagger(U0), Hw, U0)
+        H = Hw
+    else:
+        H = sum_H0_Hw(H0, Hw)
 
     X = get_X_from_H(H, tN, N)
     return X
@@ -528,7 +536,7 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
 
 if __name__ == "__main__":
     examine_electron_eigensystem(
-        NucSpin=[0, 0], A_mags=[60 * unit.MHz, 29.25 * unit.MHz], pmin=0.995
+        NucSpin=[1, 0], A_mags=[120 * unit.MHz, 29.25 * unit.MHz], pmin=0.995
     )
     # J_dynamical_decoupling_2E(tN=1000 * unit.ns)
 

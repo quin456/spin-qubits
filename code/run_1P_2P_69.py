@@ -48,6 +48,23 @@ def grape_48S_fid_bars():
     fidelity_bar_plot(fids)
 
 
+# def get_2P_EE_CX_kwargs():
+
+#     target_spec = pt.stack((gate.Id, gate.Id))
+#     A_spec = get_A(1, 2, [1, 0])
+#     X0 = pt.tensor(
+#         [[1, 0], [0, 0], [0, 0], [0, 1]], dtype=cplx_dtype, device=default_device
+#     )
+
+#     kwargs = {}
+#     kwargs["target_spec"] = target_spec
+#     kwargs["A_spec"] = A_spec
+#     kwargs["X0"] = X0
+#     kwargs["simulate_spectators"] = True
+
+#     return kwargs
+
+
 def run_2P_1P_CNOTs(
     tN,
     N,
@@ -59,9 +76,8 @@ def run_2P_1P_CNOTs(
     verbosity=2,
     reverse_CX=False,
     kappa=1,
-    simulate_spectators=False,
     Grape=GrapeESR,
-    A_spec=None,
+    A_spec=get_A_spec_single(),
     prev_grape_fp=None,
     J_modulated=False,
     save_data=True,
@@ -69,9 +85,8 @@ def run_2P_1P_CNOTs(
 ):
 
     nq = 2
-    A = get_A_1P_2P(nS, NucSpin=[1, -1])
+    A = get_A_1P_2P(nS, NucSpin=[-1, 1], donor_composition=[2, 1])
     J = get_J_1P_2P(nS)
-
     target = CNOT_targets(nS, nq)
     if reverse_CX:
         target = CXr_targets(nS)
@@ -91,25 +106,24 @@ def run_2P_1P_CNOTs(
         run_optimisation=run_optimisation,
         Grape=GrapeESR,
         J_modulated=J_modulated,
-        simulate_spectators=simulate_spectators,
         A_spec=A_spec,
+        target=target,
+        verbosity=verbosity,
     )
 
 
 if __name__ == "__main__":
 
-    run_2P_1P_CNOTs(
-        4000 * unit.ns,
-        8000,
-        nS=69,
-        max_time=23.5 * 3600,
-        lam=1e9,
-        kappa=1,
-        simulate_spectators=True,
-        Grape=GrapeESR,
-        A_spec=pt.tensor([get_A(1, 1)], device=default_device)
-        # prev_grape_fn="fields/g284_69S_2q_3000ns_5000step",
-    )
-    # run_2P_1P_CNOTs(500*unit.ns, 1000, nS=2, max_time = 10, lam=0, reverse_CX=True); plt.show()
-    # grape_48S_fid_bars(); plt.show()
+    # run_2P_1P_CNOTs(
+    #     3000 * unit.ns,
+    #     8000,
+    #     nS=70,
+    #     max_time=23.5 * 3600,
+    #     lam=1e9,
+    #     kappa=1,
+    #     Grape=GrapeESR,
+    #     A_spec=pt.tensor([get_A(1, 1)], device=default_device),
+    # )
+
+    run_2P_1P_CNOTs(500 * unit.ns, 1000, nS=1, max_time=60, lam=0, reverse_CX=False)
 

@@ -191,19 +191,19 @@ def get_unit_CFs(omega, phase, tN, N, device=default_device):
     phase = phase.to(device)
     T = linspace(0, tN, N, device=device, dtype=pt.float64)
     wt = pt.einsum("k,j->kj", omega, T)
-    x_cf = pt.cos(wt + phase)
-    y_cf = pt.sin(wt + phase)
+    x_cf_unit = pt.cos(wt + phase)
+    y_cf_unit = pt.sin(wt + phase)
 
-    return x_cf.type(cplx_dtype), y_cf.type(cplx_dtype)
+    return x_cf_unit.type(cplx_dtype), y_cf_unit.type(cplx_dtype)
 
 
 def get_control_fields(omega, phase, tN, N, device=default_device):
     """
     Returns x_cf, y_cf, which relate to transverse control field, and have units of joules so that 'u' can be unitless.
     """
-    x_cf, y_cf = get_unit_CFs(omega, phase, tN, N, device=device)
-    x_cf *= 0.5 * g_e * mu_B * (1 * unit.T)
-    y_cf *= 0.5 * g_e * mu_B * (1 * unit.T)
+    x_cf_unit, y_cf_unit = get_unit_CFs(omega, phase, tN, N, device=device)
+    x_cf = x_cf_unit * 0.5 * g_e * mu_B * (1 * unit.T)
+    y_cf = y_cf_unit * 0.5 * g_e * mu_B * (1 * unit.T)
     return x_cf, y_cf
 
 
@@ -243,8 +243,9 @@ class Grape(ABC):
         noise_model=None,
         ensemble_size=1,
         cost_momentum=0,
-        simulate_spectators=False,
-        target_spec = gate.Id,
+        simulate_spectators=True,
+        target_spec=gate.Id,
+        X0_spec=gate.Id,
         X0=None,
         simulation_steps=False,
         interaction_picture=False,
@@ -312,6 +313,8 @@ class Grape(ABC):
         self.rf = rf
         self.simulate_spectators = simulate_spectators
         self.target_spec = target_spec
+        self.nq_spec = self.get_nq_spec(target_spec)
+        self.X0_spec = X0_spec
         self.initialise_spectators()
         self.initialise_control_fields()
         # allow for H0 with no systems axis
@@ -364,8 +367,17 @@ class Grape(ABC):
     def get_H0(self):
         pass
 
+    def spectator_H0(self):
+        pass
+
     def initialise_spectators(self):
         pass
+
+    def get_T(self):
+        return linspace(0, self.tN, self.N)
+
+    def get_nq_spec(self, target_spec):
+        return get_nq_from_dim(target_spec.shape[-1])
 
     def initialise_control_fields(self):
         """
@@ -400,7 +412,7 @@ class Grape(ABC):
             print(f"Ensemble size for noise simulation = {self.ensemble_size}")
             print(f"Cost momentum for dealing with noise = {self.cost_momentum}")
         print(f"Target Unitary:")
-        if len(self.target.shape) > 2:
+        if len(self.target.shape) >= 2:
             print(self.target[0])
         else:
             print(self.target)
@@ -408,11 +420,20 @@ class Grape(ABC):
             f"Found {len(self.rf)} resonant frequencies: rf_max = {pt.max(self.rf)/unit.MHz} MHz, rf_min = {pt.min(self.rf)/unit.MHz} MHz"
         )
 
+        if self.simulate_spectators:
+            if self.verbosity >= 1:
+                print(f"Number of spectator systems: {len(self.spectator_H0())}")
+                print(f"Spectator target(s):")
+                if len(self.target_spec.shape) == 3:
+                    print_rank2_tensor(self.target_spec[0])
+                else:
+                    print_rank2_tensor(self.target_spec)
+
         print(f"Amplitude penalisation: lam = {self.lam:.1e}")
         if self.verbosity >= 1:
             print(f"Variation penalisation: alpha = {self.alpha:.1e}")
         print(f"Cost gradient modulator: kappa = {self.kappa:.1e}")
-        if self.verbosity >= 2:
+        if self.verbosity > 2:
             print("{", end=" ")
             for freq in self.rf:
                 print(f"{freq/unit.Mrps} Mrad/s,", end=" ")
@@ -426,7 +447,7 @@ class Grape(ABC):
 
         Arg: 
             device (pt.device): The device onto which
-        """ 
+        """
         rf = get_multi_system_resonant_frequencies(self.H0, device=device)
         if self.simulate_spectators:
             rf_spectators = get_multi_system_resonant_frequencies(
@@ -822,8 +843,9 @@ class Grape(ABC):
     def save_system_data(self, fid=None, fp=None):
         raise Exception(NotImplemented)
 
-    def print_result(self):
-        verbosity = self.verbosity
+    def print_result(self, verbosity=None):
+        if verbosity is None:
+            verbosity = self.verbosity
         fidelities = self.fidelity()[0]
         avgfid = sum(fidelities) / len(fidelities)
         minfid = min(fidelities).item()
@@ -857,7 +879,12 @@ class Grape(ABC):
 
     def sum_XY_fields(self, device="cpu"):
         """
-        Sum contributions of all control fields along x and y axes
+        Sum contributions of all control fields along x and y axes.
+
+        X_field and Y_field are in units of Tesla, since control vector u is in
+        units of Tesla, and control fields have magnitude 1. X_field and Y_field
+        should be multiplied by unit.T to get Bx, By, which are unitless in atomic
+        units.
         """
         x_cf_unit, y_cf_unit = get_unit_CFs(
             self.omega, self.phi, self.tN, self.N, device=device
@@ -865,14 +892,10 @@ class Grape(ABC):
         X_field2 = pt.einsum("kj,kj->j", self.u_mat(device=device), x_cf_unit)
         Y_field2 = pt.einsum("kj,kj->j", self.u_mat(device=device), y_cf_unit)
         return X_field2, Y_field2
-        T = linspace(0, self.tN, self.N, device=default_device)
-        wt = pt.einsum("k,j->kj", self.omega, T)
-        phase = self.phi
-        cos_wt = pt.cos(wt + phase)
-        sin_wt = pt.sin(wt + phase)
-        X_field = pt.real(pt.sum(pt.einsum("kj,kj->kj", self.u_mat(), cos_wt), 0))
-        Y_field = pt.real(pt.sum(pt.einsum("kj,kj->kj", self.u_mat(), sin_wt), 0))
-        return X_field, Y_field
+
+    def get_Bx_By(self, device="cpu"):
+        X_field, Y_field = self.sum_XY_fields(device=device)
+        return X_field * unit.T, Y_field * unit.T
 
     def get_fields(self):
         X_field, Y_field = self.sum_XY_fields()
@@ -899,7 +922,7 @@ class Grape(ABC):
         self, fp=None, psi0=pt.tensor([1, 0, 1, 0], dtype=cplx_dtype) / np.sqrt(2)
     ):
         """
-        Nicely presented plots for thesis. Plots 
+        Nicely presented plots for thesis
         """
         fig, ax = plt.subplots(2, 2)
         self.plot_XY_fields(ax[0, 0])
@@ -1146,8 +1169,8 @@ class Grape(ABC):
             T = job terminated by gadi, which means files are not saved (except savepoints)
 
         """
-        J = pt.real(self.J) / unit.MHz if self.J is not None else None
-        A = np.real(self.A) / unit.MHz
+        J = real(self.J) / unit.MHz if self.J is not None else None
+        A = real(self.A) / unit.MHz
         tN = self.tN / unit.ns
         if type(J) == pt.Tensor:
             J = J.tolist()
@@ -1410,15 +1433,13 @@ class GrapeESR(Grape):
         H0 = self.spectator_H0()
         Hw = get_pulse_hamiltonian()
 
-    @staticmethod
     def get_U(
-        u_mat, x_cf, y_cf, H0, nq, dt, matrix_exp_batches=1, device=default_device
+        self, u_mat, x_cf, y_cf, H0, nq, dt, matrix_exp_batches=1, device=default_device
     ):
         nS = len(H0)
         m, N = u_mat.shape
         dim = 2 ** nq
-        sig_xn = gate.get_Xn(nq, device)
-        sig_yn = gate.get_Yn(nq, device)
+        sig_xn, sig_yn = self.get_control_field_operators(nq, device=device)
         u_mat = u_mat
         x_sum = pt.einsum("kj,kj->j", u_mat, x_cf)
         y_sum = pt.einsum("kj,kj->j", u_mat, y_cf)
@@ -1476,20 +1497,32 @@ class GrapeESR(Grape):
         H0 = pt.einsum("s,ab->sab", 0.5 * gamma_e * self.Bz + self.A_spec, gate.Z)
         return H0
 
+    def get_spec_propagators(self, device=default_device):
+        H0_spec = self.spectator_H0()
+        U_spec = self.get_U(
+            self.u_mat(),
+            self.x_cf,
+            self.y_cf,
+            H0_spec,
+            self.nq_spec,
+            self.dt,
+            device=device,
+        )
+        self.X_spec, self.P_spec = self.get_X_and_P(
+            U_spec, self.target_spec, self.X0_spec
+        )
+        return self.X_spec, self.P_spec
+
     def spectator_fidelity(self, device=default_device):
         """
         Returns fidelity of an uncoupled qubit with the identity. Qubits which are not coupled should be subject to evolution
         equal to the identity under the influence of the applied pulse. 
         """
-        nq_spec = 1
-        H0_spec = self.spectator_H0()
-        U_spec = self.get_U(
-            self.u_mat(), self.x_cf, self.y_cf, H0_spec, nq_spec, self.dt, device=device
-        )
-        self.X_spec, self.P_spec = self.get_X_and_P(U_spec, self.target_spec)
-        return self.fidelity_from_X_and_P(
+        self.get_spec_propagators()
+        Phi_spec, dPhi_spec = self.fidelity_from_X_and_P(
             self.X_spec, self.P_spec, self.x_cf, self.y_cf, device=device
         )
+        return Phi_spec, dPhi_spec
 
     def spectator_cost(self):
         Phi_spec, dPhi_spec_avg = self.spectator_fidelity()
@@ -1498,13 +1531,18 @@ class GrapeESR(Grape):
         return J_spec, dJ_spec / 1e2
 
     @staticmethod
+    def get_control_field_operators(nq, device=default_device):
+        sig_xn = gate.get_Xn(nq, device)
+        sig_yn = gate.get_Yn(nq, device)
+        return sig_xn, sig_yn
+
+    @staticmethod
     def fidelity_from_X_and_P(X, P, x_cf, y_cf, device=default_device):
 
         nS = len(X)
         dim = X.shape[-2]
         nq = get_nq_from_dim(dim)
-        sig_xn = gate.get_Xn(nq, device)
-        sig_yn = gate.get_Yn(nq, device)
+        sig_xn, sig_yn = GrapeESR.get_control_field_operators(nq)
 
         t0 = time.time()
         global time_exp
@@ -1998,6 +2036,142 @@ class GrapeESR_AJ_Modulation(GrapeESR):
         plot_J(T, J, ax[2])
 
 
+class Grape_ee_Flip(GrapeESR):
+    """
+    Grape class for optimisations of pulses to flip exchange coupled 1P-2P 
+    electrons conditional on the 1P nuclear spin, keeping phase intact.
+    """
+
+    Ix1 = 0.5 * gate.ZII
+    Iy1 = 0.5 * gate.ZII
+    Iz1 = 0.5 * gate.ZII
+    Sx1 = 0.5 * gate.IXI
+    Sy1 = 0.5 * gate.IYI
+    Sz1 = 0.5 * gate.IZI
+    Sx2 = 0.5 * gate.IIX
+    Sy2 = 0.5 * gate.IIY
+    Sz2 = 0.5 * gate.IIZ
+    S1S2 = 0.25 * pt.kron(gate.Id, gate.sigDotSig)
+    Iz1Sz1 = 0.25 * gate.kron3(gate.Z, gate.Z, gate.Id)
+
+    def __init__(self, tN, N, J, A, step, **kwargs):
+
+        # X0 = pt.tensor(
+        #     [
+        #         [1, 0, 0, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 1, 0, 0],
+        #         [0, 0, 1, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 1],
+        #     ],
+        #     dtype=cplx_dtype,
+        #     device=default_device,
+        # )
+        # target = pt.tensor(
+        #     [
+        #         [1, 0, 0, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 1, 0, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 0],
+        #         [0, 0, 1, 0],
+        #     ],
+        #     dtype=cplx_dtype,
+        #     device=default_device,
+        # )
+
+        if step == 1:
+            X0 = pt.tensor(
+                [[1, 0], [0, 0], [0, 0], [0, 0], [0, 1], [0, 0], [0, 0], [0, 0],],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+            target = pt.tensor(
+                [[1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, -1j],],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+        elif step == 2:
+            X0 = pt.tensor(
+                [[1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 1],],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+            target = pt.tensor(
+                [[1, 0], [0, 0], [0, 0], [0, 0], [0, -1j], [0, 0], [0, 0], [0, 0],],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+        else:
+            raise Exception("step must be either 1 or 2.")
+
+        kwargs["X0_spec"] = gate.II
+        kwargs["A_spec"] = get_A_spec_single()
+        kwargs["target_spec"] = gate.CX_native
+
+        kwargs["target"] = target
+        kwargs["X0"] = X0
+        super().__init__(tN, N, J, A, **kwargs)
+        pass
+
+    def get_nS_nq(self):
+        nS = 1 if len(self.A.shape) == 1 else len(self.A)
+        nq = 3
+        return nS, nq
+
+    def get_H0(self, Bz=np.float64(0)):
+        return self.get_H0_1n2e(self.J, self.A, Bz=Bz)
+
+    @staticmethod
+    def get_H0_1n2e(J, A, Bz=np.float64(0)):
+
+        nS, nq = get_nS_nq_from_A(A)
+
+        if nS == 1:
+            H0 = (
+                4 * A[1] * Grape_ee_Flip.Iz1Sz1
+                + 2 * A[0] * Grape_ee_Flip.Sz2
+                + 4 * J * Grape_ee_Flip.S1S2
+            )
+            return H0.reshape(1, *H0.shape)
+
+        H0 = (
+            pt.einsum(
+                "s,ab->sab",
+                4 * A[:, 1] * pt.ones(nS, device=default_device),
+                Grape_ee_Flip.Iz1Sz1,
+            )
+            + pt.einsum("s,ab->sab", 2 * A[:, 0], Grape_ee_Flip.Sz2)
+            + pt.einsum("s,ab->sab", 4 * J, Grape_ee_Flip.S1S2)
+        )
+        return H0
+
+    @staticmethod
+    def get_control_field_operators(nq, device=default_device):
+        if nq == 3:
+            # non-spectator
+            sig_xn = gate.IXI + gate.IIX
+            sig_yn = gate.IYI + gate.IIY
+        elif nq == 2:
+            # spectator
+            sig_xn = gate.IX
+            sig_yn = gate.IY
+        else:
+            raise Exception(
+                "Invalid qubit count when determining control field operators."
+            )
+        return sig_xn, sig_yn
+
+    def spectator_H0(self):
+        H0_spec = self.A_spec * pt.kron(gate.Z, gate.Z)
+        return H0_spec.reshape(1, *H0_spec.shape)
+
+
 class GrapeRWA(GrapeESR):
     """
     GRAPE class using rotating wave approximation (RWA) to reduce simulation load.
@@ -2147,6 +2321,8 @@ def load_u(fp=None, SP=None):
 def load_grape(fp, Grape=GrapeESR, **kwargs):
     grape = load_system_data(fp, Grape=Grape, **kwargs)
     grape.propagate()
+    if grape.simulate_spectators:
+        grape.get_spec_propagators()
     return grape
 
 

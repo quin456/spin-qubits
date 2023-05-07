@@ -5,6 +5,7 @@ from utils import *
 from run_couplers import coupler_fidelity_bars
 from run_grape import get_fids_and_field_from_fp
 from run_n_entangle import get_2P_EE_swap_kwargs
+from cnot_1P_2P_1P import *
 
 
 folder = "paper-plots/"
@@ -149,18 +150,45 @@ def plot_1P_1P_placement(fn="placement-1P-1P.pdf", ax=None):
     fig.savefig(folder + fn)
 
 
-def control_coupler_E_flip(fp="fields/g366_138S_2q_6000ns_8000step"):
+def multi_sys_2e_flip(
+    fp=None,
+    grape_fp1="fields/g378_69S_3q_6974ns_8000step",
+    grape_fp3="fields/g379_69S_3q_5983ns_8000step",
+):
 
     kwargs_2P_EE = get_2P_EE_swap_kwargs()
 
-    fids, fields = get_fids_and_field_from_fp(fp, **kwargs_2P_EE)
+    fids1, fields = get_fids_and_field_from_fp(
+        grape_fp1, get_from_grape=False, **kwargs_2P_EE
+    )
 
     fig, ax = plt.subplots(2, 1)
     # fig, ax = plt.subplots(2,1, gridspec_kw={'height_ratios': [3,  2]})
-    fidelity_bar_plot(fids, f=[0.9999, 0.999, 0.99], ax=ax[1])
-    ax[1].set_ylim(0.99, 1.002)
-    ax[1].set_yticks([0.99, 0.995, 1.00])
-    ax[1].set_xticks([0, 137], [1, 138])
+
+    n_1P_2P = 69
+    sys_1P_2P = np.linspace(1, n_1P_2P, n_1P_2P)
+    sys_spec = np.array([1])
+    div = 4
+    systems_ax = np.concatenate(
+        (
+            sys_1P_2P,
+            sys_1P_2P + n_1P_2P + div,
+            sys_spec + 2 * n_1P_2P + 2 * div,
+            sys_spec + 2 * n_1P_2P + 2 * div + 1,
+        )
+    )
+
+    fidelity_bar_plot(
+        fids,
+        systems_ax=systems_ax,
+        f=[0.9999, 0.999, 0.99],
+        ax=ax[1],
+        colours=["green", "orange", "red"],
+    )
+    ax[1].set_ylim(0.99, 1.006)
+    ax[1].set_yticks([0.99, 0.995, 1.00], ["99.0", "99.5", "100"])
+    ax[1].set_ylabel("Fidelity (%)")
+    ax[1].set_xticks([1, n_1P_2P, 2 * n_1P_2P + div], [1, n_1P_2P, 2 * n_1P_2P])
     axt = ax[0].twinx()
 
     Bx, By, T = fields
@@ -168,12 +196,40 @@ def control_coupler_E_flip(fp="fields/g366_138S_2q_6000ns_8000step"):
     ycol = color_cycle[1]
     ax[0].plot(T / unit.ns, 1e3 * Bx / unit.mT, color=xcol)
     axt.plot(T / unit.ns, 1e3 * By / unit.mT, color=ycol)
-    ax[0].set_yticks([-0.3, 0.8], color=xcol)
-    ax[0].set_ylabel('Bx (mT)', color=xcol)
+    yticks = [-0.3, 0.3]
+    axt.set_yticks(yticks, yticks, color=ycol)
+    ax[0].set_yticks(yticks, yticks, color=xcol)
+    ax[0].set_ylim([-0.8, 0.3])
+    axt.set_ylim([-0.3, 0.8])
+    ax[0].set_ylabel("Bx (mT)", color=xcol)
     ax[0].set_xlabel("time (ns)")
-    axt.set_ylabel('By (mT)', color=ycol)
-    axt.set_yticks([-0.8, 0.3], color=ycol)
+
+    y_offset = 0.61
+    label_axis(
+        ax[1], f"$T_{Downarrow}^{{2e}}$", x_offset=0.2, y_offset=y_offset,
+    )
+    label_axis(
+        ax[1], f"$T_{Uparrow}^{{2e}}$", x_offset=0.65, y_offset=y_offset,
+    )
+    label_axis(
+        ax[1],
+        f"$T_{{{Downarrow}, {Uparrow}}}^{{1e}}$",
+        x_offset=0.9,
+        y_offset=y_offset,
+    )
+    axt.set_ylabel("By (mT)", color=ycol)
     fig.tight_layout()
+
+    if fp is not None:
+        fig.savefig(fp)
+
+
+def get_2e_flip_fig():
+    show_2e_flip(fp=f"{folder}{'e-spin-flip.pdf'}")
+
+
+def get_2e_entangle_fig():
+    show_2P_1P_CX_pulse(fp=f"{folder}{'coupler-target-CX-pulse.pdf'}")
 
 
 if __name__ == "__main__":
@@ -184,7 +240,23 @@ if __name__ == "__main__":
     # coupler_CNOTs()
     # CNOTs_1P_2P()
     # plot_1P_1P_placement()
-    #control_coupler_E_flip()
-    HS_side_view()
+    # multi_sys_2e_flip(fp=f"{folder}multi-sys-2e-flip.pdf")
+    # HS_side_view()
+    # get_2e_flip_fig()
+    # get_2e_entangle_fig()
+    # multi_2P_1P_CX(f"{folder}multi-sys-2P-1P.pdf")
+    all_multi_system_pulses(
+        fp=f"{folder}/all-multi-sys-pulses.pdf",
+        grape_fp1="fields/g388_70S_3q_6974ns_8000step",
+        grape_fp2="fields/g394_70S_2q_3000ns_8000step",
+        grape_fp3="fields/g398_70S_3q_6974ns_8000step"
+        )
+    # small_MW_1_3("fields/c1326_1S_3q_479ns_1000step", fp=f"{folder}MW1-single.pdf")
+    # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step", fp=f"{folder}MW3-single.pdf")
+    # single_systems(
+    #     fp1 = 'fields/c1359_1S_3q_479ns_1000step',
+    #     fp2 = 'fields/c1366_1S_2q_500ns_1000step',
+    #     fp3="fields/c1354_1S_3q_479ns_2500step", fp=f"{folder}single-system-pulses.pdf"
+    # )
     plt.show()
 

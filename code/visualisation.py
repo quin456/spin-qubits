@@ -5,7 +5,10 @@ import numpy as np
 if not pt.cuda.is_available():
     mpl.use("Qt5Agg")
 from matplotlib import pyplot as plt
-
+from matplotlib import cm
+from matplotlib.colors import Normalize
+from matplotlib.gridspec import GridSpec
+from matplotlib.colors import ListedColormap
 
 import atomic_units as unit
 import gates as gate
@@ -40,9 +43,11 @@ annotate = False
 y_axis_labels = False
 
 uparrow = "\u2191"
+# uparrow = "↑"
 downarrow = "\u2193"
 Uparrow = "⇑"
 Downarrow = "⇓"
+rangle = "⟩"
 
 time_axis_label = "Time (ns)"
 
@@ -53,6 +58,15 @@ def spin_state_label_getter(i, nq, states_to_label=None):
             return np.binary_repr(i, nq)
     else:
         return np.binary_repr(i, nq)
+
+
+def electron_arrow_spin_state_label_getter(i, nq):
+    basis = [downarrow, uparrow]
+    label = ""
+    comp_state = np.binary_repr(i, nq)
+    for q in range(nq):
+        label += basis[int(comp_state[q])]
+    return label
 
 
 def spin_state_ket_label_getter(i, nq=2, states_to_label=None):
@@ -119,8 +133,12 @@ def plot_psi(
     label_getter=None,
     squared=True,
     fp=None,
-    legend_loc="upper center",
+    legend_loc="best",
     legend_ncols=1,
+    colors=None,
+    linestyles=None,
+    ylabel=None,
+    **kwargs,
 ):
     """
     Plots the evolution of each component of psi.
@@ -151,15 +169,30 @@ def plot_psi(
         label = label_getter(i)
         # if squared and label is not None:
         #     label = f"Pr({label})"
-        ax.plot(real(T) / unit.ns, y, label=label)
+        if colors is not None:
+            color = colors[i]
+        else:
+            color = None
+        if linestyles is not None:
+            linestyle = linestyles[i]
+        else:
+            linestyle = "-"
+
+        ax.plot(
+            real(T) / unit.ns,
+            y,
+            label=label,
+            color=color,
+            linestyle=linestyle,
+            **kwargs,
+        )
     ax.legend(loc=legend_loc, ncol=legend_ncols)
     ax.set_xlabel("time (ns)")
     if y_axis_labels:
         ax.set_ylabel("$|\psi|$")
-    print(squared)
     if fp is not None:
         plt.savefig(fp)
-
+    ax.set_ylabel(ylabel)
     return ax
 
 
@@ -192,7 +225,9 @@ def plot_psi_with_phase(psi, T, ax=None):
     plot_phases(psi, T=T, ax=ax[1])
 
 
-def plot_fields(Bx, By, tN=None, T=None, ax=None):
+def plot_fields(
+    Bx, By, tN=None, T=None, ax=None, ylabel=False, legend_loc="best", **kwargs
+):
     """
     Inputs
         Bx: Magnetic field in x direction over N timesteps (atomic units) 
@@ -204,13 +239,106 @@ def plot_fields(Bx, By, tN=None, T=None, ax=None):
         T = linspace(0, tN, N)
     if ax is None:
         ax = plt.subplot()
-    ax.plot(T / unit.ns, Bx * 1e3 / unit.T, label="X field (mT)")
-    ax.plot(T / unit.ns, By * 1e3 / unit.T, label="Y field (mT)")
+    if ylabel:
+        ax.set_ylabel("Magnetic field (mT)")
+        legend_unit = " (mT)"
+    else:
+        legend_unit = ""
+    ax.plot(T / unit.ns, Bx * 1e3 / unit.T, label="$B_x$" + legend_unit, **kwargs)
+    ax.plot(T / unit.ns, By * 1e3 / unit.T, label="$B_y$" + legend_unit, **kwargs)
     ax.set_xlabel("time (ns)")
     if y_axis_labels:
         ax.set_ylabel("$B_\omega(t)$ (mT)")
-    ax.legend()
+    ax.legend(loc=legend_loc)
     return ax
+
+
+def plot_fields_twinx(
+    Bx,
+    By,
+    T,
+    ax=None,
+    near_lim=None,
+    far_lim=None,
+    tick_lim=1,
+    ylabels=True,
+    prop_zoom_start=0.4,
+    prop_zoom_end=0.41,
+):
+
+    if ax is None:
+        ax = plt.subplot()
+
+    axt = ax.twinx()
+    xcol = color_cycle[0]
+    ycol = color_cycle[1]
+
+    plot_with_zoom(
+        T / unit.ns,
+        Bx / unit.mT,
+        ax,
+        prop_zoom_start=prop_zoom_start,
+        prop_zoom_end=prop_zoom_end,
+        color=xcol,
+    )
+    plot_with_zoom(
+        T / unit.ns,
+        By / unit.mT,
+        axt,
+        prop_zoom_start=prop_zoom_start,
+        prop_zoom_end=prop_zoom_end,
+        color=ycol,
+    )
+
+    max_field_val = maxreal(pt.cat((Bx, By)))
+    if far_lim is None:
+        far_lim = 3.5 * max_field_val / unit.mT
+    if near_lim is None:
+        near_lim = 1.3 * max_field_val / unit.mT
+    ax.set_ylim([-far_lim, near_lim])
+    axt.set_ylim([-near_lim, far_lim])
+    ax.set_yticks([-tick_lim, tick_lim], [-tick_lim, tick_lim], color=xcol)
+    axt.set_yticks([-tick_lim, tick_lim], [-tick_lim, tick_lim], color=ycol)
+    if ylabels:
+        ax.set_ylabel("Bx (mT)", color=xcol)
+        axt.set_ylabel("By (mT)", color=ycol)
+    ax.set_xlabel("time (ns)")
+    return axt
+
+
+def plot_with_zoom(
+    X, Y, ax, prop_zoom_start, prop_zoom_end, zoom_proportion=0.4, color=color_cycle[0]
+):
+
+    x_zoom_start = prop_zoom_start * X[-1]
+    x_zoom_end = prop_zoom_end * X[-1]
+
+    i1 = np.argmax(X > x_zoom_start)
+    i2 = np.argmax(X > x_zoom_end)
+
+    Y1 = Y[: i1 + 1]
+    Y2 = Y[i1 : i2 + 1]
+    Y3 = Y[i2:]
+
+    x1 = (1 - zoom_proportion) * len(Y1) / (len(Y1) + len(Y3))
+
+    x2 = x1 + zoom_proportion
+    x3 = 1
+
+    X1 = np.linspace(0, x1, len(Y1))
+    X2 = np.linspace(x1, x2, len(Y2))
+    X3 = np.linspace(x2, x3, len(Y3))
+
+    ax.plot(X1, Y1, color=color)
+    ax.plot(X2, Y2, color=color)
+    ax.plot(X3, Y3, color=color)
+
+    div_linestyle = "--"
+    div_colour = "red"
+    ax.axvline(x1, linestyle=div_linestyle, color=div_colour)
+    ax.axvline(x2, linestyle=div_linestyle, color=div_colour)
+
+    ax.set_xticks([0, x1, x2, x3], [0, f"{X[i1]:.0f}", f"{X[i2]:.0f}", f"{X[-1]:.0f}"])
 
 
 def plot_psi_and_fields(psi, Bx, By, tN):
@@ -415,7 +543,7 @@ def show_fidelity(X, T=None, tN=None, target=gate.CX, ax=None):
 
     if ax is None:
         ax = plt.subplot()
-    plot_fidelity(ax, fids, tN=tN, T=T)
+    plot_fidelity(fids, ax, tN=tN, T=T)
     ax.set_yticks([0, 1])
     ax.axhline(1, linestyle="--", color="black", linewidth=1)
     ax.set_ylim([0, 1.1])
@@ -448,11 +576,15 @@ def plot_J(T, J, ax=None):
 
 def fidelity_bar_plot(
     fids,
+    systems_ax=None,
     ax=None,
-    f=[0.9999, 0.99, 0.98],
-    colours=["green", "orange", "red", "darkred"],
+    f=[0.9999, 0.999, 0.99],
+    colours=["green", "orange", "red"],
     labels=None,
-    legend_loc="best",
+    legend_loc="upper left",
+    ylim=[0.99, 1.005],
+    put_xlabel=True,
+    **kwargs,
 ):
     """
     Accepts nS length array of final fidelities for each system.
@@ -469,6 +601,8 @@ def fidelity_bar_plot(
         else:
             return colours[nbins - 1]
 
+    if systems_ax is None:
+        systems_ax = np.linspace(0, len(fids) - 1, len(fids))
     fids_binned = [[] for _ in range(nbins)]
     sys_binned = [[] for _ in range(nbins)]
     for j in range(len(fids)):
@@ -479,20 +613,26 @@ def fidelity_bar_plot(
         else:
             i_bin = nbins - 1
         fids_binned[i_bin].append(fids[j])
-        sys_binned[i_bin].append(j)
+        sys_binned[i_bin].append(systems_ax[j])
     i = 2
     if labels == None:
         labels = [f">{fj*100:.2f}%" for fj in f] + [f"<{f[-1]*100:.2f}%"]
     for i in range(nbins):
-        ax.bar(sys_binned[i], fids_binned[i], color=colours[i], label=labels[i])
+        ax.bar(
+            sys_binned[i], fids_binned[i], color=colours[i], label=labels[i], **kwargs,
+        )
     color = [get_fid_color(fid) for fid in fids]
     if ax is None:
         ax = plt.subplot()
     nS = len(fids)
     # ax.bar(np.linspace(0,nS-1,nS), fids, np.ones(nS)*0.3, color = color)
     ax.legend(loc=legend_loc, ncol=4)
-    ax.set_xlabel("Systems")
-    ax.set_ylabel("Fidelity")
+    if put_xlabel:
+        ax.set_xlabel("Systems")
+    ax.set_ylabel("Fidelity (%)")
+    ax.set_ylim(ylim)
+    ax.set_yticks([0.99, 1], ["99.0%", "100%"])
+    ax.set_xticks([1, 10, 20, 30, 40, 50, 60, 70])
 
 
 def nuclear_spin_tag(
@@ -669,18 +809,24 @@ def get_all_sites(x_range, y_range, padding):
 
 
 def plot_6_sites(
-    x_target, y_target, ax=None, round_func=None, color="lightblue", alpha=0.5, orientation='flat'
+    x_target,
+    y_target,
+    ax=None,
+    round_func=None,
+    color="lightblue",
+    alpha=0.5,
+    orientation="flat",
 ):
     if round_func is not None:
         x_target = round_func(x_target)
         y_target = round_func(y_target)
     long = np.linspace(0, 1, 2)
     short = np.linspace(0, 2, 3)
-    if orientation == 'flat':
+    if orientation == "flat":
         sites_x = short
-        sites_y = long 
+        sites_y = long
     else:
-        sites_x = long 
+        sites_x = long
         sites_y = short
 
     sites = []
@@ -695,6 +841,7 @@ def plot_6_sites(
     # plot_spheres([(x_target, y_target)], ax=ax, color='black', alpha=1)
     ax.set_aspect("equal")
     ax.axis("off")
+
 
 def plot_9_sites(
     x_target, y_target, ax=None, round_func=None, neighbour_color="lightblue", alpha=0.5
@@ -718,25 +865,70 @@ def plot_9_sites(
     ax.axis("off")
 
 
+def add_colorbar(cmap, ax=None):
+    # Add the color bar
+    sm = cm.ScalarMappable(cmap=cmap, norm=Normalize(-0.5, 0.5))
+    sm.set_array([])
+    cbar = plt.colorbar(sm, shrink=0.5, cax=ax)
+    custom_ticks = np.array([-1, -0.5, 0, 0.5, 1]) / 2  # Example tick values
+    # custom_tick_labels = ["0", "π/2", "π", "3π/2", "2π"]  # Example tick labels
+    custom_tick_labels = ["-π", "-π/2", "0", "π/2", "π"]
+    # custom_tick_labels = custom_ticks
+
+    cbar.set_ticks(custom_ticks)  # Normalize the tick values
+    cbar.set_ticklabels(custom_tick_labels)
+
+
+def plot_unitary(
+    unitary_matrix,
+    ax=None,
+    label_getter=None,
+    colorbar=False,
+    colorbar_ax=None,
+    cmap=None,
+):
+
+    m, n = unitary_matrix.shape
+    if label_getter is None:
+        label_getter = lambda i: np.binary_repr(int(i), int(np.log2(m)))
+
+    y, x = np.meshgrid(np.arange(m), np.arange(n))
+    z = np.abs(unitary_matrix)
+    print_rank2_tensor(pt.angle(unitary_matrix))
+    if cmap is None:
+        cmap = cm.viridis
+    hue = np.angle(unitary_matrix) / (2 * np.pi) + 0.5
+    # hue += hue < 0
+
+    colors = cmap(hue)
+
+    print_rank2_tensor(pt.angle(unitary_matrix) / np.pi)
+    if ax is None:
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    ax.bar3d(
+        x.ravel(),
+        y.ravel(),
+        np.zeros_like(z).ravel(),
+        0.5,
+        0.5,
+        z.ravel(),
+        shade=True,
+        color=colors.reshape(-1, 4),
+    )
+    ax.grid(False)
+    # ax.set_xlabel('Real')
+    # ax.set_ylabel('Imaginary')
+    # ax.set_zlabel('Magnitude')
+    x = np.linspace(1, m, m)
+    ax.set_xticks(x - 1, [label_getter(int(i - 1)) for i in x])
+    ax.set_yticks(x, [label_getter(int(i - 1)) for i in x])
+
+    if colorbar:
+        add_colorbar(cmap, colorbar_ax)
+
+
 if __name__ == "__main__":
+    # Plot quantum state tomography
+    plot_unitary(pt.tensor([[1, 0], [0, 1j]]))
 
-    # plot_exchange_energy_diagram(J=pt.linspace(-100,100,100)*unit.MHz, A=get_A(100,2), Bz=0.02*unit.T)
-    # plot_NE_alpha_beta(Bz = pt.linspace(0,5, 500)*unit.T)
-    # plot_NE_energy_diagram(Bz = pt.linspace(0,5, 500)*unit.T)
-    # fidelity_bar_plot(np.array([0.99, 0.95, 0.92, 0.99, 0.9999, 0.978]))
-    from GRAPE import load_grape
-
-    prev_grape_fp = "fields/c878_1S_2q_100ns_500step"
-    grape = load_grape(prev_grape_fp)
-    fig, ax = plt.subplots()
-    x = np.linspace(0, 10, 100)
-    # ax.plot(x, np.sin(x))
-    psi = grape.X[0] @ gate.spin_10
-    plot_psi(psi, tN=grape.tN, ax=ax)
-    # ax.set_xlim([-1000,10000])
-    nuclear_spin_tag(ax, [0, 1, 1], loc="center right", text="15x 1P-1P", mult=1.5)
-    # plt.show()
-
-    # ax = plt.subplot()
-    # color_bar(ax, colors=['#0000cc', '#0080ff', '#99ccff','lightgray', 'orange', 'red'], tick_labels=['1','2','3','4','5','6'], orientation='vertical')
     plt.show()

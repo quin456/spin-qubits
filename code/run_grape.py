@@ -40,10 +40,10 @@ from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
 
 
-def get_fids_and_field_from_fp(fp, **kwargs):
+def get_fids_and_field_from_fp(fp, get_from_grape=False, **kwargs):
     fp_fids = fp + "_fids"
     fp_fields = fp + "_fields"
-    if os.path.isfile(fp_fids):
+    if os.path.isfile(fp_fids) and not get_from_grape:
         fids = pt.load(fp_fids)
         fields = pt.load(fp_fields)
 
@@ -55,10 +55,10 @@ def get_fids_and_field_from_fp(fp, **kwargs):
         # fields = pt.stack((Bx, By, T))
     else:
         grape = load_grape(fp=fp, **kwargs)
-        fids = grape.fidelity()[0]
+        fids = pt.cat((grape.fidelity()[0], grape.spectator_fidelity()[0]))
         Bx, By = grape.sum_XY_fields()
-        Bx *= unit.mT
-        By *= unit.mT
+        Bx *= unit.T
+        By *= unit.T
         T = linspace(0, grape.tN, grape.N)
         fields = pt.stack((Bx, By, T))
         pt.save(fids, fp_fids)
@@ -179,7 +179,6 @@ def run_CNOTs(
     ensemble_size=1,
     run_optimisation=True,
     cost_momentum=0,
-    simulate_spectators=False,
     verbosity=2,
     Grape=GrapeESR,
     simulation_steps=False,
@@ -223,7 +222,6 @@ def run_CNOTs(
             kappa=kappa,
             ensemble_size=ensemble_size,
             cost_momentum=cost_momentum,
-            simulate_spectators=simulate_spectators,
             verbosity=verbosity,
             simulation_steps=simulation_steps,
             J_modulated=J_modulated,
@@ -237,7 +235,6 @@ def run_CNOTs(
             prev_grape_fp,
             kappa=kappa,
             lam=lam,
-            simulate_spectators=simulate_spectators,
             verbosity=verbosity,
             Grape=Grape,
             simulation_steps=simulation_steps,

@@ -136,7 +136,7 @@ def NE_transition_pulse(i, j, tN, N, A, Bz, ax=None, correct_phase=False):
             np.sqrt(16 * A ** 2 + 0.25 * gamma_e ** 2 * 0.5227 ** 2 * unit.mT ** 2) / 4
         )
         tN = lock_to_frequency(A, get_pi_pulse_tN_from_field_strength(B_mag, c))
-    Bx, By = pi_pulse_square(w_res, c, tN, N, phase)
+    Bx, By = pi_pulse_square(w_res, c, tN, N, phase=phase)
     if ax is not None:
         plot_fields(Bx, By, tN, ax)
     T = linspace(0, tN, N)
@@ -245,7 +245,9 @@ def show_NE_CX(
 # def get_EN_X_with_wait()
 
 
-def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None, interaction_picture=False):
+def get_NE_X(
+    N, Bz, A, Bx=None, By=None, T=None, tN=None, interaction_picture=False, RWA=False
+):
     # Bx and By both None results in free evolution X
     if Bx == None:
         Bx = pt.zeros(N, dtype=cplx_dtype, device=default_device)
@@ -256,25 +258,25 @@ def get_NE_X(N, Bz, A, Bx=None, By=None, T=None, tN=None, interaction_picture=Fa
             raise Exception("No time specified for get_NE_X.")
         else:
             T = linspace(0, tN, N, dtype=cplx_dtype, device=default_device)
-    Hw = get_NE_Hw(Bx, By)
+
+    I = 0.5 * pt.stack((gate.XI, gate.YI, gate.ZI))
+    S = 0.5 * pt.stack((gate.IX, gate.IY, gate.IZ))
+    if RWA == "nuclear":
+        S = pt.zeros_like(S)
+    elif RWA == "electron":
+        I = pt.zeros_like(I)
+    Hw = get_NE_Hw(Bx, By, S=S, I=I)
     H0 = get_NE_H0(A, Bz)
 
-    # if interaction_picture:
-    U0 = get_U0(H0, T=T)
-    H_IP = map_time_dep_operator(Hw, dagger(U0))
-    # else:
-    H = sum_H0_Hw(H0, Hw)
+    if interaction_picture:
+        U0 = get_U0(H0, T=T)
+        H = map_time_dep_operator(Hw, dagger(U0))
+    else:
+        H = sum_H0_Hw(H0, Hw)
 
     X = get_X_from_H(H, T=T)
-    X_IP = get_X_from_H(H_IP, T=T)
-    # X_IP_2 = get_IP_X(X, H0, T=T)
-    X_IP_2 = pt.einsum("jab,jbc->jac", dagger(U0), X)
     S, D = NE_eigensystem(H0)
-    # X = get_IP_X(X,H0,tN,N)
-    # X = dagger(get_U0(H0,tN,N))@X
 
-    if interaction_picture:
-        return X_IP
     return X
     # undo only zeeman evolution
     Hz = H_zeeman(Bz)
@@ -574,12 +576,13 @@ if __name__ == "__main__":
 
     # tN = lock_to_frequency(get_A(1,1),100*unit.ns)
 
-    show_NE_CX(get_A(1, 1), 2 * unit.T, 300000, psi0=(gate.spin_10))
+    # show_NE_CX(get_A(1, 1), 2 * unit.T, 300000, psi0=(gate.spin_10))
     plt.show()
 
-    # show_EN_CX(get_A(1,1), Bz=2*unit.T, N=400); plt.show()
+    show_EN_CX(get_A(1, 1), Bz=2 * unit.T, N=400)
+    plt.show()
 
-    show_NE_swap(get_A(1, 1), 2 * unit.T, 100000, 40000)
+    # show_NE_swap(get_A(1, 1), 2 * unit.T, 100000, 40000)
     # save_NE_swap_pulse()
     # IP_NE_SWAP_things()
 
