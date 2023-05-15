@@ -299,6 +299,7 @@ def plot_fields_twinx(
     axt.set_ylim([-near_lim, far_lim])
     ax.set_yticks([-tick_lim, tick_lim], [-tick_lim, tick_lim], color=xcol)
     axt.set_yticks([-tick_lim, tick_lim], [-tick_lim, tick_lim], color=ycol)
+    label_axis(ax, "Zoomed in", x_offset=0.22, y_offset=0.05, fontsize=12)
     if ylabels:
         ax.set_ylabel("Bx (mT)", color=xcol)
         axt.set_ylabel("By (mT)", color=ycol)
@@ -582,7 +583,7 @@ def fidelity_bar_plot(
     colours=["green", "orange", "red"],
     labels=None,
     legend_loc="upper left",
-    ylim=[0.99, 1.005],
+    ylim=[0.999, 1.0005],
     put_xlabel=True,
     **kwargs,
 ):
@@ -631,7 +632,7 @@ def fidelity_bar_plot(
         ax.set_xlabel("Systems")
     ax.set_ylabel("Fidelity (%)")
     ax.set_ylim(ylim)
-    ax.set_yticks([0.99, 1], ["99.0%", "100%"])
+    ax.set_yticks([0.999, 1], ["99.9%", "100%"])
     ax.set_xticks([1, 10, 20, 30, 40, 50, 60, 70])
 
 

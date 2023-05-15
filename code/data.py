@@ -208,12 +208,13 @@ def get_A_1P_2P(nS, NucSpin=[1, -1], donor_composition=[1, 2], fp="A_70"):
             raise Exception("Use +1, -1 for NucSpin, not computational state.")
     except:
         pass
-    A = pt.einsum("sq,q->sq", A_data[:nS], pt.tensor(NucSpin, device=default_device))
+    A = A_data[:nS]
     A[:, 1] *= 2
     if donor_composition == [2, 1] and fp is not None:
         A = pt.flip(A, (1,))
     elif donor_composition != [1, 2]:
         raise Exception("Invalid donor composition: must be [1,2] or [2,1].")
+    A = pt.einsum("sq,q->sq", A, pt.tensor(NucSpin, device=default_device))
 
     return A if nS > 1 else A[0]
 

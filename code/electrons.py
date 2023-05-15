@@ -235,7 +235,9 @@ def forward_prop(U, device=default_device):
         return X[0]
 
 
-def get_electron_X(tN, N, Bz, A, J, Bx=None, By=None, T=None, IP=False):
+def get_electron_X(
+    J, A, Bz=np.float64(0), tN=None, N=None, Bx=None, By=None, T=None, IP=False
+):
     if Bx is None:
         Bx = pt.zeros(N, dtype=cplx_dtype, device=default_device)
     if By is None:
@@ -260,7 +262,7 @@ def get_electron_X(tN, N, Bz, A, J, Bx=None, By=None, T=None, IP=False):
     else:
         H = sum_H0_Hw(H0, Hw)
 
-    X = get_X_from_H(H, tN, N)
+    X = get_X_from_H(H, tN, N, T=T)
     return X
 
 
@@ -471,10 +473,13 @@ def examine_electron_eigensystem(
     ax[0].plot(real(J) / unit.MHz, real(D[:, 3, 3]) / unit.MHz, label="$|T_->$")
     ax[0].legend()
     i = 0
-    while alpha[i] ** 2 > pmin:
-        i += 1
 
-    print(f"alpha[{i}]^2 = {alpha[i]**2} at J[{i}] = {J[i]/unit.MHz} MHz")
+    i = np.argmax(2 * beta ** 2 > 1 - pmin)
+    Jmax = J[i]
+    print(f"Jmax = {Jmax/unit.MHz} MHz")
+    print(
+        f"alpha[{i}]^2 = {alpha[i]**2}, beta[{i}]^2 = {beta[i]**2} at J[{i}] = {J[i]/unit.MHz} MHz"
+    )
     ax[1].axvline(
         real(J[i]) / unit.MHz,
         linestyle="--",
@@ -536,7 +541,7 @@ def J_dynamical_decoupling_2E(tN=100 * unit.ns, N=None):
 
 if __name__ == "__main__":
     examine_electron_eigensystem(
-        NucSpin=[1, 0], A_mags=[120 * unit.MHz, 29.25 * unit.MHz], pmin=0.995
+        NucSpin=[1, 0], A_mags=[120 * unit.MHz, 29.25 * unit.MHz], pmin=0.999
     )
     # J_dynamical_decoupling_2E(tN=1000 * unit.ns)
 

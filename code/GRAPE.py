@@ -250,6 +250,8 @@ class Grape(ABC):
         simulation_steps=False,
         interaction_picture=False,
         matrix_exp_batches=1,
+        stop_fid_avg=0.99999,
+        stop_fid_min=0.99999,
     ):
         """
         Contructor for Grape class
@@ -345,6 +347,8 @@ class Grape(ABC):
         self.dJ_spec_hist = []
         self.X0 = X0
         self.matrix_exp_batches = matrix_exp_batches
+        self.stop_fid_avg = stop_fid_avg
+        self.stop_fid_min = stop_fid_min
         self.N_rec = get_rec_min_N(
             rf=self.get_control_frequencies(), tN=self.tN, verbosity=0
         )
@@ -397,6 +401,8 @@ class Grape(ABC):
             self.u = self.init_u()
 
     def print_setup_info(self):
+        if self.verbosity == -1:
+            return
         print("====================================================")
         print(f"{self.operation} GRAPE")
         print("====================================================")
@@ -565,6 +571,29 @@ class Grape(ABC):
         self.X, self.P = self.get_X_and_P(self.U, self.target, self.X0)
         return self.X, self.P
 
+    def callback(self, xk):
+        """
+        Callback function for optimization of cost function.
+        """
+        self.iters += 1
+        if self.verbosity != -1:
+            print(
+                f"calls: {self.calls_to_cost_fn}, Average fidelity = {pt.mean(self.Phi)*100:.1f}%, Max field = {get_max_field(*self.get_Bx_By()/unit.mT):.1f} mT",
+                end="\r",
+            )
+        if self.max_time:
+            self.check_time(xk)
+
+        if self.stop_fid_avg < real(pt.mean(self.Phi)) and self.stop_fid_min < minreal(
+            self.Phi
+        ):
+            self.u_opt_terminated = xk
+            if self.verbosity != -1:
+                print(
+                    f"Avg and min stopping fidelities {self.stop_fid_avg*100:.4f}%, {self.stop_fid_min*100:.4f}% have been reached. Terminating optimization."
+                )
+            raise StopFidelityException
+
     def check_time(self, xk):
         """
         Checks how long optimisation has been running for on each call to the 
@@ -584,11 +613,11 @@ class Grape(ABC):
             print(f"Save point {self.sp_count} reached, time passed = {time_passed}.")
             self.save()
         if time_passed > self.max_time:
-            global u_opt_timeout
-            u_opt_timeout = xk
-            print(
-                f"Max time of {self.max_time} has been reached. Optimisation terminated."
-            )
+            self.u_opt_terminated = xk
+            if self.verbosity != -1:
+                print(
+                    f"Max time of {self.max_time} has been reached. Optimisation terminated."
+                )
             raise TimeoutError
 
     def spectator_fidelity(self):
@@ -657,6 +686,7 @@ class Grape(ABC):
         PHX_IP = batch_trace(pt.einsum("sjab,skjbc->skjac", dagger(P), 1j * HwX)) / d
 
         dPhi = -2 * pt.real(pt.einsum("skj,sj->skj", PHX_IP, XP_IP)) / hbar
+        self.Phi = Phi
         return Phi, pt.sum(dPhi, 0) / self.nS
 
     def fluc_cost(self):
@@ -709,6 +739,7 @@ class Grape(ABC):
         Takes control vector u of shape (m,N) describing weighting to be applied to field k\in[1,...,m] at time step j\in[1,...,N]
         
         """
+        self.calls_to_cost_fn += 1
         J_sum = 0
         dJ_sum = pt.zeros_like(self.u, device=default_device)
 
@@ -747,7 +778,6 @@ class Grape(ABC):
         Takes control vector u of shape (m,N) describing weighting to be applied to field k\in[1,...,m] at time step j\in[1,...,N]
         
         """
-        self.iters += 1
         self.u = pt.tensor(u, dtype=cplx_dtype, device=default_device)
 
         t0 = time.time()
@@ -796,23 +826,34 @@ class Grape(ABC):
         """
         self.start_time = time.time()
         self.max_time = max_time
-        callback = self.check_time if self.max_time is not None else None
-        print("\n+++++  RUNNING OPTIMISATION  +++++")
-        if self.max_time is None:
-            print("No max time set")
-        else:
-            print(f"max optimisation time = {self.max_time}")
+        callback = self.callback
+        self.calls_to_cost_fn = 0
+        if self.verbosity > -1:
+            print("\n+++++  RUNNING OPTIMISATION  +++++")
+            if self.max_time is None:
+                print("No max time set")
+            else:
+                print(f"max optimisation time = {self.max_time}")
         try:
-            opt = minimize(self.cost, self.u, method="CG", jac=True, callback=callback)
-            print("Optimisation completed")
-            print(f"nit = {opt.nfev}, nfev = {opt.nit}")
+            opt = minimize(self.cost, self.u, method="CG", jac=True, callback=callback,)
+
+            if self.verbosity > -1:
+                print("Optimisation completed")
+                print(f"nit = {opt.nfev}, nfev = {opt.nit}")
             self.u = pt.tensor(opt.x, device=default_device)
             self.status = "C"  # complete
         except TimeoutError:
             # max_time exceeded
-            global u_opt_timeout
-            self.u = pt.tensor(u_opt_timeout, dtype=cplx_dtype, device=default_device)
-            self.status = "UC"  # uncomplete
+            self.u = pt.tensor(
+                self.u_opt_terminated, dtype=cplx_dtype, device=default_device
+            )
+            self.status = "TO"  # uncomplete - TimeOut
+        except StopFidelityException:
+            self.u = pt.tensor(
+                self.u_opt_terminated, dtype=cplx_dtype, device=default_device
+            )
+            self.status = "SF"  # uncomplete - Stopping Fidelity
+
         self.time_taken = time.time() - self.start_time
         if self.verbosity >= 1:
             print(f"Time taken = {self.time_taken}")
@@ -846,6 +887,8 @@ class Grape(ABC):
     def print_result(self, verbosity=None):
         if verbosity is None:
             verbosity = self.verbosity
+        if verbosity == -1:
+            return
         fidelities = self.fidelity()[0]
         avgfid = sum(fidelities) / len(fidelities)
         minfid = min(fidelities).item()
@@ -1273,6 +1316,8 @@ class GrapeESR(Grape):
         return get_nS_nq_from_A(self.A)
 
     def print_setup_info(self):
+        if self.verbosity == -1:
+            return
         super().print_setup_info()
         if self.nq == 2:
             system_type = "Electron spin qubits coupled via direct exchange"
@@ -1522,6 +1567,7 @@ class GrapeESR(Grape):
         Phi_spec, dPhi_spec = self.fidelity_from_X_and_P(
             self.X_spec, self.P_spec, self.x_cf, self.y_cf, device=device
         )
+        self.Phi_spec = Phi_spec
         return Phi_spec, dPhi_spec
 
     def spectator_cost(self):
@@ -1591,7 +1637,10 @@ class GrapeESR(Grape):
         Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
         """
         self.propagate(device=device)
-        return self.fidelity_from_X_and_P(self.X, self.P, self.x_cf, self.y_cf)
+        self.Phi, dPhi = self.fidelity_from_X_and_P(
+            self.X, self.P, self.x_cf, self.y_cf
+        )
+        return self.Phi, dPhi
 
     # class FieldOptimiser(object):
     """
@@ -1658,6 +1707,13 @@ def load_system_data(fp, Grape=GrapeESR, **kwargs):
     )
     grape.time_taken = None
     return grape
+
+
+################################################################################################################
+################        Exceptions        ####################################################################
+################################################################################################################
+class StopFidelityException(Exception):
+    pass
 
 
 ################################################################################################################
@@ -2107,12 +2163,59 @@ class Grape_ee_Flip(GrapeESR):
                 dtype=cplx_dtype,
                 device=default_device,
             )
+
+        elif step == 3:
+            # e_ctrl - e_coup CNOT while entangled to nuclear spins
+            X0 = pt.tensor(
+                [
+                    [1, 0, 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 1, 0, 0],
+                    [0, 0, 0, 1],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                ],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+            target = pt.tensor(
+                [
+                    [0, 0, 0, 0],
+                    [0, 0, 1, 0],
+                    [1, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 1],
+                    [0, 1, 0, 0],
+                    [0, 0, 0, 0],
+                ],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+
+        elif step == 4:
+            X0 = pt.tensor(
+                [[1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 1], [0, 0],],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+            target = pt.tensor(
+                [[1, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 1],],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+
         else:
             raise Exception("step must be either 1 or 2.")
 
-        kwargs["X0_spec"] = gate.II
         kwargs["A_spec"] = get_A_spec_single()
-        kwargs["target_spec"] = gate.CX_native
+        kwargs["X0_spec"] = gate.II
+        if step in [1, 2]:
+            kwargs["target_spec"] = gate.CX_native
+        else:
+            kwargs["target_spec"] = gate.II
 
         kwargs["target"] = target
         kwargs["X0"] = X0

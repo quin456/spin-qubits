@@ -23,26 +23,25 @@ def run_ee_flip_grape(
 
     if prev_grape_fp is not None:
         grape = load_grape(
-            prev_grape_fp, Grape=Grape_ee_Flip, step=1, verbosity=verbosity, **kwargs
+            prev_grape_fp, Grape=Grape_ee_Flip, step=2, verbosity=verbosity, **kwargs
         )
     else:
-        grape = Grape_ee_Flip(tN, N, J, A, step=1, verbosity=verbosity, **kwargs)
+        grape = Grape_ee_Flip(tN, N, J, A, step=2, verbosity=verbosity, **kwargs)
 
     grape.run(max_time=max_time)
     grape.print_result(verbosity=verbosity)
     grape.plot_result()
     grape.save()
-    wtf = True
 
 
 if __name__ == "__main__":
-    # run_ee_flip_grape(tN=5000 * unit.ns, N=8000, nS=70, max_time=23.5 * 3600, lam=1e7)
-    run_ee_flip_grape(
-        tN=200 * unit.ns,
-        N=1000,
-        nS=1,
-        max_time=60,
-        lam=0,
-        # prev_grape_fp="fields/c1356_1S_3q_479ns_2500step",
-    )
+    run_ee_flip_grape(tN=5000 * unit.ns, N=8000, nS=70, max_time=23.5 * 3600, lam=1e7)
+    # run_ee_flip_grape(
+    #     tN=200 * unit.ns,
+    #     N=1000,
+    #     nS=1,
+    #     max_time=60,
+    #     lam=0,
+    #     # prev_grape_fp="fields/c1356_1S_3q_479ns_2500step",
+    # )
 

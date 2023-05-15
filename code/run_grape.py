@@ -259,57 +259,14 @@ def run_CNOTs(
 
 if __name__ == "__main__":
 
-    # run_grape_pulse_on_system(
-    #     get_A_1P_2P(1),
-    #     get_J_1P_2P(1),
-    #     fp="fields/g342_69S_2q_4000ns_8000step",
-    #     simulate_spectators=True,
-    #     #A_spec = pt.tensor([get_A(1,1)], dtype=cplx_dtype),
-    #     Grape=GrapeESR,
-    # )
-
     run_CNOTs(
-        prev_grape_fp="fields/g359_69S_2q_3000ns_6000step",
-        run_optimisation=False,
-        Grape=GrapeESR,
-        save_data=False,
-        simulate_spectators=False,
-        A_spec=pt.tensor([get_A(1, 1)], dtype=cplx_dtype),
-        A=get_A_1P_2P(1),
-        J=get_J_1P_2P(1),
+        tN=lock_to_frequency(get_A(1, 1), 200 * unit.ns),
+        N=200,
+        max_time=None,
+        nS=1,
+        stop_fid_min=0.99,
+        stop_fid_avg=0.99
     )
-
-    # run_CNOTs(
-    #     tN=2000.0 * unit.ns,
-    #     N=2500,
-    #     nq=2,
-    #     nS=15,
-    #     J=get_J(15, 2),
-    #     max_time=60,
-    #     save_data=True,
-    #     lam=0,
-    #     kappa=1,
-    #     noise_model=None,
-    #     ensemble_size=1,
-    # prev_grape_fn="fields/c1009_15S_2q_2000ns_2500step"
-    # run_optimisation=False
-    # )
-    # run_CNOTs(prev_grape_fn='fields/c965_15S_2q_2000ns_2500step', max_time=1, run_optimisation=False)
-    # run_CNOTs(
-    #     tN=200.0 * unit.ns,
-    #     N=500,
-    #     nq=2,
-    #     nS=1,
-    #     max_time=10,
-    #     save_data=False,
-    #     lam=0,
-    #     alpha=0,
-    #     prev_grape_fn=None,
-    #     kappa=1,
-    #     noise_model=None,
-    #     ensemble_size=1,
-    #     cost_momentum=0,
-    # )
 
     if not pt.cuda.is_available():
         plt.show()

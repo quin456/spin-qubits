@@ -85,8 +85,8 @@ def run_2P_1P_CNOTs(
 ):
 
     nq = 2
-    A = get_A_1P_2P(nS, NucSpin=[-1, 1], donor_composition=[2, 1])
-    J = get_J_1P_2P(nS)
+    A = get_A_1P_2P(nS, NucSpin=[-1, 1], donor_composition=[2, 1], fp="U_1P_2P_tight_A")
+    J = get_J_1P_2P(nS, fp="U_1P_2P_tight_J")
     target = CNOT_targets(nS, nq)
     if reverse_CX:
         target = CXr_targets(nS)
@@ -114,16 +114,16 @@ def run_2P_1P_CNOTs(
 
 if __name__ == "__main__":
 
-    # run_2P_1P_CNOTs(
-    #     3000 * unit.ns,
-    #     8000,
-    #     nS=70,
-    #     max_time=23.5 * 3600,
-    #     lam=1e9,
-    #     kappa=1,
-    #     Grape=GrapeESR,
-    #     A_spec=pt.tensor([get_A(1, 1)], device=default_device),
-    # )
+    run_2P_1P_CNOTs(
+        3000 * unit.ns,
+        8000,
+        nS=70,
+        max_time=23.5 * 3600,
+        lam=1e9,
+        kappa=1,
+        Grape=GrapeESR,
+        A_spec=pt.tensor([get_A(1, 1)], device=default_device),
+    )
 
-    run_2P_1P_CNOTs(500 * unit.ns, 1000, nS=1, max_time=60, lam=0, reverse_CX=False)
+    # run_2P_1P_CNOTs(500 * unit.ns, 1000, nS=2, max_time=60, lam=0, reverse_CX=False)
 

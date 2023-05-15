@@ -5,7 +5,6 @@ from utils import *
 from eigentools import *
 from visualisation import *
 from GRAPE import load_grape, GrapeESR
-from run_n_entangle import get_2P_EE_swap_kwargs, run_2P_1P_N_entangle
 from electrons import get_electron_X
 from pulse_maker import (
     frame_transform_pulse,
@@ -493,11 +492,11 @@ def all_multi_system_pulses(
     fp=None,
 ):
 
-    fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=1)
+    fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=4, get_from_grape=True)
     fids2, fields2 = get_fids_and_field_from_fp(
         grape_fp2, Grape=GrapeESR, A_spec=get_A_spec_single()
     )
-    fids3, fields3 = get_fids_and_field_from_fp(grape_fp3, Grape=Grape_ee_Flip, step=2)
+    fids3, fields3 = get_fids_and_field_from_fp(grape_fp3, Grape=Grape_ee_Flip, step=3)
 
     Bx1, By1, T1 = map(real, fields1)
     Bx2, By2, T2 = map(real, fields2)
@@ -508,13 +507,29 @@ def all_multi_system_pulses(
 
     fig, ax = plt.subplots(3, 2, gridspec_kw={"width_ratios": [2, 1.5]})
     plot_fields_twinx(
-        Bx1, By1, T1, ax=ax[0, 1], prop_zoom_start=0.301, prop_zoom_end=0.3053
+        Bx1[100:],
+        By1[100:],
+        T1[100:],
+        ax=ax[0, 1],
+        prop_zoom_start=0.301,
+        prop_zoom_end=0.3053,
+        far_lim=1,
+        near_lim=0.3,
+        tick_lim=0.5,
     )
     plot_fields_twinx(
         Bx2, By2, T2, ax=ax[1, 1], prop_zoom_start=0.3, prop_zoom_end=0.31
     )
     plot_fields_twinx(
-        Bx3, By3, T3, ax=ax[2, 1], prop_zoom_start=0.301, prop_zoom_end=0.3053
+        Bx3[100:],
+        By3[100:],
+        T3[100:],
+        ax=ax[2, 1],
+        prop_zoom_start=0.301,
+        prop_zoom_end=0.3053,
+        far_lim=1,
+        near_lim=0.3,
+        tick_lim=0.5,
     )
 
     n_sys = 70
@@ -523,18 +538,31 @@ def all_multi_system_pulses(
         (np.linspace(1, n_sys, n_sys), np.array([n_sys + n_spec + 3]))
     )
 
-    fidelity_bar_plot(fids1, systems_ax=systems_ax, ax=ax[0, 0])
+    fidelity_bar_plot(
+        fids1, systems_ax=systems_ax, ax=ax[0, 0], f=[0.9999], colours=["green"]
+    )
     fidelity_bar_plot(
         fids2, systems_ax=systems_ax, ax=ax[1, 0], f=[0.9999], colours=["green"],
     )
-    fidelity_bar_plot(fids3, systems_ax=systems_ax, ax=ax[2, 0])
+    fidelity_bar_plot(
+        fids3,
+        systems_ax=systems_ax,
+        f=[0.9999, 0.999],
+        colours=["green", "orange"],
+        ax=ax[2, 0],
+    )
 
-    x_offset, y_offset = [-0.15, -0.35]
-    label_axis(ax[0, 0], "MW1", x_offset, y_offset)
-    label_axis(ax[1, 0], "MW2", x_offset, y_offset)
-    label_axis(ax[2, 0], "MW3", x_offset, y_offset)
+    x_offset, y_offset = [-0.12, -0.35]
+    fontsize = 11
+    label_axis(ax[0, 0], "1. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[1, 0], "2. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[2, 0], "3. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[0, 1], "1. (b)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[1, 1], "2. (b)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[2, 1], "3. (b)", x_offset, y_offset, fontsize=fontsize)
 
     fig.set_size_inches(9.2, 5.2)
+    # fig.set_size_inches(18 / 2.52, 18 / 2.54 * 5 / 9)
     fig.tight_layout()
 
     if fp is not None:
@@ -720,36 +748,36 @@ def single_system_pulses_and_unitaries(
     # subfig.tight_layout()
 
 
-def label_getter_1n2e_sub(j):
+def label_getter_1n2e_sub(j, subs=[1, 1, 2]):
     if j == 0:
-        return f"{Downarrow}{downarrow}{downarrow}"
+        return f"${Downarrow}_{subs[0]}{downarrow}_{subs[1]}{downarrow}_{subs[2]}$"
     elif j == 1:
-        return f"{Uparrow}{downarrow}{downarrow}"
+        return f"${Uparrow}_{subs[0]}{downarrow}_{subs[1]}{downarrow}_{subs[2]}$"
     elif j == 2:
-        return f"{Uparrow}{uparrow}{uparrow}"
+        return f"${Uparrow}_{subs[0]}{uparrow}_{subs[1]}{uparrow}_{subs[2]}$"
 
 
-def label_getter_1n1e_sub(j):
+def label_getter_1n1e_sub(j, subs=[3, 3]):
     if j == 0:
-        return f"{Downarrow}{downarrow}"
+        return f"${Downarrow}_{subs[0]}{downarrow}_{subs[1]}$"
     elif j == 1:
-        return f"{Uparrow}{downarrow}"
+        return f"${Uparrow}_{subs[0]}{downarrow}_{subs[1]}$"
     elif j == 2:
-        return f"{Uparrow}{uparrow}"
+        return f"${Uparrow}_{subs[0]}{uparrow}_{subs[1]}$"
 
 
-def label_getter_1e(j):
+def label_getter_1e(j, sub=1):
     if j == 0:
-        return downarrow
+        return f"${downarrow}_{sub}$"
     elif j == 1:
-        return uparrow
+        return f"${uparrow}_{sub}$"
 
 
-def label_getter_2e_reduced(j):
+def label_getter_2e_reduced(j, subs=[2, 3]):
     if j == 0:
-        return f"{uparrow}{downarrow}"
+        return f"${uparrow}_{subs[0]}{downarrow}_{subs[1]}$"
     elif j == 1:
-        return f"{uparrow}{uparrow}"
+        return f"${uparrow}_{subs[0]}{uparrow}_{subs[1]}$"
 
 
 def small_MW_1_3(grape_fp="fields/c1326_1S_3q_479ns_1000step", fp=None):
@@ -867,8 +895,9 @@ def single_systems(
     psi0_spec = [psi0_13_spec, psi0_2_spec, psi0_13_spec]
 
     pulse_labels = ["MW1", "MW2", "MW3"]
+    pulse_labels = ["1. (a)", "2. (a)", "3. (a)"]
     facecolors = ["red", "blue", "green"]
-    x_offset = -0.2
+    x_offset = -0.3
     y_offset = -0.2
     for i in range(3):
         # ax1[i] = subfig1.add_subplot(subgrid1[i, :])
@@ -879,7 +908,6 @@ def single_systems(
         set_spine_color(ax1[i], facecolors[i])
         set_spine_color(ax2[0, i], facecolors[i])
         set_spine_color(ax2[1, i], facecolors[i])
-        label_axis(ax1[i], pulse_labels[i], -0.07, -0.4)
         # for j in range(2):
         # ax2[j, i] = subfig2.add_subplot(subgrid2[j, i])
         if i in [0, 2]:
@@ -928,12 +956,37 @@ def single_systems(
             linewidth=linewidth,
             ylabel=ylabel2,
         )
-        label_axis(ax[chr(ord("D") + i)], f"({chr(ord('a')+i)})", x_offset, y_offset)
-        label_axis(ax[chr(ord("G") + i)], f"({chr(ord('d')+i)})", x_offset, y_offset)
+
+        xf = round(grape[i].tN / unit.ns)
+        ax1[i].set_yticks([-0.25, 0, 0.25])
+        ax1[i].set_xticks([0, 100, 200, 300, 400, xf])
+        ax1[i].set_xlim([-20, 570])
+        ax1[i].set_ylim([-0.28, 0.28])
+        ax2[0, i].set_xticks([0, 250, xf])
+        ax2[1, i].set_xticks([0, 250, xf])
+
+        fontsize = 12
+        label_axis(ax1[i], pulse_labels[i], -0.07, -0.5, fontsize=fontsize)
+        label1 = f"({chr(ord('a')+i)})"
+        label1 = f"{i+1}. (b)"
+        # label1 = f"2. {chr(ord('a')+i)}"
+        label2 = f"({chr(ord('d')+i)})"
+        label2 = f"{i+1}. (c)"
+        # label2 = f"3. {chr(ord('a')+i)}"
+        label_axis(
+            ax[chr(ord("D") + i)], label1, x_offset, y_offset, fontsize=fontsize,
+        )
+        label_axis(
+            ax[chr(ord("G") + i)], label2, x_offset, y_offset, fontsize=fontsize,
+        )
+
     fig.tight_layout()
 
     if fp is not None:
         fig.savefig(fp)
+
+
+# def CNOT_23_n_entangled(fp="fields/g420_70S_3q_3966ns_8000step"):
 
 
 if __name__ == "__main__":
@@ -949,10 +1002,11 @@ if __name__ == "__main__":
     # test_ee_flip_grape_pulse(grape_fp="fields/c1326_1S_3q_479ns_1000step")
     # test_stupid_ham()
     # all_multi_system_pulses()
-    all_multi_system_pulses()
+    # all_multi_system_pulses()
     # exchange_vs_detuning()
     # single_system_pulses_and_unitaries()
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step")
     # single_systems()
+    all_multi_system_pulses(grape_fp1="fields/g420_70S_3q_3966ns_8000step", grape_fp3="fields/g421_70S_3q_3966ns_8000step")
     plt.show()
 
