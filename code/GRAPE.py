@@ -363,25 +363,25 @@ class Grape(ABC):
         self.print_setup_info()
         self.status = "UC"
         self.dynamic_opt_plot = dynamic_opt_plot
-        if self.dynamic_opt_plot:
-            plt.ion()
-            plt.switch_backend("TkAgg")
-            fig, ax = plt.subplots(1, 3)
-            fig.suptitle("Optimisation Progress")
+        # if self.dynamic_opt_plot:
+        #     plt.ion()
+        #     plt.switch_backend("TkAgg")
+        #     fig, ax = plt.subplots(1, 3)
+        #     fig.suptitle("Optimisation Progress")
 
-            ax[0].set_ylabel("Cost")
-            ax[1].set_ylabel("Fidelity")
-            ax[2].set_ylabel("Max field (mT)")
-            fig.set_size_inches(9, 4)
-            fig.tight_layout()
-            ax_input = defaultdict(lambda: {})
-            ax_input["ylim"] = {0: [0, 1]}
-            ax_input["ax"] = {0: ax[0], 1: ax[1], 2: ax[1], 3: ax[2]}
-            ax_input["color"] = {0: "black", 1: "blue", 2: "red", 3: "orange"}
-            ax_input["legend_label"] = {1: "Avg fidelity", 2: "Min Fidelity"}
-            self.dynamic_cost_plot = DynamicOptimizationPlot(
-                n_plots=4, ax_input=ax_input
-            )
+        #     ax[0].set_ylabel("Cost")
+        #     ax[1].set_ylabel("Fidelity")
+        #     ax[2].set_ylabel("Max field (mT)")
+        #     fig.set_size_inches(9, 4)
+        #     fig.tight_layout()
+        #     ax_input = defaultdict(lambda: {})
+        #     ax_input["ylim"] = {0: [0, 1]}
+        #     ax_input["ax"] = {0: ax[0], 1: ax[1], 2: ax[1], 3: ax[2]}
+        #     ax_input["color"] = {0: "black", 1: "blue", 2: "red", 3: "orange"}
+        #     ax_input["legend_label"] = {1: "Avg fidelity", 2: "Min Fidelity"}
+        #     self.dynamic_cost_plot = DynamicOptimizationPlot(
+        #         n_plots=4, ax_input=ax_input
+        #     )
 
     def get_default_targets(self):
         pass
@@ -492,17 +492,23 @@ class Grape(ABC):
         Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         """
-        u0_max = 1 / (gamma_e * self.tN * unit.T)
-        u0_k = pt.cat(
-            (
-                pt.linspace(0, u0_max, self.N // 2, dtype=cplx_dtype, device=device),
-                linspace(
-                    u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
-                ),
-            )
-        )
-        u0 = pt.einsum(
-            "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
+        # u0_max = 1 / (gamma_e * self.tN * unit.T)
+        # u0_k = pt.cat(
+        #     (
+        #         pt.linspace(0, u0_max, self.N // 2, dtype=cplx_dtype, device=device),
+        #         linspace(
+        #             u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
+        #         ),
+        #     )
+        # )
+        # u0 = pt.einsum(
+        #     "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
+        # )
+        u0 = (
+            1
+            / (gamma_e * self.tN)
+            * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device)
+            / unit.T
         )
         return uToVector(u0)
 

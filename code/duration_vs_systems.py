@@ -91,6 +91,7 @@ Hopefully fidelity stabilizes a bit for more systems.
 
 def log(grape, fp=log_fp):
     Bmax = get_max_field(*grape.get_Bx_By()) / unit.mT
+    Bavg = grape.average_field() / unit.mT
     tN = grape.tN / unit.ns
     Phi_avg = pt.mean(grape.Phi) * 100
     Phi_min = minreal(grape.Phi) * 100
@@ -120,7 +121,7 @@ def run_and_log(tN, N, J, A, **kwargs):
 
 def run_some_grapes():
     T = pt.arange(100, 550, 50).to(real_dtype) * unit.ns
-    kappa = 1e1
+    kappa = 1e0
     lam = 1e7
 
     for tN in T:
@@ -164,7 +165,6 @@ if __name__ == "__main__":
     # test_pulse_times()
     # get_fids_line_and_save(1)
     # plot_tN_vs_nS_2D()
-    # run_some_grapes()
+    run_some_grapes()
     # get_data_from_log()
-    run_CNOTs(100 * unit.ns, N=182, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1)
     plt.show()

@@ -201,3 +201,4 @@ tN,N,nS,Phi_avg,Phi_min,Bmax,Bavg,lam,kappa,opt_time,opt_calls,status
 ,,,,,,,,,,,
 ,,,,,,,,,,,
 ,,,,,,,,,,,
+100,182,1,99.1,99.1,2.13,0.99+0.00j,1e+07,1e+00,2,60,SF

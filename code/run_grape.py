@@ -279,7 +279,7 @@ if __name__ == "__main__":
     #     dynamic_opt_plot=False,
     # )
     grape = run_CNOTs(
-        100 * unit.ns, N=200, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1
+        200 * unit.ns, N=200, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1
     )
     print(grape.get_opt_state())
     if not pt.cuda.is_available():
