@@ -91,7 +91,6 @@ Hopefully fidelity stabilizes a bit for more systems.
 
 def log(grape, fp=log_fp):
     Bmax = get_max_field(*grape.get_Bx_By()) / unit.mT
-    Bavg = grape.average_field() / unit.mT
     tN = grape.tN / unit.ns
     Phi_avg = pt.mean(grape.Phi) * 100
     Phi_min = minreal(grape.Phi) * 100
@@ -99,7 +98,7 @@ def log(grape, fp=log_fp):
     opt_time = grape.time_taken
     with open(fp, "a") as f:
         f.write(
-            f"\n{tN:.0f},{grape.N},{grape.nS},{Phi_avg:.1f},{Phi_min:.1f},{Bmax:.2f},{Bavg:.2f},{grape.lam:.0e},{grape.kappa:.0e},{opt_time:.0f},{calls},{grape.status}"
+            f"\n{tN:.0f},{grape.N},{grape.nS},{Phi_avg:.1f},{Phi_min:.1f},{Bmax:.2f},{grape.lam:.0e},{grape.kappa:.0e},{opt_time:.0f},{calls}, {grape.status}"
         )
 
 
@@ -120,12 +119,12 @@ def run_and_log(tN, N, J, A, **kwargs):
 
 
 def run_some_grapes():
-    T = pt.arange(100, 550, 50).to(real_dtype) * unit.ns
+    T = pt.arange(380, 560, 20).to(real_dtype) * unit.ns
     kappa = 1e0
     lam = 1e7
 
     for tN in T:
-        for nS in range(1, 10, 1):
+        for nS in range(5, 10, 1):
             A = get_A_1P_2P(nS)
             J = get_J_1P_2P(nS)
             rf = get_multi_system_resonant_frequencies(get_H0(A, J))
@@ -138,7 +137,7 @@ def run_some_grapes():
                 kappa=kappa,
                 lam=lam,
                 max_time=2400,
-                dynamic_opt_plot=False,
+                dynamic_opt_plot=True,
             )
 
 

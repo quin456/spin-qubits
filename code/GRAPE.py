@@ -363,25 +363,41 @@ class Grape(ABC):
         self.print_setup_info()
         self.status = "UC"
         self.dynamic_opt_plot = dynamic_opt_plot
-        # if self.dynamic_opt_plot:
-        #     plt.ion()
-        #     plt.switch_backend("TkAgg")
-        #     fig, ax = plt.subplots(1, 3)
-        #     fig.suptitle("Optimisation Progress")
+        if self.dynamic_opt_plot:
+            plt.ion()
+            plt.switch_backend("TkAgg")
+            self.setup_optimization_tracking_plots()
 
-        #     ax[0].set_ylabel("Cost")
-        #     ax[1].set_ylabel("Fidelity")
-        #     ax[2].set_ylabel("Max field (mT)")
-        #     fig.set_size_inches(9, 4)
-        #     fig.tight_layout()
-        #     ax_input = defaultdict(lambda: {})
-        #     ax_input["ylim"] = {0: [0, 1]}
-        #     ax_input["ax"] = {0: ax[0], 1: ax[1], 2: ax[1], 3: ax[2]}
-        #     ax_input["color"] = {0: "black", 1: "blue", 2: "red", 3: "orange"}
-        #     ax_input["legend_label"] = {1: "Avg fidelity", 2: "Min Fidelity"}
-        #     self.dynamic_cost_plot = DynamicOptimizationPlot(
-        #         n_plots=4, ax_input=ax_input
-        #     )
+    def setup_optimization_tracking_plots(self):
+
+        fig, ax = plt.subplots(1, 3)
+        fig.suptitle("Optimisation Progress")
+
+        ax[0].set_ylabel("Cost")
+        ax[1].set_ylabel("Fidelity")
+        ax[2].set_ylabel("Max field (mT)")
+        fig.set_size_inches(9, 4)
+        fig.tight_layout()
+        ax_input = defaultdict(lambda: {})
+        ax_input["ylim"] = {0: [0, 1]}
+        ax_input["ax"] = {0: ax[0], 1: ax[1], 2: ax[1], 3: ax[2]}
+        ax_input["color"] = {0: "black", 1: "blue", 2: "red", 3: "orange"}
+        ax_input["legend_label"] = {1: "Avg fidelity", 2: "Min Fidelity"}
+        self.dynamic_cost_plot = DynamicOptimizationPlot(
+            n_plots=4, ax_input=ax_input
+        )
+
+    
+    def setup_Bx_By_tracking_plots(self):
+        fig, ax = plt.subplots(1, 3)
+        fig.suptitle("Optimized fields")
+        fig,ax = plt.subplots(1,1)
+        
+        ax_input = defaultdict(lambda: {})
+        ax_input["ax"] = {0: ax, 1: ax}
+        ax_input["color"] = {0: color_cycle[0], 1: color_cycle[1]}
+        ax_input["legend_label"] = {0: "$B_x$", 2: "$B_y$"}
+
 
     def get_default_targets(self):
         pass
@@ -828,7 +844,7 @@ class Grape(ABC):
         self.J = J.item()
         dJ = real(dJ).cpu().detach().numpy()
 
-        return J, dJ
+        return self.J, dJ
 
     def cost_from_fidelity(self, Phi_avg, dPhi_avg):
         J = 1 - Phi_avg
