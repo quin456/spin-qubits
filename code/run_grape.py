@@ -259,13 +259,16 @@ def run_CNOTs(
 
 if __name__ == "__main__":
 
-    run_CNOTs(
-        tN=lock_to_frequency(get_A(1, 1), 200 * unit.ns),
-        N=200,
-        max_time=None,
-        nS=1,
-        stop_fid_min=0.99,
-        stop_fid_avg=0.99
+    # run_CNOTs(
+    #     tN=lock_to_frequency(get_A(1, 1), 200 * unit.ns),
+    #     N=200,
+    #     max_time=None,
+    #     nS=1,
+    #     stop_fid_min=0.99,
+    #     stop_fid_avg=0.99
+    # )
+    grape = run_CNOTs(
+        200 * unit.ns, N=200, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1, save_data=False
     )
 
     if not pt.cuda.is_available():
