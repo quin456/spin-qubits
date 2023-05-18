@@ -97,15 +97,12 @@ def save_unique_configs(fp):
     pt.save(pt.tensor(J), f"{exch_data_folder}{fp}_J")
 
 
-def generate_A_and_J_from_uniform(
-    nA=100, nJ=710, Amin=32, Amax=40, Jmin=10, Jmax=100, fp=None
-):
+def generate_J_from_uniform(nA=100, nJ=70, Jmin=10, Jmax=100, fp=None):
+    # A_gen = np.random.uniform(Amin, Amax, nA)
+    J_gen = Jmin + pt.rand(nJ) * (Jmax - Jmin)
 
-    A_gen = np.random.uniform(Amin, Amax, nA)
-    J_gen = np.random.uniform(Jmin, Jmax, nJ)
-
-    pt.save(A_gen, f"{folder}{fp}_A_gen")
-    pt.save(J_gen, f"{folder}{fp}_J_gen")
+    # pt.save(A_gen, f"{folder}{fp}_A_gen")
+    pt.save(J_gen, f"{folder}J-{Jmin}-{Jmax}")
 
 
 def inspect_A_J(fp="U_1P_2P"):
@@ -135,7 +132,6 @@ def plot_sites(sites, ax, color="red"):
 def plot_donor_placement(
     sites_2P_upper, sites_2P_lower, sites_1P, delta_x, delta_y, d=1, i=3, j=1, k=4
 ):
-
     fig, ax = plt.subplots(1)
     ax.set_aspect(1)
     plot_squares(sites_2P_upper, ax=ax, L=d)
@@ -159,7 +155,6 @@ def plot_donor_placement(
 
 
 def plot_select_donor_placement(delta_x=10, delta_y=0):
-
     sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites_1P_2P(delta_x, delta_y)
     plot_donor_placement(sites_2P_upper, sites_2P_lower, sites_1P, delta_x, delta_y)
 
@@ -229,7 +224,6 @@ def get_AJ_distances(d_pairs):
 
 
 def get_donor_sites_1P_2P(delta_x, delta_y, d=1, separation_2P=2, orientation=0):
-
     delta_x *= d
     delta_y *= d
 
@@ -265,7 +259,6 @@ def get_donor_sites_1P_2P(delta_x, delta_y, d=1, separation_2P=2, orientation=0)
 def placement_symmetries_1P_2P(
     delta_x=50, delta_y=0, separation_2P=2, verbose=False, save=False
 ):
-
     d = 1
     J_rand = minreal(J_100_18nm) + pt.rand(100) * (
         maxreal(J_100_18nm) - minreal(J_100_18nm)
@@ -338,13 +331,12 @@ def placement_symmetries_1P_2P(
 
 if __name__ == "__main__":
     fp = "U_1P_2P"
-    fp_big = "U_1P_2P_big"
-    fp_tight = "U_1P_2P_tight"
-    fp_10_20 = "U_1P_2P_10_20"
-    fp_50_100 = "U_1P_2P_50_100"
-    fp = fp_10_20
-    generate_A_and_J_from_uniform(fp=fp, Jmin=10, Jmax=20)
-    get_unique_configs(fp)
-    save_unique_configs(fp)
+    fp_big = "U_1P_2P_big_J"
+    fp_tight = "U_1P_2P_tight_J"
+    fp_10_20 = "U_1P_2P_10_20_J"
+    fp_50_100 = "U_1P_2P_50_100_J"
+    fp_10_110 = "U_1P_2P_10_110_J"
+    generate_J_from_uniform(Jmin=50, Jmax=100)
+    # get_unique_configs(fp)
+    # save_unique_configs(fp)
     # inspect_A_J(fp)
-

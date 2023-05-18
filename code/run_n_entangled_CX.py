@@ -18,9 +18,12 @@ def run_n_entangled_CX(
     step=3,
     **kwargs
 ):
+    
+    fp = "J-10-20"
+    print(fp)
     tN = lock_to_frequency(get_A(1, 1), tN)
     A = get_A_1P_2P(nS, NucSpin=[1, -1])
-    J = get_J_1P_2P(nS)
+    J = get_J_1P_2P(nS, fp=fp)
 
     if prev_grape_fp is not None:
         grape = load_grape(

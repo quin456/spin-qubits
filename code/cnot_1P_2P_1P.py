@@ -14,7 +14,7 @@ from pulse_maker import (
 )
 from single_NE import NE_transition_pulse, get_NE_X
 from visualisation import *
-from run_1P_2P_69 import *
+from run_1P_2P import *
 from run_grape import get_fids_and_field_from_fp
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
 from run_ee_flip_grape import Grape_ee_Flip
@@ -46,7 +46,6 @@ def get_2P_1P_CX_pulse():
 
 
 def show_2e_flip(grape_fp="fields/c1326_1S_3q_479ns_1000step", fp=None):
-
     fp_2 = "fields/c1296_2S_2q_200ns_1000step"  # one n-flip total
 
     grape = load_grape(grape_fp, Grape=Grape_ee_Flip, step=1, verbosity=2)
@@ -146,7 +145,6 @@ def show_2e_flip(grape_fp="fields/c1326_1S_3q_479ns_1000step", fp=None):
 
 
 def show_2P_1P_CX_pulse(grape_fp="fields/c1303_1S_2q_300ns_2000step", fp=None):
-
     grape = load_grape(grape_fp, A_spec=-get_A_spec_single())
     T = grape.get_T()
 
@@ -220,7 +218,6 @@ def cnot_2P_1P():
 
 
 def run_2e_swap():
-
     B0 = 2 * unit.T
 
     grape_fp = "fields/c1278_2S_2q_500ns_1000step"
@@ -292,10 +289,16 @@ def multi_2P_1P_CX(fp=None, grape_fp="fields/g370_69S_2q_3000ns_8000step"):
 
     y_offset = 0.67
     label_axis(
-        ax[1], f"$T_{{CX}}$", x_offset=0.2, y_offset=y_offset,
+        ax[1],
+        f"$T_{{CX}}$",
+        x_offset=0.2,
+        y_offset=y_offset,
     )
     label_axis(
-        ax[1], f"$T_{{Spec}}$", x_offset=0.9, y_offset=y_offset,
+        ax[1],
+        f"$T_{{Spec}}$",
+        x_offset=0.9,
+        y_offset=y_offset,
     )
 
     fig.tight_layout()
@@ -314,7 +317,6 @@ def check_e_flip_phases(grape_fp="fields/c1314_3S_3q_500ns_1000step"):
 
 
 def assess_field(grape_fp="fields/c1312_2S_2q_500ns_2000step"):
-
     grape = load_grape(grape_fp, **get_2P_EE_swap_kwargs())
 
     grape.plot_u(plt.subplot())
@@ -399,7 +401,6 @@ def all_multi_system_pulses_old(
     grape_fp3="fields/g379_69S_3q_5983ns_8000step",
     fp=None,
 ):
-
     fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=1)
     fids2, fields2 = get_fids_and_field_from_fp(grape_fp2, Grape=GrapeESR)
     fids3, fields3 = get_fids_and_field_from_fp(grape_fp3, Grape=Grape_ee_Flip, step=2)
@@ -491,8 +492,9 @@ def all_multi_system_pulses(
     grape_fp3="fields/g379_69S_3q_5983ns_8000step",
     fp=None,
 ):
-
-    fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=4, get_from_grape=True)
+    fids1, fields1 = get_fids_and_field_from_fp(
+        grape_fp1, Grape=Grape_ee_Flip, step=4, get_from_grape=True
+    )
     fids2, fields2 = get_fids_and_field_from_fp(
         grape_fp2, Grape=GrapeESR, A_spec=get_A_spec_single()
     )
@@ -542,7 +544,11 @@ def all_multi_system_pulses(
         fids1, systems_ax=systems_ax, ax=ax[0, 0], f=[0.9999], colours=["green"]
     )
     fidelity_bar_plot(
-        fids2, systems_ax=systems_ax, ax=ax[1, 0], f=[0.9999], colours=["green"],
+        fids2,
+        systems_ax=systems_ax,
+        ax=ax[1, 0],
+        f=[0.9999],
+        colours=["green"],
     )
     fidelity_bar_plot(
         fids3,
@@ -570,12 +576,11 @@ def all_multi_system_pulses(
 
 
 def exchange_vs_detuning(tc=1):
-
     n = 1000
     eps = linspace(0, 100, n)
 
-    J1 = 0.5 * eps + np.sqrt(tc ** 2 + (eps / 2) ** 2)
-    J2 = -0.5 * eps + np.sqrt(tc ** 2 + (eps / 2) ** 2)
+    J1 = 0.5 * eps + np.sqrt(tc**2 + (eps / 2) ** 2)
+    J2 = -0.5 * eps + np.sqrt(tc**2 + (eps / 2) ** 2)
     k = np.argmax(real(J1) > 100)
     print(J1[k], J2[k])
     ax = plt.subplot()
@@ -781,7 +786,6 @@ def label_getter_2e_reduced(j, subs=[2, 3]):
 
 
 def small_MW_1_3(grape_fp="fields/c1326_1S_3q_479ns_1000step", fp=None):
-
     grape = load_grape(grape_fp, Grape_ee_Flip, step=1)
 
     fig, ax = plt.subplots(3, 1, gridspec_kw={"height_ratios": [1, 1.5, 1.5]})
@@ -922,7 +926,6 @@ def single_systems(
             ylabel1 = "$|\psi_{{12}}|^2$"
             ylabel2 = "$|\psi_{{3}}|^2$"
         else:
-
             X = grape[i].X[0]
             X_IP = dagger(get_U0(grape[i].get_H0()[0], T=grape[i].get_T())) @ X
             psi_spec = X_IP @ psi0[i]
@@ -974,10 +977,18 @@ def single_systems(
         label2 = f"{i+1}. (c)"
         # label2 = f"3. {chr(ord('a')+i)}"
         label_axis(
-            ax[chr(ord("D") + i)], label1, x_offset, y_offset, fontsize=fontsize,
+            ax[chr(ord("D") + i)],
+            label1,
+            x_offset,
+            y_offset,
+            fontsize=fontsize,
         )
         label_axis(
-            ax[chr(ord("G") + i)], label2, x_offset, y_offset, fontsize=fontsize,
+            ax[chr(ord("G") + i)],
+            label2,
+            x_offset,
+            y_offset,
+            fontsize=fontsize,
         )
 
     fig.tight_layout()
@@ -1007,6 +1018,8 @@ if __name__ == "__main__":
     # single_system_pulses_and_unitaries()
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step")
     # single_systems()
-    all_multi_system_pulses(grape_fp1="fields/g420_70S_3q_3966ns_8000step", grape_fp3="fields/g421_70S_3q_3966ns_8000step")
+    all_multi_system_pulses(
+        grape_fp1="fields/g420_70S_3q_3966ns_8000step",
+        grape_fp3="fields/g421_70S_3q_3966ns_8000step",
+    )
     plt.show()
-

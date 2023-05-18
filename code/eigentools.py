@@ -24,11 +24,11 @@ def get_allowed_transitions(
                                  in same positions as control Hamiltonian.
         S: (torch.Tensor[complex128]): Contains eigenvectors of H0 as columns.
         D: (torch.Tensor[complex128]): Contains eigenvalues of H0 on diagonal.
-        device (String): indicates whether to use cpu or gpu for matrix 
+        device (String): indicates whether to use cpu or gpu for matrix
                          operations.
     Returns:
-        allowed_transitions: List of tuples, where each tuple (i,j) indicates 
-        transition i,j can be excited directly by application of control 
+        allowed_transitions: List of tuples, where each tuple (i,j) indicates
+        transition i,j can be excited directly by application of control
         Hamiltonian of shape Hw_shape applied at appropriate resonant frequency.
     """
     if S is None:
@@ -51,7 +51,7 @@ def get_allowed_transitions(
     # transform shape of control Hamiltonian to basis of energy eigenstates
     Hw_trans = matmul3(S_T, Hw_shape, S)
     Hw_nz = (pt.abs(Hw_trans) > 1e-8).to(int)
-    Hw_angle = pt.angle(Hw_trans ** 2)
+    Hw_angle = pt.angle(Hw_trans**2)
 
     allowed_transitions = []
     for i in range(d):
@@ -71,8 +71,8 @@ def get_resonant_frequencies(
     return_transitions=False,
 ):
     """
-    Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0. 
-    Useful for >2qubit systems where analytically determining frequencies becomes difficult. 
+    Determines frequencies which should be used to excite transitions for system with free Hamiltonian H0.
+    Useful for >2qubit systems where analytically determining frequencies becomes difficult.
     """
     if H0 == None and (S == None or D == None):
         raise Exception("No Hamiltonian provided")
@@ -178,7 +178,6 @@ def get_all_low_J_rf_u0(S, D, tN, N, device=default_device):
 def get_multi_system_resonant_frequencies_and_transitions(
     H0=None, S=None, D=None, return_transitions=False, device=default_device
 ):
-
     if S is None:
         S, D = get_multi_ordered_eigensystems(H0)
     nS = len(S)
@@ -218,7 +217,7 @@ def get_couplings_over_gamma_e(S, D):
     """
     Takes input S which has eigenstates of free Hamiltonian as columns.
 
-    Determines the resulting coupling strengths between these eigenstates which arise 
+    Determines the resulting coupling strengths between these eigenstates which arise
     when a transverse control field is applied.
 
     The coupling strengths refer to the magnitudes of the terms in the eigenbasis ctrl Hamiltonian.
@@ -265,7 +264,7 @@ def get_pi_pulse_tN_from_field_strength(B_mag, coupling, coupling_lock=None):
 def get_ordered_eigensystem(H0, H0_phys=None, ascending=False):
     """
     Gets eigenvectors and eigenvalues of Hamiltonian H0 corresponding to hyperfine A, exchange J.
-    Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not 
+    Orders from lowest energy to highest. Zeeman splitting is accounted for in ordering, but not
     included in eigenvalues, so eigenvalues will likely not appear to be in order.
     """
     if H0_phys is None:
@@ -283,6 +282,8 @@ def get_ordered_eigensystem(H0, H0_phys=None, ascending=False):
 
 
 def get_multi_ordered_eigensystems(H0, H0_phys=None, ascending=False):
+    if len(H0.shape) == 2:
+        return get_ordered_eigensystem(H0, H0_phys)
     nS, dim, dim = H0.shape
     if H0_phys is None:
         H0_phys = H0
@@ -294,7 +295,6 @@ def get_multi_ordered_eigensystems(H0, H0_phys=None, ascending=False):
 
 
 def order_eigensystem(H0, E_order, ascending=True):
-
     idx_order = pt.topk(E_order, len(E_order), largest=not ascending).indices
 
     # get unsorted eigensystem
@@ -311,7 +311,6 @@ def order_eigensystem(H0, E_order, ascending=True):
 
 
 def get_max_allowed_coupling(H0, p=0.9999):
-
     rf = get_resonant_frequencies(H0)
 
     # first find smallest difference in rf's
@@ -344,10 +343,10 @@ def get_2E_rf_analytic(J, A, Bz=0):
     Ab = A[0] + A[1]
     w0 = gamma_e * Bz
 
-    w12 = w0 + Ab + 2 * J - pt.sqrt(4 * J ** 2 + dA ** 2)
-    w13 = w0 + Ab + 2 * J + pt.sqrt(4 * J ** 2 + dA ** 2)
-    w24 = w0 + Ab - 2 * J + pt.sqrt(4 * J ** 2 + dA ** 2)
-    w34 = w0 + Ab - 2 * J - pt.sqrt(4 * J ** 2 + dA ** 2)
+    w12 = w0 + Ab + 2 * J - pt.sqrt(4 * J**2 + dA**2)
+    w13 = w0 + Ab + 2 * J + pt.sqrt(4 * J**2 + dA**2)
+    w24 = w0 + Ab - 2 * J + pt.sqrt(4 * J**2 + dA**2)
+    w34 = w0 + Ab - 2 * J - pt.sqrt(4 * J**2 + dA**2)
 
     return pt.tensor([w12, w13, w24, w34])
 

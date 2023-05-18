@@ -131,7 +131,6 @@ def inspect_system():
 
 
 def sum_grapes(grapes):
-
     grape = grapes[0].copy()
     nG = len(grapes)
 
@@ -187,9 +186,9 @@ def run_CNOTs(
     A_spec=None,
     X0=None,
     plot_results=False,
-    **kwargs
+    run_on_repeat=False,
+    **kwargs,
 ):
-
     J1_low = J_100_18nm / 50
     J2_low = get_J_low(nS, nq)
     J_low = J2_low
@@ -228,7 +227,7 @@ def run_CNOTs(
             matrix_exp_batches=matrix_exp_batches,
             A_spec=A_spec,
             X0=X0,
-            **kwargs
+            **kwargs,
         )
     else:
         grape = load_grape(
@@ -241,8 +240,12 @@ def run_CNOTs(
             J_modulated=J_modulated,
             A_spec=A_spec,
             X0=X0,
-            **kwargs
+            **kwargs,
         )
+
+    while run_on_repeat:
+        grape.run(max_time=max_time)
+        breakpoint()
 
     if run_optimisation:
         grape.run(max_time=max_time)
@@ -258,16 +261,26 @@ def run_CNOTs(
 
 
 if __name__ == "__main__":
-
-    run_CNOTs(
-        tN=lock_to_frequency(get_A(1, 1), 200 * unit.ns),
-        N=200,
-        max_time=None,
-        nS=1,
-        stop_fid_min=0.99,
-        stop_fid_avg=0.99
+    # grape = run_CNOTs(
+    #     tN=450 * unit.ns,
+    #     N=1138,
+    #     max_time=None,
+    #     nS=4,
+    #     A=get_A_1P_2P(4),
+    #     J=get_J_1P_2P(4),
+    #     stop_fid_min=0.99,
+    #     stop_fid_avg=0.99,
+    #     save_data=False,
+    #     kappa=1e1,
+    #     lam=1e7,
+    #     simulate_spectators=False,
+    #     verbosity=-1,
+    #     run_optimisation=True,
+    #     dynamic_opt_plot=False,
+    # )
+    grape = run_CNOTs(
+        100 * unit.ns, N=200, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1
     )
-
+    print(grape.get_opt_state())
     if not pt.cuda.is_available():
         plt.show()
-
