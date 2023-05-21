@@ -4,16 +4,15 @@ from visualisation import *
 from utils import *
 from run_couplers import coupler_fidelity_bars
 from run_grape import get_fids_and_field_from_fp
-from run_n_entangle import get_2P_EE_swap_kwargs
 from cnot_1P_2P_1P import *
 from unique_configs import get_donor_sites_1P_2P
+from run_grape import run_CNOTs
 
 
 folder = "paper-plots/"
 
 
 def parallel_1P_1P_CNOTs():
-
     fig, ax = plt.subplots(2, 1)
     fig.set_size_inches(5, 3.7)
     ax0_twinx = ax[0].twinx()
@@ -44,7 +43,6 @@ def parallel_1P_1P_CNOTs():
 
 
 def draw_HS_architecture(fp=None):
-
     fig, ax = plt.subplots(1, 1)
     make_HS_array(ax, 5)
     if fp is not None:
@@ -96,7 +94,6 @@ def CNOTs_1P_2P(fn="fidbars-1P-2P.pdf"):
 
 
 def plot_1P_1P_placement(fn="placement-1P-1P.pdf", ax=None):
-
     if ax is None:
         ax = plt.subplot()
 
@@ -156,7 +153,6 @@ def multi_sys_2e_flip(
     grape_fp1="fields/g378_69S_3q_6974ns_8000step",
     grape_fp3="fields/g379_69S_3q_5983ns_8000step",
 ):
-
     kwargs_2P_EE = get_2P_EE_swap_kwargs()
 
     fids1, fields = get_fids_and_field_from_fp(
@@ -207,10 +203,16 @@ def multi_sys_2e_flip(
 
     y_offset = 0.61
     label_axis(
-        ax[1], f"$T_{Downarrow}^{{2e}}$", x_offset=0.2, y_offset=y_offset,
+        ax[1],
+        f"$T_{Downarrow}^{{2e}}$",
+        x_offset=0.2,
+        y_offset=y_offset,
     )
     label_axis(
-        ax[1], f"$T_{Uparrow}^{{2e}}$", x_offset=0.65, y_offset=y_offset,
+        ax[1],
+        f"$T_{Uparrow}^{{2e}}$",
+        x_offset=0.65,
+        y_offset=y_offset,
     )
     label_axis(
         ax[1],
@@ -234,7 +236,7 @@ def get_2e_entangle_fig():
 
 
 def generate_system_table(
-    A_2P=-4 * get_A_1P_2P(70)[:, 1], J=4 * get_J_1P_2P(70), ncols=7
+    A_2P=-2 * get_A_1P_2P(70)[:, 1], J=4 * get_J_1P_2P(70), ncols=7
 ):
     """
     Generates latex code for table of A and J data.
@@ -367,6 +369,26 @@ def show_configs(fp=None):
         fig.savefig(fp)
 
 
+def single_CX_for_many_exchanges():
+    J_1_9 = pt.linspace(1, 9, 9)
+    J = pt.cat((J_1_9, 10 * J_1_9, 100 * J_1_9))
+
+    J = 2.5 * unit.MHz
+    lam = 0
+    kappa = 1e2
+
+    print(run_CNOTs(
+        1500 * unit.ns,
+        2000,
+        J=pt.tensor(J, dtype=cplx_dtype),
+        A=get_A_1P_2P(1),
+        save_data=False,
+        lam=lam,
+        kappa=kappa,
+        verbosity=-1,
+    ).get_opt_state())
+
+
 if __name__ == "__main__":
     # parallel_1P_1P_CNOTs()
     # draw_HS_architecture(fp=f'{folder}HS-distance-5.pdf')
@@ -395,5 +417,6 @@ if __name__ == "__main__":
     # )
     # generate_system_table()
     # show_configs(f"{folder}1P-2P-configs.pdf")
-    plt.show()
 
+    # single_CX_for_many_exchanges()
+    plt.show()

@@ -1,6 +1,8 @@
 import torch as pt
 import matplotlib as mpl
 import numpy as np
+from collections import defaultdict
+
 
 if not pt.cuda.is_available():
     mpl.use("Qt5Agg")
@@ -9,6 +11,7 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 from matplotlib.gridspec import GridSpec
 from matplotlib.colors import ListedColormap
+from PyQt5.QtWidgets import QApplication
 
 import atomic_units as unit
 import gates as gate
@@ -90,7 +93,6 @@ def eigenstate_label_getter(i, states_to_label=None):
 
 
 def NE_label_getter(j):
-
     b = np.binary_repr(j, 2)
     label = "|"
     if b[0] == "0":
@@ -106,7 +108,7 @@ def NE_label_getter(j):
 
 
 def multi_NE_label_getter(j, label_states=None):
-    """ Returns state label corresponding to integer j\in[0,dim] """
+    """Returns state label corresponding to integer j\in[0,dim]"""
     if label_states is not None:
         if j not in label_states:
             return ""
@@ -199,7 +201,6 @@ def plot_psi(
 def plot_phases(
     psi, tN=None, T=None, ax=None, legend_loc="upper center", relative_to_0=False
 ):
-
     if ax is None:
         ax = plt.subplot()
     N, dim = psi.shape
@@ -217,7 +218,6 @@ def plot_phases(
 
 
 def plot_psi_with_phase(psi, T, ax=None):
-
     if ax is None:
         fig, ax = plt.subplots(1, 2)
 
@@ -230,7 +230,7 @@ def plot_fields(
 ):
     """
     Inputs
-        Bx: Magnetic field in x direction over N timesteps (atomic units) 
+        Bx: Magnetic field in x direction over N timesteps (atomic units)
         By: Magnetic field in y direction over N timesteps (atomic units)
         tN: Duration of pulse
     """
@@ -265,7 +265,6 @@ def plot_fields_twinx(
     prop_zoom_start=0.4,
     prop_zoom_end=0.41,
 ):
-
     if ax is None:
         ax = plt.subplot()
 
@@ -310,7 +309,6 @@ def plot_fields_twinx(
 def plot_with_zoom(
     X, Y, ax, prop_zoom_start, prop_zoom_end, zoom_proportion=0.4, color=color_cycle[0]
 ):
-
     x_zoom_start = prop_zoom_start * X[-1]
     x_zoom_end = prop_zoom_end * X[-1]
 
@@ -480,7 +478,6 @@ def plot_exchange_energy_diagram(J=pt.linspace(0, 100, 100) * unit.MHz, A=None, 
 def plot_NE_energy_diagram(
     Bz=pt.linspace(0, 0.2, 100) * unit.T, N=1000, A=get_A(1, 1), ax=None, fp=None
 ):
-
     N = len(Bz)
     dim = 4
     H0 = pt.zeros(N, dim, dim)
@@ -507,7 +504,6 @@ def plot_NE_energy_diagram(
 def plot_NE_alpha_beta(
     Bz=pt.linspace(0, 0.2, 100) * unit.T, N=1000, A=get_A(1, 1), ax=None
 ):
-
     n = len(Bz)
     dim = 4
     H0 = pt.zeros(n, dim, dim)
@@ -524,15 +520,14 @@ def plot_NE_alpha_beta(
 
 
 def plot_alpha_beta(S, D, x_axis, ax=None):
-
     alpha = pt.real(S[:, 2, 1])
     beta = pt.real(S[:, 1, 1])
     # bad
 
     if ax is None:
         ax = plt.subplot()
-    ax.plot(x_axis, alpha ** 2, label="$α^2$")
-    ax.plot(x_axis, beta ** 2, label="$ß^2$")
+    ax.plot(x_axis, alpha**2, label="$α^2$")
+    ax.plot(x_axis, beta**2, label="$ß^2$")
     ax.legend()
 
 
@@ -620,7 +615,11 @@ def fidelity_bar_plot(
         labels = [f">{fj*100:.2f}%" for fj in f] + [f"<{f[-1]*100:.2f}%"]
     for i in range(nbins):
         ax.bar(
-            sys_binned[i], fids_binned[i], color=colours[i], label=labels[i], **kwargs,
+            sys_binned[i],
+            fids_binned[i],
+            color=colours[i],
+            label=labels[i],
+            **kwargs,
         )
     color = [get_fid_color(fid) for fid in fids]
     if ax is None:
@@ -888,7 +887,6 @@ def plot_unitary(
     colorbar_ax=None,
     cmap=None,
 ):
-
     m, n = unitary_matrix.shape
     if label_getter is None:
         label_getter = lambda i: np.binary_repr(int(i), int(np.log2(m)))
@@ -926,6 +924,64 @@ def plot_unitary(
 
     if colorbar:
         add_colorbar(cmap, colorbar_ax)
+
+
+class DynamicOptimizationPlot:
+    def __init__(self, n_plots=1, ax_input=defaultdict(lambda: {})):
+        # ax=None, colors="blue", linestyle="-", ylim=None
+        self.n_plots = n_plots
+        self.initialize_ax_data(ax_input)
+
+    def initialize_ax_data(self, ax_input):
+        default_color = "blue"
+        default_linestyle = "-"
+        default_ylim = None
+        for k in range(self.n_plots):
+            if k not in ax_input["ax"]:
+                ax_input["ax"][k] = plt.subplot()
+            if k not in ax_input["color"]:
+                ax_input["color"][k] = default_color
+            if k not in ax_input["linestyle"]:
+                ax_input["linestyle"][k] = default_linestyle
+            if k not in ax_input["ylim"]:
+                ax_input["ylim"][k] = default_ylim
+            if k not in ax_input["legend_label"]:
+                ax_input["legend_label"][k] = None
+
+        self.ax = ax_input["ax"]
+        self.color = ax_input["color"]
+        self.linestyle = ax_input["linestyle"]
+        self.ylim = ax_input["ylim"]
+        self.legend_label = ax_input["legend_label"]
+        self.line = [
+            self.ax[k].plot(
+                [],
+                [],
+                color=self.color[k],
+                linestyle=self.linestyle[k],
+                label=self.legend_label[k],
+            )[0]
+            for k in range(self.n_plots)
+        ]
+        for k in range(self.n_plots):
+            if self.ylim[k] is not None:
+                self.ax[k].set_ylim(self.ylim[k])
+            if self.legend_label[k] is not None:
+                self.ax[k].legend()
+
+    def update(self, data, x_data=None):
+        for k in range(self.n_plots):
+            if x_data is None:
+                x = range(len(data[k]))
+            else:
+                x = x_data[k]
+            self.line[k].set_data(x, data[k])
+            self.ax[k].relim()
+            if self.ylim[k] is None:
+                self.ax[k].autoscale_view()
+            else:
+                self.ax[k].set_xlim([0, len(data[k])])
+            self.ax[k].get_figure().canvas.flush_events()
 
 
 if __name__ == "__main__":
