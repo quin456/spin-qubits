@@ -367,37 +367,35 @@ class Grape(ABC):
             plt.ion()
             plt.switch_backend("TkAgg")
             self.setup_optimization_tracking_plots()
+            # self.setup_Bx_By_tracking_plots()
 
     def setup_optimization_tracking_plots(self):
-
         fig, ax = plt.subplots(1, 3)
         fig.suptitle("Optimisation Progress")
 
         ax[0].set_ylabel("Cost")
         ax[1].set_ylabel("Fidelity")
         ax[2].set_ylabel("Max field (mT)")
-        fig.set_size_inches(9, 4)
+        fig.set_size_inches(18, 4)
         fig.tight_layout()
         ax_input = defaultdict(lambda: {})
         ax_input["ylim"] = {0: [0, 1]}
         ax_input["ax"] = {0: ax[0], 1: ax[1], 2: ax[1], 3: ax[2]}
         ax_input["color"] = {0: "black", 1: "blue", 2: "red", 3: "orange"}
         ax_input["legend_label"] = {1: "Avg fidelity", 2: "Min Fidelity"}
-        self.dynamic_cost_plot = DynamicOptimizationPlot(
-            n_plots=4, ax_input=ax_input
-        )
+        self.dynamic_cost_plot = DynamicOptimizationPlot(n_plots=4, ax_input=ax_input)
 
-    
     def setup_Bx_By_tracking_plots(self):
-        fig, ax = plt.subplots(1, 3)
+        fig, ax = plt.subplots(1, 1)
+        fig.set_size_inches(9, 4)
         fig.suptitle("Optimized fields")
-        fig,ax = plt.subplots(1,1)
-        
+        ax.set_ylabel("B-field (mT)")
+        ax.set_xlabel("Time (ns)")
         ax_input = defaultdict(lambda: {})
         ax_input["ax"] = {0: ax, 1: ax}
         ax_input["color"] = {0: color_cycle[0], 1: color_cycle[1]}
         ax_input["legend_label"] = {0: "$B_x$", 2: "$B_y$"}
-
+        self.dynamic_Bx_By_plot = DynamicOptimizationPlot(n_plots=2, ax_input=ax_input)
 
     def get_default_targets(self):
         pass
@@ -526,7 +524,7 @@ class Grape(ABC):
             * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device)
             / unit.T
         )
-        return uToVector(u0)
+        return uToVector(u0 / 10)
 
     def time_evolution(self):
         """
@@ -651,6 +649,11 @@ class Grape(ABC):
                         self.max_field_hist,
                     ]
                 )
+                # Bx, By = self.get_Bx_By()
+                # T = self.get_T()
+                # self.dynamic_Bx_By_plot.update(
+                #     [self.u_mat()[0, :], self.u_mat()[1, :]], [T / unit.ns, T / unit.ns]
+                # )
 
         self.time_passed = time.time() - self.start_time
         if self.verbosity > -2 and not pt.cuda.is_available():

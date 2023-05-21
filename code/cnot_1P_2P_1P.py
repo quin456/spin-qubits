@@ -486,6 +486,79 @@ def all_multi_system_pulses_old(
         fig.savefig(fp)
 
 
+def multi_system_n_entangled_CX(
+    grape_fp1="fields/g420_70S_3q_3966ns_8000step",
+    grape_fp2="fields/g421_70S_3q_3966ns_8000step",
+    fp=None,
+):
+    fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=4)
+    fids3, fields3 = get_fids_and_field_from_fp(grape_fp2, Grape=Grape_ee_Flip, step=3)
+
+    Bx1, By1, T1 = map(real, fields1)
+    Bx3, By3, T3 = map(real, fields3)
+
+    print(
+        f"Max fields: {get_max_field(Bx1, By1)/unit.mT:.1f} mT, {get_max_field(Bx3, By3)/unit.mT:.1f} mT"
+    )
+
+    Bx_col = color_cycle[0]
+    By_col = color_cycle[1]
+
+    fig, ax = plt.subplots(2, 2, gridspec_kw={"width_ratios": [2, 1.5]})
+    plot_fields_twinx(
+        Bx1[100:],
+        By1[100:],
+        T1[100:],
+        ax=ax[0, 1],
+        prop_zoom_start=0.301,
+        prop_zoom_end=0.3053,
+        far_lim=1,
+        near_lim=0.3,
+        tick_lim=0.5,
+    )
+    plot_fields_twinx(
+        Bx3[100:],
+        By3[100:],
+        T3[100:],
+        ax=ax[1, 1],
+        prop_zoom_start=0.301,
+        prop_zoom_end=0.3053,
+        far_lim=1,
+        near_lim=0.3,
+        tick_lim=0.5,
+    )
+
+    n_sys = 70
+    n_spec = 1
+    systems_ax = np.concatenate(
+        (np.linspace(1, n_sys, n_sys), np.array([n_sys + n_spec + 3]))
+    )
+
+    fidelity_bar_plot(
+        fids1, systems_ax=systems_ax, ax=ax[0, 0], f=[0.9999], colours=["green"]
+    )
+    fidelity_bar_plot(
+        fids3,
+        systems_ax=systems_ax,
+        f=[0.9999, 0.999],
+        colours=["green", "orange"],
+        ax=ax[1, 0],
+    )
+
+    x_offset, y_offset = [-0.12, -0.35]
+    fontsize = 11
+    label_axis(ax[0, 0], "1. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[1, 0], "2. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[0, 1], "1. (b)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[1, 1], "2. (b)", x_offset, y_offset, fontsize=fontsize)
+
+    fig.set_size_inches(9.2, 4.2)
+    fig.tight_layout()
+
+    if fp is not None:
+        fig.savefig(fp)
+
+
 def all_multi_system_pulses(
     grape_fp1="fields/g378_69S_3q_6974ns_8000step",
     grape_fp2="fields/g370_69S_2q_3000ns_8000step",
@@ -1018,8 +1091,5 @@ if __name__ == "__main__":
     # single_system_pulses_and_unitaries()
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step")
     # single_systems()
-    all_multi_system_pulses(
-        grape_fp1="fields/g420_70S_3q_3966ns_8000step",
-        grape_fp3="fields/g421_70S_3q_3966ns_8000step",
-    )
+    multi_system_n_entangled_CX()
     plt.show()

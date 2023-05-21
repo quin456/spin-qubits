@@ -119,12 +119,12 @@ def run_and_log(tN, N, J, A, **kwargs):
 
 
 def run_some_grapes():
-    T = pt.arange(380, 560, 20).to(real_dtype) * unit.ns
-    kappa = 1e0
+    T = pt.arange(850, 1350, 50).to(real_dtype) * unit.ns
+    kappa = 1e2
     lam = 1e7
 
     for tN in T:
-        for nS in range(5, 10, 1):
+        for nS in range(24, 42, 2):
             A = get_A_1P_2P(nS)
             J = get_J_1P_2P(nS)
             rf = get_multi_system_resonant_frequencies(get_H0(A, J))
@@ -136,24 +136,31 @@ def run_some_grapes():
                 A,
                 kappa=kappa,
                 lam=lam,
-                max_time=2400,
+                max_time=1800,
                 dynamic_opt_plot=True,
             )
 
 
 def get_data_from_log(fp=log_fp):
+    Bmax = 2
     df = pd.read_csv(fp)
     # df['Bmax'] = pd.to_numeric(df['Bmax'])
     df_SF = df[df["status"] == " SF"]
+    df_failed = df[df["status"] != " SF"]
 
-    df_SF_2mT = df_SF[df_SF["Bmax"] < 2]
+    df_SF_2mT = df_SF[df_SF["Bmax"] < Bmax]
+    df_failed_2mT = df_failed[df_failed["Bmax"] < Bmax]
     df_shortest = df_SF_2mT.loc[df_SF_2mT.groupby("nS")["tN"].idxmin()]
+    df_failed_shortest = df_failed_2mT.loc[df_failed_2mT.groupby("nS")["tN"].idxmin()]
 
     cmap = cm.viridis
 
     # df_SF.plot(x = 'nS', y = 'tN', kind = 'scatter')
     # df_SF_2mT.plot(x = 'nS', y = 'tN', kind = 'scatter')
-    df_SF_2mT.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap)
+    ax = plt.subplot()
+    df_shortest.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
+    # df_SF_2mT.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
+    # df_failed_2mT.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, marker='x', ax=ax)
     print(df_shortest)
 
 
@@ -164,6 +171,6 @@ if __name__ == "__main__":
     # test_pulse_times()
     # get_fids_line_and_save(1)
     # plot_tN_vs_nS_2D()
-    run_some_grapes()
-    # get_data_from_log()
+    # run_some_grapes()
+    get_data_from_log()
     plt.show()

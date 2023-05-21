@@ -402,12 +402,12 @@ if __name__ == "__main__":
     # get_2e_flip_fig()
     # get_2e_entangle_fig()
     # multi_2P_1P_CX(f"{folder}multi-sys-2P-1P.pdf")
-    # all_multi_system_pulses(
-    #     fp=f"{folder}/all-multi-sys-pulses.pdf",
-    #     grape_fp1="fields/g399_70S_3q_4991ns_8000step",
-    #     grape_fp2="fields/g392_70S_2q_3000ns_8000step",
-    #     grape_fp3="fields/g409_70S_3q_3966ns_8000step",
-    # )
+    all_multi_system_pulses(
+        fp=f"{folder}/all-multi-sys-pulses.pdf",
+        grape_fp1="fields/g399_70S_3q_4991ns_8000step",
+        grape_fp2="fields/g392_70S_2q_3000ns_8000step",
+        grape_fp3="fields/g409_70S_3q_3966ns_8000step",
+    )
     # small_MW_1_3("fields/c1326_1S_3q_479ns_1000step", fp=f"{folder}MW1-single.pdf")
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step", fp=f"{folder}MW3-single.pdf")
     # single_systems(
@@ -418,5 +418,5 @@ if __name__ == "__main__":
     # generate_system_table()
     # show_configs(f"{folder}1P-2P-configs.pdf")
 
-    single_CX_for_many_exchanges()
+    # single_CX_for_many_exchanges()
     plt.show()

@@ -280,7 +280,7 @@ if __name__ == "__main__":
     # )
     grape = run_CNOTs(
         200 * unit.ns,
-        N=200,
+        N=500,
         J=get_J_1P_2P(1),
         A=get_A_1P_2P(1),
         verbosity=-1,

@@ -969,9 +969,13 @@ class DynamicOptimizationPlot:
             if self.legend_label[k] is not None:
                 self.ax[k].legend()
 
-    def update(self, data):
+    def update(self, data, x_data=None):
         for k in range(self.n_plots):
-            self.line[k].set_data(range(len(data[k])), data[k])
+            if x_data is None:
+                x = range(len(data[k]))
+            else:
+                x = x_data[k]
+            self.line[k].set_data(x, data[k])
             self.ax[k].relim()
             if self.ylim[k] is None:
                 self.ax[k].autoscale_view()
