@@ -336,7 +336,7 @@ if __name__ == "__main__":
     fp_10_20 = "U_1P_2P_10_20_J"
     fp_50_100 = "U_1P_2P_50_100_J"
     fp_10_110 = "U_1P_2P_10_110_J"
-    generate_J_from_uniform(Jmin=250, Jmax=500)
+    generate_J_from_uniform(Jmin=100, Jmax=200)
     # get_unique_configs(fp)
     # save_unique_configs(fp)
     # inspect_A_J(fp)

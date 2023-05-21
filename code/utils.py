@@ -21,7 +21,7 @@ color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 def zeros_like_reshape(tensor: pt.Tensor, shape: Tuple) -> pt.Tensor:
     """
-    Instantiates tensor of zeros with the same device and dtype as the input tensor, but 
+    Instantiates tensor of zeros with the same device and dtype as the input tensor, but
     with a different shape.
 
     Args:
@@ -34,7 +34,7 @@ def zeros_like_reshape(tensor: pt.Tensor, shape: Tuple) -> pt.Tensor:
 
 
 def get_nS_nq_from_A(A):
-    """ Returns (number of systems, number of qubits in each system) """
+    """Returns (number of systems, number of qubits in each system)"""
     try:
         if len(A.shape) == 2:
             return len(A), len(A[0])
@@ -46,7 +46,7 @@ def get_nS_nq_from_A(A):
 
 
 def normalise(v):
-    """ Normalises 1D tensor """
+    """Normalises 1D tensor"""
     return v / pt.norm(v)
 
 
@@ -56,19 +56,19 @@ def dagger(A):
 
     Args:
         A: A matrix or array of matrices.
-    Returns: 
-        The conjugate transpose of A or each matrix in A  """
+    Returns:
+        The conjugate transpose of A or each matrix in A"""
 
     return pt.conj(pt.transpose(A, -2, -1))
 
 
 def commutator(A, B):
-    """  Returns the commutator [A,B]=AB-BA of matrices A and B.  """
+    """Returns the commutator [A,B]=AB-BA of matrices A and B."""
     return pt.matmul(A, B) - pt.matmul(B, A)
 
 
 def matmul3(A, B, C):
-    """  Returns multiple of three matrices A,B,C.  """
+    """Returns multiple of three matrices A,B,C."""
     return pt.matmul(A, pt.matmul(B, C))
 
 
@@ -82,7 +82,7 @@ def batch_trace(T):
 
 
 def batch_IP(A, B):
-    """ 
+    """
     Takes two equal sized arrays of square matrices A,B, and returns a bitwise inner product of the matrices of the form
         torch.tensor([<A[0],B[0]>, <A[1],B[1]>, ... , <A[-1],B[-1]>])
     """
@@ -91,13 +91,13 @@ def batch_IP(A, B):
 
 
 def innerProd(A, B):
-    """  Calculates the inner product <A|B>=Phi(A,B) of two matrices A,B.  """
+    """Calculates the inner product <A|B>=Phi(A,B) of two matrices A,B."""
     d = A.shape[-1]
     return pt.trace(pt.matmul(dagger(A), B)).item() / d
 
 
 def fidelity(A, B):
-    """ Calculates fidelity of operators A and B """
+    """Calculates fidelity of operators A and B"""
     IP = innerProd(A, B)
     return np.real(IP * np.conj(IP))
 
@@ -109,12 +109,12 @@ def batch_fidelity(Ut, Uf):
 
 
 def wf_fidelity(u, v):
-    """ Calculates vector fidelity of u and v """
+    """Calculates vector fidelity of u and v"""
     return pt.real(pt.dot(u, pt.conj(v)) * pt.dot(pt.conj(u), v))
 
 
 def get_nq_from_dim(d):
-    """ Takes the dimension of the Hilbert space as input, and returns the number of qubits. """
+    """Takes the dimension of the Hilbert space as input, and returns the number of qubits."""
     return int(np.log2(d))
 
 
@@ -145,7 +145,7 @@ but it is converted to and from vector form for input into scipy.minimize.
 
 
 def uToVector(u):
-    """  Takes m x N torch tensor 'u' and converts to 1D tensor in which the columns of u are kept together.  """
+    """Takes m x N torch tensor 'u' and converts to 1D tensor in which the columns of u are kept together."""
     if u is None:
         return u
     if len(u.shape) == 1:
@@ -154,7 +154,7 @@ def uToVector(u):
 
 
 def uToMatrix(u, m):
-    """  
+    """
     Inverse of uToVector. Takes m*N length 1D tensor, splits into m N-sized tensors which are stacked together as columns of an
     m x N tensor which is the output of the function.
     """
@@ -163,14 +163,14 @@ def uToMatrix(u, m):
 
 
 def uIdx(u, m, j, k):
-    """  Accesses element (j,k) of vector form u.  """
+    """Accesses element (j,k) of vector form u."""
     if len(u.shape) == 1:
         return u[k * m + j]
     return u[j, k]
 
 
 def uCol(u, j, m):
-    """  Accepts vector form 'u' as input, and returns what would be column 'j' if 'u' were in matrix form  """
+    """Accepts vector form 'u' as input, and returns what would be column 'j' if 'u' were in matrix form"""
     return u[j * m : (j + 1) * m]
 
 
@@ -297,7 +297,7 @@ def map_psi(A, psi):
 
 
 def print_eigenstates(S):
-    """ Prints quantum states corresponding to the columns of matrix S. """
+    """Prints quantum states corresponding to the columns of matrix S."""
     for j in range(len(S)):
         print(f"|E{j}> = {psi_to_string(S[:,j])}")
 
@@ -336,7 +336,7 @@ def print_rank2_tensor(T):
     """
     Prints a rank 2 tensor (ie a matrix) so as to be easily readable.
 
-    Input: 
+    Input:
         T (pt.Tensor / np.ndarray): input matrix to be printed.
     """
     m, n = T.shape
@@ -362,13 +362,13 @@ def print_rank2_tensor(T):
 
 def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, fontsize=16):
     """
-    Labels an axis, eg with an (a) for reference in a paper. 
+    Labels an axis, eg with an (a) for reference in a paper.
 
     Inputs:
         ax (matplotlib AxesSubplot): Axis to be labelled.
         label (str): Label for axis.
         x_offset (float): x position of label relative to bottom left corner.
-        y_offset (float): y position of label relative to bottom left corner. 
+        y_offset (float): y position of label relative to bottom left corner.
     """
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
@@ -383,11 +383,11 @@ def label_axis(ax, label, x_offset=-0.10, y_offset=-0.10, fontsize=16):
 
 def get_rec_min_N(rf, tN, N_period=100, verbosity=0):
     """
-    Determines appropriate number of timesteps needed to simulate all 
+    Determines appropriate number of timesteps needed to simulate all
     frequencies.
 
     Inputs:
-        rf: Array of frequencies. 
+        rf: Array of frequencies.
         tN: Duration of pulse.
         N_period: Number of timesteps needed to similate one rotation.
 
@@ -432,7 +432,7 @@ def evaluate_timestep_inputs(
 
 def get_dT(T):
     """
-    Gets dt's for each timestep from T tensor containing all time values. 
+    Gets dt's for each timestep from T tensor containing all time values.
     """
     dT = pt.zeros_like(T)
     dT[0] = T[0] - 0
@@ -477,7 +477,7 @@ def maxabs(T):
 
 def rise_ones_fall(p0, N, rise_prop, fall_prop=None, device=default_device):
     """
-    Returns array with values linearly rising from 0<p0<1 up to 1, staying 
+    Returns array with values linearly rising from 0<p0<1 up to 1, staying
     constant at 1, and then falling back down to p0.
 
     Inputs:
@@ -500,15 +500,28 @@ def rise_ones_fall(p0, N, rise_prop, fall_prop=None, device=default_device):
 
 
 def get_max_field(Bx, By):
-    """ 
+    """
     Determines the maximum value of the total magnetic field |(Bx, By)|.
     """
-    return pt.sqrt(maxreal(Bx ** 2 + By ** 2))
+    return pt.sqrt(maxreal(Bx**2 + By**2))
 
 
 def sqrtm(T):
-    """ Determines matrix square root of torch tensor using np.linalg """
+    """Determines matrix square root of torch tensor using np.linalg"""
     return pt.tensor(linalg.sqrtm(T), dtype=T.dtype, device=T.device)
+
+
+def matrix_exp_array(A):
+    """
+    Accepts rank 4 with equal dimensinality in last two dimensions.
+    Ie, a 2d array of square matrices.
+    Returns tensor of same shape, 2d array of matrix exp of each of the square
+    matrices.
+    """
+    m, n, dim, dim = A.shape
+    A_exp_flat = pt.matrix_exp(pt.reshape(A, (m * n, dim, dim)))
+    A_exp = pt.reshape(A_exp_flat, (m, n, dim, dim))
+    return A_exp
 
 
 def remove_leading_phase(X):
@@ -518,14 +531,12 @@ def remove_leading_phase(X):
 
 class NoiseModels(str, Enum):
     """
-    Noise model tags to be passed to Grape object as an indicator of the type 
+    Noise model tags to be passed to Grape object as an indicator of the type
     of noise to simulate.
     """
 
     delta_correlated_exchange = "delta-exchange"
     dephasing = "dephasing"
-
-
 
 
 if __name__ == "__main__":

@@ -555,10 +555,7 @@ class Grape(ABC):
             H = H_control + H0
 
         if self.sim_steps == 1:
-            U_flat = pt.matrix_exp(
-                -1j * pt.reshape(H, (nS * N, dim, dim)) * (self.dt / hbar)
-            )
-            U = pt.reshape(U_flat, (nS, N, dim, dim))
+            U = matrix_exp_array(-1j * H * self.dt)
             return U
 
         else:
@@ -1436,8 +1433,6 @@ class GrapeESR(Grape):
 
         self.A: (nS,nq), self.J: (nS,) for 2 qubit or (nS,2) for 3 qubits
         """
-        if self.J_modulated:
-            return self.get_H0_J_modulated(Bz=Bz, device=device)
         if J is None:
             J = self.J
         H0 = get_H0(self.A, J, Bz, device=device)
@@ -1587,16 +1582,16 @@ class GrapeESR(Grape):
             pt.einsum("j,ab->jab", x_sum, sig_xn)
             + pt.einsum("j,ab->jab", y_sum, sig_yn),
         )
-        H = pt.reshape(H, (nS * N, dim, dim))
         if matrix_exp_batches == 2:
+            H = pt.reshape(H, (nS * N, dim, dim))
             half = len(H) // 2
             U = pt.cat(
                 (pt.matrix_exp(-1j * H[:half] * dt), pt.matrix_exp(-1j * H[half:] * dt))
             )
         else:
-            U = pt.matrix_exp(-1j * H * dt)
+            # H = pt.reshape(H, (nS * N, dim, dim))
+            U = matrix_exp_array(-1j * H * dt)
         del H
-        U = pt.reshape(U, (nS, N, dim, dim))
         return U
 
     def time_evolution(self, device=default_device):
@@ -1610,7 +1605,6 @@ class GrapeESR(Grape):
             self.H0,
             self.nq,
             self.dt,
-            matrix_exp_batches=self.matrix_exp_batches,
             device=device,
         )
 
@@ -1652,8 +1646,15 @@ class GrapeESR(Grape):
         equal to the identity under the influence of the applied pulse.
         """
         self.get_spec_propagators()
+        sig_xn, sig_yn = self.get_control_field_operators(self.nq_spec)
         Phi_spec, dPhi_spec = self.fidelity_from_X_and_P(
-            self.X_spec, self.P_spec, self.x_cf, self.y_cf, device=device
+            self.X_spec,
+            self.P_spec,
+            self.x_cf,
+            self.y_cf,
+            sig_xn,
+            sig_yn,
+            device=device,
         )
         self.Phi_spec = Phi_spec
         return Phi_spec, dPhi_spec
@@ -1664,18 +1665,16 @@ class GrapeESR(Grape):
         J_spec, dJ_spec = self.cost_from_fidelity(Phi_spec_avg, dPhi_spec_avg)
         return J_spec, dJ_spec / 1e2 / self.kappa
 
-    @staticmethod
-    def get_control_field_operators(nq, device=default_device):
+    def get_control_field_operators(self, nq, device=default_device):
         sig_xn = gate.get_Xn(nq, device)
         sig_yn = gate.get_Yn(nq, device)
         return sig_xn, sig_yn
 
     @staticmethod
-    def fidelity_from_X_and_P(X, P, x_cf, y_cf, device=default_device):
+    def fidelity_from_X_and_P(X, P, x_cf, y_cf, sig_xn, sig_yn, device=default_device):
         nS = len(X)
         dim = X.shape[-2]
         nq = get_nq_from_dim(dim)
-        sig_xn, sig_yn = GrapeESR.get_control_field_operators(nq)
 
         t0 = time.time()
         global time_exp
@@ -1694,8 +1693,8 @@ class GrapeESR(Grape):
         # calculate grad of fidelity
         XP_IP = batch_IP(X, P)
 
-        ox_X = pt.einsum("ab,sjbc->sjac", sig_xn, X)
-        oy_X = pt.einsum("ab,sjbc->sjac", sig_yn, X)
+        ox_X = pt.einsum("...ab,...bc->...ac", sig_xn, X)
+        oy_X = pt.einsum("...ab,...bc->...ac", sig_yn, X)
         PoxX_IP = batch_trace(pt.einsum("sjab,sjbc->sjac", dagger(P), 1j * ox_X)) / dim
         PoyX_IP = batch_trace(pt.einsum("sjab,sjbc->sjac", dagger(P), 1j * oy_X)) / dim
         del ox_X, oy_X
@@ -1724,8 +1723,9 @@ class GrapeESR(Grape):
         Adapted grape fidelity function designed specifically for multiple systems with transverse field control Hamiltonians.
         """
         self.propagate(device=device)
+        sig_xn, sig_yn = self.get_control_field_operators(self.nq)
         self.Phi, dPhi = self.fidelity_from_X_and_P(
-            self.X, self.P, self.x_cf, self.y_cf
+            self.X, self.P, self.x_cf, self.y_cf, sig_xn, sig_yn
         )
         return self.Phi, dPhi
 
@@ -2005,6 +2005,41 @@ def get_2q_freqs(J, A, all_freqs=True, device=default_device):
             w[2 * i + 1] = -2 * J[i] + pt.sqrt(dA**2 + 4 * J[i] ** 2)
 
     return w
+
+
+class GrapeESR_IP(GrapeESR):
+    def __init__(self, tN, N, J, A, **kwargs):
+        super().__init__(tN, N, J, A, **kwargs)
+
+    def initialise_IP_operators(self, device=default_device):
+        sig_xn = gate.get_Xn(self.nq, device)
+        sig_yn = gate.get_Yn(self.nq, device)
+        H0T = pt.einsum("sab,j->sjab", self.get_H0(), self.get_T())
+        U0 = matrix_exp_array(-1j * H0T)
+
+        self.sig_xn_IP = pt.einsum("sjab,bc->sjac", dagger(U0), sig_xn)
+        self.sig_yn_IP = pt.einsum("sjab,bc->sjac", dagger(U0), sig_yn)
+        self.target = pt.einsum("sab,sbc->sac", dagger(U0[:, -1]), self.target)
+
+    def get_control_field_operators(self, nq, device=default_device):
+        if not hasattr(self, "sig_xn_IP"):
+            self.initialise_IP_operators()
+        return self.sig_xn_IP, self.sig_yn_IP
+
+    def get_U(self, u_mat, x_cf, y_cf, H0, nq, dt, device=default_device):
+        nS = len(H0)
+        m, N = u_mat.shape
+        dim = 2**nq
+        sig_xn, sig_yn = self.get_control_field_operators(nq, device=device)
+        u_mat = u_mat
+        x_sum = pt.einsum("kj,kj->j", u_mat, x_cf)
+        y_sum = pt.einsum("kj,kj->j", u_mat, y_cf)
+        H = pt.einsum("j,sjab->sjab", x_sum, sig_xn) + pt.einsum(
+            "j,sjab->sjab", y_sum, sig_yn
+        )
+        U = matrix_exp_array(-1j * H * dt)
+        del H
+        return U
 
 
 class GrapeESR_AJ_Modulation(GrapeESR):
@@ -2391,8 +2426,7 @@ class Grape_ee_Flip(GrapeESR):
         )
         return H0
 
-    @staticmethod
-    def get_control_field_operators(nq, device=default_device):
+    def get_control_field_operators(self, nq, device=default_device):
         if nq == 3:
             # non-spectator
             sig_xn = gate.IXI + gate.IIX

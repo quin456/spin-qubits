@@ -34,6 +34,7 @@ from GRAPE import (
     GrapeESR_AJ_Modulation,
     load_grape,
     CouplerGrape,
+    GrapeESR_IP,
 )
 from electrons import get_electron_X
 from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
@@ -168,7 +169,7 @@ def run_CNOTs(
     J=None,
     A=None,
     target=None,
-    save_data=True,
+    save_data=False,
     rf=None,
     prev_grape_fp=None,
     kappa=1,
@@ -261,7 +262,6 @@ def run_CNOTs(
 
 
 if __name__ == "__main__":
-
     # run_CNOTs(
     #     tN=lock_to_frequency(get_A(1, 1), 200 * unit.ns),
     #     N=200,
@@ -270,9 +270,24 @@ if __name__ == "__main__":
     #     stop_fid_min=0.99,
     #     stop_fid_avg=0.99
     # )
+    # run_CNOTs(
+    #     nS=1,
+    #     tN=200 * unit.ns,
+    #     N=200,
+    #     J=get_J_1P_2P(1),
+    #     A=get_A_1P_2P(1),
+    # )
     grape = run_CNOTs(
-        200 * unit.ns, N=200, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1, save_data=False
+        200 * unit.ns,
+        N=200,
+        J=get_J_1P_2P(1),
+        A=get_A_1P_2P(1),
+        verbosity=0,
+        save_data=False,
+        dynamic_opt_plot=True,
+        Grape=GrapeESR_IP,
+        simulate_spectators=False,
     )
-    print(grape.get_opt_state())
+    # print(grape.get_opt_state())
     if not pt.cuda.is_available():
         plt.show()
