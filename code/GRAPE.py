@@ -2,7 +2,7 @@
 from abc import abstractmethod, ABC
 import time
 import warnings
-
+import json
 
 warnings.filterwarnings("ignore")
 
@@ -250,7 +250,9 @@ class Grape(ABC):
         matrix_exp_batches=1,
         stop_fid_avg=0.99999,
         stop_fid_min=0.99999,
+        stop_max_field=15 * unit.mT,
         dynamic_opt_plot=False,
+        dynamic_params=False,
     ):
         """
         Contructor for Grape class
@@ -347,10 +349,12 @@ class Grape(ABC):
         self.dJ_prev = None
         self.dJ_hist = []
         self.dJ_spec_hist = []
+        self.J_reg_hist = []
         self.X0 = X0
         self.matrix_exp_batches = matrix_exp_batches
         self.stop_fid_avg = stop_fid_avg
         self.stop_fid_min = stop_fid_min
+        self.stop_max_field = stop_max_field
         self.time_passed = 0
         self.N_rec = get_rec_min_N(
             rf=self.get_control_frequencies(), tN=self.tN, verbosity=0
@@ -363,6 +367,7 @@ class Grape(ABC):
         self.print_setup_info()
         self.status = "UC"
         self.dynamic_opt_plot = dynamic_opt_plot
+        self.dynamic_params = dynamic_params
         if self.dynamic_opt_plot:
             plt.ion()
             plt.switch_backend("TkAgg")
@@ -380,10 +385,15 @@ class Grape(ABC):
         fig.tight_layout()
         ax_input = defaultdict(lambda: {})
         ax_input["ylim"] = {0: [0, 1]}
-        ax_input["ax"] = {0: ax[0], 1: ax[1], 2: ax[1], 3: ax[2]}
-        ax_input["color"] = {0: "black", 1: "blue", 2: "red", 3: "orange"}
-        ax_input["legend_label"] = {1: "Avg fidelity", 2: "Min Fidelity"}
-        self.dynamic_cost_plot = DynamicOptimizationPlot(n_plots=4, ax_input=ax_input)
+        ax_input["ax"] = {0: ax[0], 1: ax[0], 2: ax[1], 3: ax[1], 4: ax[2]}
+        ax_input["color"] = {0: "black", 1: "red", 2: "red", 3: "blue", 4: "orange"}
+        ax_input["legend_label"] = {
+            0: "Cost",
+            1: "Amplitude cost",
+            2: "Avg fidelity",
+            3: "Min Fidelity",
+        }
+        self.dynamic_cost_plot = DynamicOptimizationPlot(n_plots=5, ax_input=ax_input)
 
     def setup_Bx_By_tracking_plots(self):
         fig, ax = plt.subplots(1, 1)
@@ -438,6 +448,7 @@ class Grape(ABC):
 
     def print_setup_info(self):
         if self.verbosity == -1:
+            print(self.get_opt_specs())
             return
         print("====================================================")
         print(f"{self.operation} GRAPE")
@@ -506,25 +517,25 @@ class Grape(ABC):
         Generates u0. Less important freuencies are placed in the second half of u0, and can be experimentally initialised to lower values.
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         """
-        # u0_max = 1 / (gamma_e * self.tN * unit.T)
-        # u0_k = pt.cat(
-        #     (
-        #         pt.linspace(0, u0_max, self.N // 2, dtype=cplx_dtype, device=device),
-        #         linspace(
-        #             u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
-        #         ),
-        #     )
-        # )
-        # u0 = pt.einsum(
-        #     "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
-        # )
+        u0_max = 1 / (gamma_e * self.tN * unit.T)
+        u0_k = pt.cat(
+            (
+                pt.linspace(0, u0_max, self.N // 2, dtype=cplx_dtype, device=device),
+                linspace(
+                    u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
+                ),
+            )
+        )
+        u0 = pt.einsum(
+            "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
+        )
         u0 = (
             1
             / (gamma_e * self.tN)
             * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device)
             / unit.T
-        )
-        return uToVector(u0 / 10)
+        ) / 2
+        return uToVector(u0)
 
     def time_evolution(self):
         """
@@ -626,24 +637,48 @@ class Grape(ABC):
         Bx, By = self.get_Bx_By()
         return pt.mean(pt.sqrt(Bx**2 + By**2)).item()
 
+    def get_opt_specs(self):
+        return f"nS={self.nS}, tN={self.tN/unit.ns:.0f}ns N={self.N}, λ={self.lam:.1e}, κ={self.kappa:.1e}"
+
     def get_opt_state(self):
-        return f"nS={self.nS}, tN={self.tN/unit.ns:.0f}ns N={self.N}, λ={self.lam:.1e}, κ={self.kappa:.1e}, time: {self.time_passed:.1f}s, calls: {self.calls_to_cost_fn}, Avg fidelity = {pt.mean(self.Phi)*100:.1f}%, Min fidelity = {minreal(self.Phi)*100:.1f}%, Max field = {self.max_field()/unit.mT:.2f} mT, status={self.status}"
+        time_and_calls = (
+            f"time: {self.time_passed:.1f}s, calls: {self.calls_to_cost_fn}"
+        )
+        if self.simulate_spectators:
+            fidelities = f"Avg fidelity = {pt.mean(self.Phi)*100:.1f}%, Min fidelity = {minreal(self.Phi)*100:.1f}%, Spec fidelity = {pt.mean(self.Phi_spec)*100:.1f}%"
+        else:
+            fidelities = f"Avg fidelity = {pt.mean(self.Phi)*100:.1f}%, Min fidelity = {minreal(self.Phi)*100:.1f}%"
+        return f"{time_and_calls}, {fidelities}, Max field = {self.max_field()/unit.mT:.2f} mT, status={self.status}"
+
+    def get_opt_specs_and_state(self):
+        return f"{self.get_opt_specs()}, {self.get_opt_state()}"
+
+    def update_params(self):
+        fp_dynamic_params = "code/dynamic_opt_params.json"
+        params = json.load(open(fp_dynamic_params))
+        if self.lam != params["lam"]:
+            self.lam = params["lam"]
+            print(f"Updated λ = {self.lam:.1e}, ")
+        if self.kappa != params["kappa"]:
+            self.kappa = params["kappa"]
+            print(f"Updated κ = {self.kappa:.1e}")
 
     def callback(self, xk):
-        """
+        """x`
         Callback function for optimization of cost function.
         """
         update_period = 5
         self.iters += 1
-        self.cost_hist.append(self.J)
         self.Phi_avg_hist.append(pt.mean(self.Phi).item())
         self.Phi_min_hist.append(minreal(self.Phi).item())
         self.max_field_hist.append((self.max_field() / unit.mT).item())
+        self.J_reg_hist.append(self.J_reg)
         if self.dynamic_opt_plot:
             if self.iters % update_period == 0:
                 self.dynamic_cost_plot.update(
                     [
                         self.cost_hist,
+                        self.J_reg_hist,
                         self.Phi_avg_hist,
                         self.Phi_min_hist,
                         self.max_field_hist,
@@ -656,14 +691,18 @@ class Grape(ABC):
                 # )
 
         self.time_passed = time.time() - self.start_time
+        if self.dynamic_params:
+            self.update_params()
         if self.verbosity > -2 and not pt.cuda.is_available():
             # Assume no gpu => running on personal computer. Print progress updates.
             print(self.get_opt_state(), end="\r")
         if self.max_time:
             self.check_time(xk)
 
-        if self.stop_fid_avg < real(pt.mean(self.Phi)) and self.stop_fid_min < minreal(
-            self.Phi
+        if (
+            self.stop_fid_avg < real(pt.mean(self.Phi))
+            and self.stop_fid_min < minreal(self.Phi)
+            and self.stop_fid_min < pt.mean(self.Phi_spec)
         ):
             self.u_opt_terminated = xk
             if self.verbosity > -1:
@@ -671,6 +710,14 @@ class Grape(ABC):
                     f"Avg and min stopping fidelities {self.stop_fid_avg*100:.4f}%, {self.stop_fid_min*100:.4f}% have been reached. Terminating optimization."
                 )
             raise StopFidelityException
+
+        if self.stop_max_field < self.max_field():
+            self.u_opt_terminated = xk
+            if self.verbosity > -1:
+                print(
+                    f"Max field {self.stop_max_field/unit.mT:.1f} mT exceeded. Terminating optimization."
+                )
+            raise StopMaxFieldException
 
     def check_time(self, xk):
         """
@@ -783,9 +830,11 @@ class Grape(ABC):
         """
         Regularisation cost function term which penalises large values of u.
         """
-        J = self.lam / (2 * len(self.u)) * np.real(pt.dot(self.u, self.u).item())
+        self.J_reg = (
+            self.lam / (2 * len(self.u)) * np.real(pt.dot(self.u, self.u).item())
+        )
         dJ = self.lam / len(self.u) * pt.real(self.u)
-        return J, dJ
+        return self.J_reg, dJ
 
     def softmax(self):
         """
@@ -844,10 +893,11 @@ class Grape(ABC):
         self.J_prev = J
         self.dJ_prev = dJ
 
-        self.J = J.item()
+        J = J.item()
+        self.cost_hist.append(J)
         dJ = real(dJ).cpu().detach().numpy()
 
-        return self.J, dJ
+        return J, dJ
 
     def cost_from_fidelity(self, Phi_avg, dPhi_avg):
         J = 1 - Phi_avg
@@ -945,6 +995,11 @@ class Grape(ABC):
                 self.u_opt_terminated, dtype=cplx_dtype, device=default_device
             )
             self.status = "SF"  # uncomplete - Stopping Fidelity
+        except StopMaxFieldException:
+            self.u = pt.tensor(
+                self.u_opt_terminated, dtype=cplx_dtype, device=default_device
+            )
+            self.status = "MF"  # uncomplete - Stopping Fidelity
 
         self.time_taken = time.time() - self.start_time
         if self.verbosity >= 1:
@@ -1405,9 +1460,9 @@ class GrapeESR(Grape):
         return get_nS_nq_from_A(self.A)
 
     def print_setup_info(self):
+        super().print_setup_info()
         if self.verbosity == -1:
             return
-        super().print_setup_info()
         if self.nq == 2:
             system_type = "Electron spin qubits coupled via direct exchange"
         elif self.nq == 3:
@@ -1800,6 +1855,10 @@ def load_system_data(fp, Grape=GrapeESR, **kwargs):
 ################        Exceptions        ####################################################################
 ################################################################################################################
 class StopFidelityException(Exception):
+    pass
+
+
+class StopMaxFieldException(Exception):
     pass
 
 
@@ -2254,7 +2313,7 @@ class Grape_ee_Flip(GrapeESR):
                 dtype=cplx_dtype,
                 device=default_device,
             )
-        elif step == 2:
+        elif step == 3:
             X0 = pt.tensor(
                 [
                     [1, 0],
@@ -2284,7 +2343,37 @@ class Grape_ee_Flip(GrapeESR):
                 device=default_device,
             )
 
-        elif step == 3:
+        elif step == 9:
+            X0 = pt.tensor(
+                [
+                    [1, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 1, 0],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 1],
+                ],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+            target = pt.tensor(
+                [
+                    [1, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 0, 1],
+                    [0, 0, 0],
+                    [0, 0, 0],
+                    [0, 1, 0],
+                ],
+                dtype=cplx_dtype,
+                device=default_device,
+            )
+
+        elif step == 2:
             # e_ctrl - e_coup CNOT while entangled to nuclear spins
             X0 = pt.tensor(
                 [
@@ -2302,44 +2391,14 @@ class Grape_ee_Flip(GrapeESR):
             )
             target = pt.tensor(
                 [
-                    [0, 0, 0, 0],
-                    [0, 0, 1, 0],
                     [1, 0, 0, 0],
                     [0, 0, 0, 0],
                     [0, 0, 0, 0],
-                    [0, 0, 0, 1],
+                    [0, 0, 1, 0],
                     [0, 1, 0, 0],
                     [0, 0, 0, 0],
-                ],
-                dtype=cplx_dtype,
-                device=default_device,
-            )
-
-        elif step == 4:
-            X0 = pt.tensor(
-                [
-                    [1, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 1],
-                    [0, 0],
-                ],
-                dtype=cplx_dtype,
-                device=default_device,
-            )
-            target = pt.tensor(
-                [
-                    [1, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 1],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 1],
                 ],
                 dtype=cplx_dtype,
                 device=default_device,

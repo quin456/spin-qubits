@@ -119,12 +119,12 @@ def run_and_log(tN, N, J, A, **kwargs):
 
 
 def run_some_grapes():
-    T = pt.arange(850, 1350, 50).to(real_dtype) * unit.ns
+    T = pt.arange(1400, 1850, 50).to(real_dtype) * unit.ns
     kappa = 1e2
     lam = 1e7
 
     for tN in T:
-        for nS in range(24, 42, 2):
+        for nS in range(60, 70, 4):
             A = get_A_1P_2P(nS)
             J = get_J_1P_2P(nS)
             rf = get_multi_system_resonant_frequencies(get_H0(A, J))
@@ -138,12 +138,19 @@ def run_some_grapes():
                 lam=lam,
                 max_time=1800,
                 dynamic_opt_plot=True,
+                simulate_spectators=False,
+                dynamic_params=True,
             )
 
 
-def get_data_from_log(fp=log_fp):
+def select_smallest_two(df):
+    return df.nsmallest(2, "tN")
+
+
+def get_data_from_log(fp=log_fp, fp_fig=None):
     Bmax = 2
     df = pd.read_csv(fp)
+    # df = df[df["nS"] < 50]
     # df['Bmax'] = pd.to_numeric(df['Bmax'])
     df_SF = df[df["status"] == " SF"]
     df_failed = df[df["status"] != " SF"]
@@ -153,15 +160,30 @@ def get_data_from_log(fp=log_fp):
     df_shortest = df_SF_2mT.loc[df_SF_2mT.groupby("nS")["tN"].idxmin()]
     df_failed_shortest = df_failed_2mT.loc[df_failed_2mT.groupby("nS")["tN"].idxmin()]
 
+    df_new = df_SF_2mT.groupby("nS").apply(select_smallest_two).reset_index(drop=True)
+
     cmap = cm.viridis
 
     # df_SF.plot(x = 'nS', y = 'tN', kind = 'scatter')
     # df_SF_2mT.plot(x = 'nS', y = 'tN', kind = 'scatter')
     ax = plt.subplot()
-    df_shortest.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
+    fig = ax.get_figure()
+    fig.set_size_inches(11 / 2.54, 8 / 2.54)
+    # df_shortest.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
     # df_SF_2mT.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
+    df_new.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
     # df_failed_2mT.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, marker='x', ax=ax)
     print(df_shortest)
+    fig.tight_layout()
+    ax.set_xlabel("Distinct 1P-2P qubit pairs")
+    ax.set_ylabel("Pulse Duration (ns)")
+    colorbar = ax.collections[-1].colorbar
+    colorbar.set_label("Max Field Strength (mT)")
+    ax.set_yticks([100, 500, 1000, 1500])
+    colorbar.set_ticks([0.6, 1.2, 1.8])
+
+    if fp_fig is not None:
+        fig.savefig(fp_fig)
 
 
 if __name__ == "__main__":
@@ -171,6 +193,6 @@ if __name__ == "__main__":
     # test_pulse_times()
     # get_fids_line_and_save(1)
     # plot_tN_vs_nS_2D()
-    # run_some_grapes()
-    get_data_from_log()
+    run_some_grapes()
+    # get_data_from_log()
     plt.show()

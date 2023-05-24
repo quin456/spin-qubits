@@ -11,7 +11,6 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 from matplotlib.gridspec import GridSpec
 from matplotlib.colors import ListedColormap
-from PyQt5.QtWidgets import QApplication
 
 import atomic_units as unit
 import gates as gate

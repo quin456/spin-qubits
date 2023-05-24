@@ -15,12 +15,12 @@ def run_n_entangled_CX(
     max_time=70,
     verbosity=2,
     prev_grape_fp=None,
-    step=3,
     **kwargs
 ):
-    
-    fp = "J-10-20"
+    fp = "J-50-100"
     print(fp)
+    step = 9
+    print(step)
     tN = lock_to_frequency(get_A(1, 1), tN)
     A = get_A_1P_2P(nS, NucSpin=[1, -1])
     J = get_J_1P_2P(nS, fp=fp)
@@ -46,7 +46,5 @@ if __name__ == "__main__":
         nS=70,
         max_time=23.5 * 3600,
         lam=1e7,
-        step=3
         # prev_grape_fp="fields/c1356_1S_3q_479ns_2500step",
     )
-

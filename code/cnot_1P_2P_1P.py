@@ -4,7 +4,7 @@ import numpy as np
 from utils import *
 from eigentools import *
 from visualisation import *
-from GRAPE import load_grape, GrapeESR
+from GRAPE import load_grape, GrapeESR, Grape_ee_Flip
 from electrons import get_electron_X
 from pulse_maker import (
     frame_transform_pulse,
@@ -17,7 +17,6 @@ from visualisation import *
 from run_1P_2P import *
 from run_grape import get_fids_and_field_from_fp
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
-from run_ee_flip_grape import Grape_ee_Flip
 
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -491,8 +490,8 @@ def multi_system_n_entangled_CX(
     grape_fp2="fields/g421_70S_3q_3966ns_8000step",
     fp=None,
 ):
-    fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=4)
-    fids3, fields3 = get_fids_and_field_from_fp(grape_fp2, Grape=Grape_ee_Flip, step=3)
+    fids1, fields1 = get_fids_and_field_from_fp(grape_fp1, Grape=Grape_ee_Flip, step=10)
+    fids3, fields3 = get_fids_and_field_from_fp(grape_fp2, Grape=Grape_ee_Flip, step=11)
 
     Bx1, By1, T1 = map(real, fields1)
     Bx3, By3, T3 = map(real, fields3)
@@ -512,9 +511,9 @@ def multi_system_n_entangled_CX(
         ax=ax[0, 1],
         prop_zoom_start=0.301,
         prop_zoom_end=0.3053,
-        far_lim=1,
+        far_lim=2.4,
         near_lim=0.3,
-        tick_lim=0.5,
+        tick_lim=1,
     )
     plot_fields_twinx(
         Bx3[100:],
@@ -523,9 +522,9 @@ def multi_system_n_entangled_CX(
         ax=ax[1, 1],
         prop_zoom_start=0.301,
         prop_zoom_end=0.3053,
-        far_lim=1,
+        far_lim=2.4,
         near_lim=0.3,
-        tick_lim=0.5,
+        tick_lim=1,
     )
 
     n_sys = 70
@@ -552,7 +551,7 @@ def multi_system_n_entangled_CX(
     label_axis(ax[0, 1], "1. (b)", x_offset, y_offset, fontsize=fontsize)
     label_axis(ax[1, 1], "2. (b)", x_offset, y_offset, fontsize=fontsize)
 
-    fig.set_size_inches(9.2, 4.2)
+    fig.set_size_inches(9.2, 3.7)
     fig.tight_layout()
 
     if fp is not None:
@@ -1070,7 +1069,213 @@ def single_systems(
         fig.savefig(fp)
 
 
-# def CNOT_23_n_entangled(fp="fields/g420_70S_3q_3966ns_8000step"):
+def multi_n_entangled_3_pulse(
+    grape_fp1="fields/g378_69S_3q_6974ns_8000step",
+    grape_fp2="fields/g421_70S_3q_3966ns_8000step",
+    grape_fp3="fields/g379_69S_3q_5983ns_8000step",
+    fp=None,
+):
+    fids1, fields1 = get_fids_and_field_from_fp(
+        grape_fp1, Grape=Grape_ee_Flip, step=10, get_from_grape=True
+    )
+    fids2, fields2 = get_fids_and_field_from_fp(
+        grape_fp2, Grape=GrapeESR, A_spec=get_A_spec_single()
+    )
+    fids3, fields3 = get_fids_and_field_from_fp(grape_fp3, Grape=Grape_ee_Flip, step=11)
+
+    Bx1, By1, T1 = map(real, fields1)
+    Bx2, By2, T2 = map(real, fields2)
+    Bx3, By3, T3 = map(real, fields3)
+
+    Bx_col = color_cycle[0]
+    By_col = color_cycle[1]
+
+    fig, ax = plt.subplots(3, 2, gridspec_kw={"width_ratios": [2, 1.5]})
+    plot_fields_twinx(
+        Bx1[100:],
+        By1[100:],
+        T1[100:],
+        ax=ax[0, 1],
+        prop_zoom_start=0.301,
+        prop_zoom_end=0.3053,
+        far_lim=1,
+        near_lim=0.3,
+        tick_lim=0.5,
+    )
+    plot_fields_twinx(
+        Bx2, By2, T2, ax=ax[1, 1], prop_zoom_start=0.3, prop_zoom_end=0.31
+    )
+    plot_fields_twinx(
+        Bx3[100:],
+        By3[100:],
+        T3[100:],
+        ax=ax[2, 1],
+        prop_zoom_start=0.301,
+        prop_zoom_end=0.3053,
+        far_lim=1,
+        near_lim=0.3,
+        tick_lim=0.5,
+    )
+
+    n_sys = 70
+    n_spec = 1
+    systems_ax = np.concatenate(
+        (np.linspace(1, n_sys, n_sys), np.array([n_sys + n_spec + 3]))
+    )
+
+    fidelity_bar_plot(
+        fids1, systems_ax=systems_ax, ax=ax[0, 0], f=[0.9999], colours=["green"]
+    )
+    fidelity_bar_plot(
+        fids2,
+        systems_ax=systems_ax,
+        ax=ax[1, 0],
+        f=[0.9999],
+        colours=["green"],
+    )
+    fidelity_bar_plot(
+        fids3,
+        systems_ax=systems_ax,
+        f=[0.9999, 0.999],
+        colours=["green", "orange"],
+        ax=ax[2, 0],
+    )
+
+    x_offset, y_offset = [-0.12, -0.35]
+    fontsize = 11
+    label_axis(ax[0, 0], "1. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[1, 0], "2. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[2, 0], "3. (a)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[0, 1], "1. (b)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[1, 1], "2. (b)", x_offset, y_offset, fontsize=fontsize)
+    label_axis(ax[2, 1], "3. (b)", x_offset, y_offset, fontsize=fontsize)
+
+    fig.set_size_inches(9.2, 5.2)
+    # fig.set_size_inches(18 / 2.52, 18 / 2.54 * 5 / 9)
+    fig.tight_layout()
+
+    if fp is not None:
+        fig.savefig(fp)
+
+
+def single_sys_n_entangled_CX(fp=None):
+    tN1 = 300 * unit.ns  # lock_to_frequency(get_A(1, 1), 800 * unit.ns)
+    tN2 = 300 * unit.ns
+    N = 1500
+    kappa = 1
+    lam = 0
+
+    J = pt.tensor(50 * unit.MHz, dtype=real_dtype)
+    A = get_A_1P_2P(1)
+
+    grape1 = run_CNOTs(
+        tN=tN1,
+        N=N,
+        J=J,
+        A=A,
+        lam=lam,
+        kappa=kappa,
+        Grape=Grape_ee_Flip,
+        verbosity=0,
+        step=4,
+        stop_fid_avg=0.999,
+        stop_fid_min=0.999,
+        save_data=False,
+        prev_grape_fp="fields/c1438_1S_3q_300ns_1500step",
+        run_optimisation=False,
+    )
+    grape2 = run_CNOTs(
+        tN=tN2,
+        N=N,
+        J=J,
+        A=A,
+        lam=lam,
+        kappa=kappa,
+        Grape=Grape_ee_Flip,
+        verbosity=0,
+        step=3,
+        stop_fid_avg=0.999,
+        stop_fid_min=0.999,
+        save_data=False,
+        prev_grape_fp="fields/c1439_1S_3q_300ns_1500step",
+        run_optimisation=False,
+    )
+
+    Bx1, By1 = grape1.get_Bx_By()
+    Bx2, By2 = grape2.get_Bx_By()
+
+    mosaic = [["1a", "1a"], ["2a", "2a"], ["1b", "1c"], ["2b", "2c"]]
+    fig, ax = plt.subplot_mosaic(mosaic)
+
+    plot_fields(*grape1.get_Bx_By(), T=grape1.get_T(), ax=ax["1a"], legend_loc="right")
+    plot_fields(*grape2.get_Bx_By(), T=grape2.get_T(), ax=ax["2a"], legend_loc="right")
+
+    ax["1a"].set_yticks([-1, 0, 1])
+    ax["2a"].set_yticks([-0.5, 0, 0.5])
+
+    psi0_1 = gate.spin_1
+    psi0_2 = normalise(gate.spin_10)
+    psi0_spec_1 = normalise(gate.spin_00 + gate.spin_10 / np.sqrt(2))
+    psi0_spec_2 = normalise(gate.spin_00 + gate.spin_11 / np.sqrt(2))
+
+    psi1 = (dagger(get_U0(grape1.get_H0()[0], T=grape1.get_T())) @ grape1.X[0]) @ psi0_1
+    psi2 = (dagger(get_U0(grape2.get_H0()[0], T=grape2.get_T())) @ grape2.X[0]) @ psi0_2
+    psi1_spec = grape1.X_spec[0] @ psi0_spec_1
+    psi2_spec = grape2.X_spec[0] @ psi0_spec_2
+
+    label_getter_1 = lambda i: ["⇑↑↓", "⇑↑↑"][i]
+    label_getter_2 = lambda i: ["⇓↓↑", "⇓↑↑"][i]
+    label_getter_spec_1 = lambda i: ["⇓↓", "⇑↓"][i]
+    label_getter_spec_2 = lambda i: ["⇓↓", "⇑↑"][i]
+
+    legend_loc = "center"
+    colors = ["black", "red"]
+    plot_psi(
+        psi1[:, [6, 7]],
+        T=grape1.get_T(),
+        ax=ax["1b"],
+        label_getter=label_getter_1,
+        legend_loc="center",
+        colors=colors,
+    )
+    plot_psi(
+        psi2[:, [1, 3]],
+        T=grape2.get_T(),
+        ax=ax["2b"],
+        label_getter=label_getter_2,
+        legend_loc="center",
+        colors=colors,
+    )
+    plot_psi(
+        psi1_spec[:, [0, 2]],
+        T=grape1.get_T(),
+        ax=ax["1c"],
+        label_getter=label_getter_spec_1,
+        legend_loc="center",
+        colors=colors,
+    )
+    plot_psi(
+        psi2_spec[:, [0, 3]],
+        T=grape2.get_T(),
+        ax=ax["2c"],
+        label_getter=label_getter_spec_2,
+        legend_loc="center",
+        colors=colors,
+    )
+    ax["1a"].set_ylabel("B-field (mT)")
+    ax["2a"].set_ylabel("B-field (mT)")
+    ax["1b"].set_ylabel("$|\psi_{{12}}|^2$")
+    ax["1c"].set_ylabel("$|\psi_{{3}}|^2$")
+    ax["2b"].set_ylabel("$|\psi_{{23}}|^2$")
+    ax["2c"].set_ylabel("$|\psi_{{1}}|^2$")
+    for ax in [ax["1b"], ax["1c"], ax["2b"], ax["2c"]]:
+        ax.set_ylim([0, 1])
+        ax.set_yticks([0, 1])
+
+    fig.set_size_inches(14 / 2.54, 14 / 2.54)
+    fig.tight_layout()
+    if fp is not None:
+        fig.savefig(fp)
 
 
 if __name__ == "__main__":
@@ -1091,5 +1296,7 @@ if __name__ == "__main__":
     # single_system_pulses_and_unitaries()
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step")
     # single_systems()
-    multi_system_n_entangled_CX()
+    # multi_system_n_entangled_CX()
+    # single_sys_n_entangled_CX()
+    multi_n_entangled_3_pulse()
     plt.show()

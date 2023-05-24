@@ -7,6 +7,7 @@ from run_grape import get_fids_and_field_from_fp
 from cnot_1P_2P_1P import *
 from unique_configs import get_donor_sites_1P_2P
 from run_grape import run_CNOTs
+from duration_vs_systems import get_data_from_log
 
 
 folder = "paper-plots/"
@@ -369,24 +370,43 @@ def show_configs(fp=None):
         fig.savefig(fp)
 
 
+def log_single_exchange(grape, fp="logs/single-exchange-log.csv"):
+    Bmax = get_max_field(*grape.get_Bx_By()) / unit.mT
+    tN = grape.tN / unit.ns
+    J = real(grape.J / unit.MHz).item()
+    Phi_avg = pt.mean(grape.Phi) * 100
+    Phi_min = minreal(grape.Phi) * 100
+    calls = grape.calls_to_cost_fn
+    opt_time = grape.time_taken
+    with open(fp, "a") as f:
+        f.write(
+            f"\n{J},{tN:.0f},{grape.N},{grape.nS},{Phi_avg:.1f},{Bmax:.2f},{grape.lam:.0e},{grape.kappa:.0e},{opt_time:.0f},{calls}, {grape.status}"
+        )
+
+
 def single_CX_for_many_exchanges():
     J_1_9 = pt.linspace(1, 9, 9)
     J = pt.cat((J_1_9, 10 * J_1_9, 100 * J_1_9))
 
-    J = 2.5 * unit.MHz
     lam = 0
     kappa = 1e2
-
-    print(run_CNOTs(
-        1500 * unit.ns,
-        2000,
-        J=pt.tensor(J, dtype=cplx_dtype),
-        A=get_A_1P_2P(1),
-        save_data=False,
-        lam=lam,
-        kappa=kappa,
-        verbosity=-1,
-    ).get_opt_state())
+    for J in range(200, 1000, 100):
+        print(f"J = {J} MHz")
+        grape = run_CNOTs(
+            800 * unit.ns,
+            2500,
+            J=pt.tensor(J * unit.MHz, dtype=cplx_dtype),
+            A=get_A_1P_2P(1),
+            save_data=False,
+            lam=lam,
+            kappa=kappa,
+            verbosity=-1,
+            dynamic_opt_plot=False,
+            stop_fid_avg=0.99,
+            stop_fid_min=0.99,
+        )
+        print(grape.get_opt_state())
+        log_single_exchange(grape)
 
 
 if __name__ == "__main__":
@@ -402,12 +422,13 @@ if __name__ == "__main__":
     # get_2e_flip_fig()
     # get_2e_entangle_fig()
     # multi_2P_1P_CX(f"{folder}multi-sys-2P-1P.pdf")
-    all_multi_system_pulses(
-        fp=f"{folder}/all-multi-sys-pulses.pdf",
-        grape_fp1="fields/g399_70S_3q_4991ns_8000step",
-        grape_fp2="fields/g392_70S_2q_3000ns_8000step",
-        grape_fp3="fields/g409_70S_3q_3966ns_8000step",
-    )
+    # all_multi_system_pulses(
+    #     fp=f"{folder}/all-multi-sys-pulses.pdf",
+    #     grape_fp1="fields/g399_70S_3q_4991ns_8000step",
+    #     grape_fp2="fields/g392_70S_2q_3000ns_8000step",
+    #     grape_fp3="fields/g409_70S_3q_3966ns_8000step",
+    # )
+
     # small_MW_1_3("fields/c1326_1S_3q_479ns_1000step", fp=f"{folder}MW1-single.pdf")
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step", fp=f"{folder}MW3-single.pdf")
     # single_systems(
@@ -419,4 +440,11 @@ if __name__ == "__main__":
     # show_configs(f"{folder}1P-2P-configs.pdf")
 
     # single_CX_for_many_exchanges()
+    # get_data_from_log(fp_fig = f"{folder}tN-vs-nS.pdf")
+    multi_system_n_entangled_CX(
+        grape_fp1="fields/g443_70S_3q_3966ns_8000step",
+        fp=f"{folder}multi-sys-pulses.pdf",
+    )
+    multi_n_entangled_3_pulse()
+    # single_sys_n_entangled_CX(fp=f"{folder}single-sys-n-entangled.pdf")
     plt.show()
