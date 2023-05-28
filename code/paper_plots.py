@@ -441,10 +441,11 @@ if __name__ == "__main__":
 
     # single_CX_for_many_exchanges()
     # get_data_from_log(fp_fig = f"{folder}tN-vs-nS.pdf")
-    multi_system_n_entangled_CX(
-        grape_fp1="fields/g443_70S_3q_3966ns_8000step",
-        fp=f"{folder}multi-sys-pulses.pdf",
-    )
-    multi_n_entangled_3_pulse()
+    # multi_system_n_entangled_CX(
+    #     grape_fp1="fields/g443_70S_3q_3966ns_8000step",
+    #     fp=f"{folder}multi-sys-pulses.pdf",
+    # )
+    # multi_n_entangled_3_pulse()
     # single_sys_n_entangled_CX(fp=f"{folder}single-sys-n-entangled.pdf")
+    latest_single_sys(fp = f"{folder}single-sys-5spin.pdf")
     plt.show()

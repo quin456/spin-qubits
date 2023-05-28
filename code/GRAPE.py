@@ -250,7 +250,7 @@ class Grape(ABC):
         matrix_exp_batches=1,
         stop_fid_avg=0.99999,
         stop_fid_min=0.99999,
-        stop_max_field=15 * unit.mT,
+        stop_max_field=4 * unit.mT,
         dynamic_opt_plot=False,
         dynamic_params=False,
     ):
@@ -338,6 +338,7 @@ class Grape(ABC):
         self.verbosity = verbosity
         self.operation = operation
         self.iters = 0
+        self.calls_to_cost_fn = 0
         self.time_taken = None
         self.lam = lam
         self.alpha = alpha
@@ -350,11 +351,17 @@ class Grape(ABC):
         self.dJ_hist = []
         self.dJ_spec_hist = []
         self.J_reg_hist = []
+        self.d_cost = None
+        self.d_Phi_min = None
+        self.J_reg = 0
         self.X0 = X0
         self.matrix_exp_batches = matrix_exp_batches
         self.stop_fid_avg = stop_fid_avg
         self.stop_fid_min = stop_fid_min
         self.stop_max_field = stop_max_field
+        self.stop_d_cost = 0
+        self.manual_termination = False
+        self.max_time = 100 * 3600
         self.time_passed = 0
         self.N_rec = get_rec_min_N(
             rf=self.get_control_frequencies(), tN=self.tN, verbosity=0
@@ -373,6 +380,8 @@ class Grape(ABC):
             plt.switch_backend("TkAgg")
             self.setup_optimization_tracking_plots()
             # self.setup_Bx_By_tracking_plots()
+        if self.dynamic_params:
+            self.update_params(verbosity=-2)
 
     def setup_optimization_tracking_plots(self):
         fig, ax = plt.subplots(1, 3)
@@ -385,13 +394,22 @@ class Grape(ABC):
         fig.tight_layout()
         ax_input = defaultdict(lambda: {})
         ax_input["ylim"] = {0: [0, 1]}
-        ax_input["ax"] = {0: ax[0], 1: ax[0], 2: ax[1], 3: ax[1], 4: ax[2]}
-        ax_input["color"] = {0: "black", 1: "red", 2: "red", 3: "blue", 4: "orange"}
+        ax_input["ax"] = {0: ax[0], 1: ax[0], 2: ax[1], 3: ax[1], 4: ax[2], 5: ax[1]}
+        ax_input["color"] = {
+            0: "black",
+            1: "red",
+            2: "red",
+            3: "blue",
+            4: "orange",
+            # 5: "blue",
+        }
+        ax_input["linestyle"] = {5: "--"}
         ax_input["legend_label"] = {
             0: "Cost",
-            1: "Amplitude cost",
+            1: "Grad Cost",
             2: "Avg fidelity",
             3: "Min Fidelity",
+            # 5: "Projected Min Fidelity",
         }
         self.dynamic_cost_plot = DynamicOptimizationPlot(n_plots=5, ax_input=ax_input)
 
@@ -510,7 +528,10 @@ class Grape(ABC):
         return rf
 
     def u_mat(self, device=default_device):
-        return uToMatrix(self.u, self.m).to(device)
+        try:
+            return uToMatrix(self.u, self.m).to(device)
+        except:
+            pass
 
     def init_u(self, device="cpu"):
         """
@@ -518,23 +539,23 @@ class Grape(ABC):
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         """
         u0_max = 1 / (gamma_e * self.tN * unit.T)
-        u0_k = pt.cat(
-            (
-                pt.linspace(0, u0_max, self.N // 2, dtype=cplx_dtype, device=device),
-                linspace(
-                    u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
-                ),
+        u0_k = (1 / self.m) * (
+            pt.cat(
+                (
+                    pt.linspace(
+                        0, u0_max, self.N // 2, dtype=cplx_dtype, device=device
+                    ),
+                    linspace(
+                        u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
+                    ),
+                )
             )
         )
         u0 = pt.einsum(
             "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
         )
-        u0 = (
-            1
-            / (gamma_e * self.tN)
-            * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device)
-            / unit.T
-        ) / 2
+        # u0 = u0_max * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device) / self.m
+
         return uToVector(u0)
 
     def time_evolution(self):
@@ -641,68 +662,108 @@ class Grape(ABC):
         return f"nS={self.nS}, tN={self.tN/unit.ns:.0f}ns N={self.N}, λ={self.lam:.1e}, κ={self.kappa:.1e}"
 
     def get_opt_state(self):
-        time_and_calls = (
-            f"time: {self.time_passed:.1f}s, calls: {self.calls_to_cost_fn}"
-        )
+        time_and_calls = f"time: {self.time_passed:.1f}s, iters: {self.iters}"
         if self.simulate_spectators:
             fidelities = f"Avg fidelity = {pt.mean(self.Phi)*100:.1f}%, Min fidelity = {minreal(self.Phi)*100:.1f}%, Spec fidelity = {pt.mean(self.Phi_spec)*100:.1f}%"
         else:
             fidelities = f"Avg fidelity = {pt.mean(self.Phi)*100:.1f}%, Min fidelity = {minreal(self.Phi)*100:.1f}%"
-        return f"{time_and_calls}, {fidelities}, Max field = {self.max_field()/unit.mT:.2f} mT, status={self.status}"
+        opt_state_str = f"{time_and_calls}, {fidelities}, Max field = {self.max_field()/unit.mT:.2f} mT, status={self.status}"
+        if self.d_cost is not None:
+            opt_state_str += f", d_cost/iter={self.d_cost:.1e}"
+        if hasattr(self, "projected_iters_remaining"):
+            opt_state_str += f", est it left = {self.projected_iters_remaining:.1f}"
+        return opt_state_str
 
     def get_opt_specs_and_state(self):
         return f"{self.get_opt_specs()}, {self.get_opt_state()}"
 
-    def update_params(self):
+    def update_params(self, verbosity=None):
+        if verbosity is None:
+            verbosity = self.verbosity
         fp_dynamic_params = "code/dynamic_opt_params.json"
         params = json.load(open(fp_dynamic_params))
         if self.lam != params["lam"]:
             self.lam = params["lam"]
-            print(f"Updated λ = {self.lam:.1e}, ")
+            if verbosity > -2:
+                print(f"Updated λ = {self.lam:.1e}, ")
         if self.kappa != params["kappa"]:
             self.kappa = params["kappa"]
-            print(f"Updated κ = {self.kappa:.1e}")
+            if verbosity > -2:
+                print(f"Updated κ = {self.kappa:.1e}")
+        if self.max_time != params["max_time"]:
+            self.max_time = params["max_time"]
+            if verbosity > -2:
+                print(f"Updated max_time = {self.max_time:.0f}")
+        if params["end_optimisation"]:
+            self.manual_termination = True
+        if abs(params["stop_max_field"] - self.stop_max_field / unit.mT) > 1e-3:
+            self.stop_max_field = params["stop_max_field"] * unit.mT
+            if verbosity > -2:
+                print(f"Updated stop_max_field = {self.stop_max_field/unit.mT:.0f}")
+        if params["stop_d_cost"] != self.stop_d_cost:
+            self.stop_d_cost = params["stop_d_cost"]
+            if verbosity > -2:
+                print(f"Updated stop_d_cost = {self.stop_d_cost:.1e}")
+
+    def update_dynamic_opt_plot(self, update_period=5):
+        if self.iters % update_period == 0:
+            self.dynamic_cost_plot.update(
+                [
+                    self.cost_hist,
+                    self.dJ_hist,
+                    self.Phi_avg_hist,
+                    self.Phi_min_hist,
+                    self.max_field_hist,
+                ]
+            )
+            # Bx, By = self.get_Bx_By()
+            # T = self.get_T()
+            # self.dynamic_Bx_By_plot.update(
+            #     [self.u_mat()[0, :], self.u_mat()[1, :]], [T / unit.ns, T / unit.ns]
+            # )
 
     def callback(self, xk):
         """x`
         Callback function for optimization of cost function.
         """
-        update_period = 5
+        d_iters_cost = 10
+        d_iters_Phi_min = 30
         self.iters += 1
         self.Phi_avg_hist.append(pt.mean(self.Phi).item())
         self.Phi_min_hist.append(minreal(self.Phi).item())
         self.max_field_hist.append((self.max_field() / unit.mT).item())
         self.J_reg_hist.append(self.J_reg)
-        if self.dynamic_opt_plot:
-            if self.iters % update_period == 0:
-                self.dynamic_cost_plot.update(
-                    [
-                        self.cost_hist,
-                        self.J_reg_hist,
-                        self.Phi_avg_hist,
-                        self.Phi_min_hist,
-                        self.max_field_hist,
-                    ]
-                )
-                # Bx, By = self.get_Bx_By()
-                # T = self.get_T()
-                # self.dynamic_Bx_By_plot.update(
-                #     [self.u_mat()[0, :], self.u_mat()[1, :]], [T / unit.ns, T / unit.ns]
-                # )
+        self.cost_hist.append(self.cost_prev)
+        if len(self.cost_hist) > 10:
+            self.d_cost = (
+                self.cost_hist[-1] - self.cost_hist[-d_iters_cost]
+            ) * d_iters_cost
 
+        if len(self.Phi_min_hist) > d_iters_Phi_min:
+            self.d_Phi_min = self.Phi_min_hist[-1] - self.Phi_min_hist[-d_iters_Phi_min]
+            self.projected_iters_remaining = (
+                self.stop_fid_min - self.Phi_min_hist[-1]
+            ) / (self.d_Phi_min / d_iters_Phi_min)
+
+        if self.dynamic_opt_plot:
+            self.update_dynamic_opt_plot()
         self.time_passed = time.time() - self.start_time
         if self.dynamic_params:
-            self.update_params()
+            manual_termination_flag = self.update_params()
         if self.verbosity > -2 and not pt.cuda.is_available():
             # Assume no gpu => running on personal computer. Print progress updates.
             print(self.get_opt_state(), end="\r")
         if self.max_time:
             self.check_time(xk)
 
+        if self.simulate_spectators:
+            Phi_spec_condition = self.stop_fid_min < pt.mean(self.Phi_spec)
+        else:
+            Phi_spec_condition = True
         if (
-            self.stop_fid_avg < real(pt.mean(self.Phi))
-            and self.stop_fid_min < minreal(self.Phi)
-            and self.stop_fid_min < pt.mean(self.Phi_spec)
+            self.stop_fid_avg <= real(pt.mean(self.Phi))
+            and self.stop_fid_min <= minreal(self.Phi)
+            and Phi_spec_condition
         ):
             self.u_opt_terminated = xk
             if self.verbosity > -1:
@@ -711,6 +772,15 @@ class Grape(ABC):
                 )
             raise StopFidelityException
 
+        if self.d_cost is not None:
+            if abs(self.d_cost) < abs(self.stop_d_cost):
+                self.u_opt_terminated = xk
+                if self.verbosity > -1:
+                    print(
+                        f"d_cost magnitude has decreased below minimum: {self.stop_d_cost:.1e}. Terminating optimization."
+                    )
+                raise StopDCostException
+
         if self.stop_max_field < self.max_field():
             self.u_opt_terminated = xk
             if self.verbosity > -1:
@@ -718,6 +788,12 @@ class Grape(ABC):
                     f"Max field {self.stop_max_field/unit.mT:.1f} mT exceeded. Terminating optimization."
                 )
             raise StopMaxFieldException
+
+        if self.manual_termination:
+            self.u_opt_terminated = xk
+            if self.verbosity > -1:
+                print(f"Optimization manually terminated.")
+            raise ManualTerminationException
 
     def check_time(self, xk):
         """
@@ -894,7 +970,8 @@ class Grape(ABC):
         self.dJ_prev = dJ
 
         J = J.item()
-        self.cost_hist.append(J)
+        self.cost_prev = J
+        self.dJ_norm = pt.norm(dJ)
         dJ = real(dJ).cpu().detach().numpy()
 
         return J, dJ
@@ -923,7 +1000,6 @@ class Grape(ABC):
         time_fid += time.time() - t0
 
         J, dJ = self.cost_from_fidelity(Phi_avg, dPhi_avg)
-        self.dJ_hist.append(pt.norm(dJ))
 
         if self.simulate_spectators:
             J_spec, dJ_spec = self.spectator_cost()
@@ -963,7 +1039,6 @@ class Grape(ABC):
         self.start_time = time.time()
         self.max_time = max_time
         callback = self.callback
-        self.calls_to_cost_fn = 0
         if self.verbosity > -1:
             print("\n+++++  RUNNING OPTIMISATION  +++++")
             if self.max_time is None:
@@ -995,11 +1070,24 @@ class Grape(ABC):
                 self.u_opt_terminated, dtype=cplx_dtype, device=default_device
             )
             self.status = "SF"  # uncomplete - Stopping Fidelity
+
+        except StopDCostException:
+            self.u = pt.tensor(
+                self.u_opt_terminated, dtype=cplx_dtype, device=default_device
+            )
+            self.status = "DC"  # uncomplete - Stopping d_cost
+
         except StopMaxFieldException:
             self.u = pt.tensor(
                 self.u_opt_terminated, dtype=cplx_dtype, device=default_device
             )
-            self.status = "MF"  # uncomplete - Stopping Fidelity
+            self.status = "MF"  # uncomplete - Max field
+
+        except ManualTerminationException:
+            self.u = pt.tensor(
+                self.u_opt_terminated, dtype=cplx_dtype, device=default_device
+            )
+            self.status = "MT"  # uncomplete - Manual Termination
 
         self.time_taken = time.time() - self.start_time
         if self.verbosity >= 1:
@@ -1862,6 +1950,14 @@ class StopMaxFieldException(Exception):
     pass
 
 
+class ManualTerminationException(Exception):
+    pass
+
+
+class StopDCostException(Exception):
+    pass
+
+
 ################################################################################################################
 ################        Hamiltonians        ####################################################################
 ################################################################################################################
@@ -2409,13 +2505,11 @@ class Grape_ee_Flip(GrapeESR):
 
         kwargs["A_spec"] = get_A_spec_single()
         kwargs["X0_spec"] = gate.II
-        if step in [1, 2]:
-            kwargs["target_spec"] = gate.CX_native
-        else:
-            kwargs["target_spec"] = gate.II
+        kwargs["target_spec"] = gate.II
 
         kwargs["target"] = target
         kwargs["X0"] = X0
+
         super().__init__(tN, N, J, A, **kwargs)
         pass
 
@@ -2618,9 +2712,10 @@ def load_u(fp=None, SP=None):
 
 def load_grape(fp, Grape=GrapeESR, **kwargs):
     grape = load_system_data(fp, Grape=Grape, **kwargs)
-    grape.propagate()
+    grape.cost(grape.u)
     if grape.simulate_spectators:
         grape.get_spec_propagators()
+    print(grape.get_opt_state())
     return grape
 
 

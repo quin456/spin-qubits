@@ -1,4 +1,8 @@
 {
     "lam": 1e7,
-    "kappa": 1e2
+    "kappa": 1,
+    "max_time": 3600,
+    "stop_max_field": 4,
+    "end_optimisation": 0,
+    "stop_d_cost": 1e-5
 }

@@ -34,6 +34,7 @@ J_100_18nm = (
 
 J_low = J_100_18nm * J_low_max / pt.max(pt.real(J_100_18nm))
 
+
 J_100_14nm = (
     pt.tensor(exch_data["100_14"], dtype=cplx_dtype, device=default_device) * unit.MHz
 )
@@ -104,6 +105,10 @@ A_Sb = 186.8 / 4
 
 eta2 = -3e-3 * (unit.um / unit.V) ** 2
 
+J_single = pt.tensor(60 * unit.MHz, dtype=real_dtype)
+A_1P_2P_single = pt.tensor([A_P, 70 * unit.MHz], dtype=real_dtype)
+A_2P_1P_single = pt.tensor([70 * unit.MHz, A_P], dtype=real_dtype)
+
 
 def get_A_from_num_P_donors(num_P_donors):
     if num_P_donors == 1:
@@ -153,7 +158,7 @@ def get_A(nS, nq, NucSpin=None, A_mags=None, device=default_device):
 
 def all_J_pairs(J1, J2, device=default_device):
     nJ = min((len(J1), len(J2)))
-    J = pt.zeros(nJ ** 2, 2, device=device, dtype=cplx_dtype)
+    J = pt.zeros(nJ**2, 2, device=device, dtype=cplx_dtype)
     for i in range(nJ):
         for j in range(nJ):
             J[i * nJ + j, 0] = J1[i]
@@ -170,7 +175,6 @@ def get_J(
     device=default_device,
     E_rise_time=1 * unit.ns,
 ):
-
     # default to small exchange for testing single triple donor
     # if nS==1 and nq==3:
     #     return pt.tensor([0.37*unit.MHz, 0.21*unit.MHz], dtype=cplx_dtype)

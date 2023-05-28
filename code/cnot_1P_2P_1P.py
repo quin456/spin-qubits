@@ -1075,13 +1075,15 @@ def multi_n_entangled_3_pulse(
     grape_fp3="fields/g379_69S_3q_5983ns_8000step",
     fp=None,
 ):
-    fids1, fields1 = get_fids_and_field_from_fp(
-        grape_fp1, Grape=Grape_ee_Flip, step=10, get_from_grape=True
+    # fids1, fields1 = get_fids_and_field_from_fp(
+    #     grape_fp1, Grape=Grape_ee_Flip, step=1, get_from_grape=True
+    # )
+    # fids2, fields2 = get_fids_and_field_from_fp(
+    #     grape_fp2, Grape=Grape_ee_Flip, step=2, get_from_grape=True
+    # )
+    fids3, fields3 = get_fids_and_field_from_fp(
+        grape_fp3, Grape=Grape_ee_Flip, step=3, get_from_grape=True
     )
-    fids2, fields2 = get_fids_and_field_from_fp(
-        grape_fp2, Grape=GrapeESR, A_spec=get_A_spec_single()
-    )
-    fids3, fields3 = get_fids_and_field_from_fp(grape_fp3, Grape=Grape_ee_Flip, step=11)
 
     Bx1, By1, T1 = map(real, fields1)
     Bx2, By2, T2 = map(real, fields2)
@@ -1278,6 +1280,167 @@ def single_sys_n_entangled_CX(fp=None):
         fig.savefig(fp)
 
 
+def latest_multi_sys():
+    # grape_fp1 = "fields/g448_70S_3q_3966ns_8000step"
+    grape_fp1 = "fields/g457_70S_3q_3966ns_8000step"
+    grape_fp2 = "fields/g466_70S_3q_2974ns_9000step"
+    grape_fp3 = "fields/g464_70S_3q_3966ns_8000step"
+
+    multi_n_entangled_3_pulse(
+        grape_fp1=grape_fp1, grape_fp2=grape_fp2, grape_fp3=grape_fp3
+    )
+
+
+def three_pulses_one_ax(grape1, grape2, grape3, ax):
+    """
+    Puts three pulses one on top of other similar to with three axes, but
+    on a single axis, with ticks set appropriately.
+    """
+    plot_fields()
+
+
+def latest_single_sys(
+    fp1="fields/c1457_1S_3q_274ns_800step",
+    fp2="fields/c1469_1S_3q_342ns_500step",
+    fp3="fields/c1463_1S_3q_274ns_500step",
+    fp=None,
+):
+    grape1 = load_grape(fp1, Grape_ee_Flip, step=1)
+    grape2 = load_grape(fp2, Grape_ee_Flip, step=2)
+    grape3 = load_grape(fp3, Grape_ee_Flip, step=3)
+    grape = [grape1, grape2, grape3]
+
+    ax1 = np.array([None] * 3)
+    ax2 = np.array([[None] * 3 for _ in range(2)])
+
+    mosaic = [
+        ["A", "A", "A"],
+        ["B", "B", "B"],
+        ["C", "C", "C"],
+        ["D", "D", "D"],
+    ]
+    fig, ax = plt.subplot_mosaic(
+        mosaic,
+        gridspec_kw={"height_ratios": [1, 1, 1, 2]},
+        figsize=(20 / 2.54, 15 / 2.54),
+    )
+    ax1 = [ax["A"], ax["B"], ax["C"]]
+
+    colors1 = ["black", "black", "red"]
+    linestyles1 = ["--", "-", "-"]
+    linewidth = 0.8
+    psi0_13 = (gate.spin_0 + gate.spin_1) / np.sqrt(2)
+    psi0_13_spec = (gate.spin_00 + gate.spin_10) / np.sqrt(2)
+
+    psi0_2 = gate.spin_10
+    psi0_2_spec = gate.spin_00
+
+    psi0 = [psi0_13, psi0_2, psi0_13]
+    psi0_spec = [psi0_13_spec, psi0_2_spec, psi0_13_spec]
+
+    pulse_labels = ["MW1", "MW2", "MW3"]
+    pulse_labels = ["(a)", "(b)", "(c)"]
+    facecolors = ["red", "blue", "green"]
+    x_offset = -0.3
+    y_offset = -0.2
+
+    def label_getter_5spin(j):
+        # if j == 0:
+        #     return "⇓↓↓↓⇓"
+        if j == 16:
+            return "⇑↓↓↓⇓"
+        elif j == 18:
+            return "⇑↓↓↑⇓"
+        elif j == 28:
+            return "⇑↑↑↓⇓"
+        elif j == 30:
+            return "⇑↑↑↑⇓"
+
+    colors_5spin = ["gray"] * 32
+    # colors_5spin[0] = "black"
+    colors_5spin[16] = "red"
+    colors_5spin[18] = "orange"
+    colors_5spin[28] = "purple"
+    colors_5spin[30] = "green"
+
+    label_getter_1 = lambda i: ["⇓↓↓↓⇓", "⇑↓↓↓⇓", "⇑↑↑↓⇓"][i]
+    label_getter_2 = lambda i: ["⇓↓↓↓⇓", "⇑↑↑↓⇓", "⇑↑↑↑⇓"][i]
+    label_getters = [label_getter_1, label_getter_2, label_getter_1]
+
+    T1 = grape[0].get_T()
+    T2 = T1[-1] + grape[1].get_T()
+    T3 = T2[-1] + grape[2].get_T()
+
+    T = pt.cat((T1, T2, T3))
+
+    psi1 = grape[0].X[0] @ gate.spin_1
+    psi1_spec = (grape[0].X_spec[0] @ gate.spin_00)[:, [0, 2, 1, 3]]
+    psi1_5s = batch_kron(psi1, psi1_spec)
+    psi2 = (grape[1].X[0] @ gate.spin_10)[:, [0, 4, 2, 6, 1, 5, 3, 7]]
+    psi2_spec = grape[1].X_spec[0] @ gate.spin_11
+    psi2_5s = batch_kron(psi2_spec, psi2)
+    psi3 = grape[2].X[0] @ gate.spin_1
+    psi3_spec = (grape[2].X_spec[0] @ gate.spin_01)[:, [0, 2, 1, 3]]
+    psi3_5s = batch_kron(psi3, psi3_spec)
+
+    psi = pt.cat((psi1_5s, psi2_5s, psi3_5s))
+
+    plot_psi(psi, T=T, label_getter=label_getter_5spin, colors=colors_5spin, ax=ax["D"])
+
+    ax["A"].set_yticks([-0.25, 0, 0.25])
+    ax["B"].set_yticks([-0.5, 0, 0.5])
+    ax["C"].set_yticks([-0.25, 0, 0.25])
+    ax["A"].set_ylim([-0.3, 0.3])
+    ax["B"].set_ylim([-0.55, 0.55])
+    ax["C"].set_ylim([-0.3, 0.3])
+    for i in range(3):
+        # ax1[i] = subfig1.add_subplot(subgrid1[i, :])
+        plot_fields(
+            *grape[i].get_Bx_By(), T=grape[i].get_T(), ax=ax1[i], legend_loc="right"
+        )
+        ax1[i].set_ylabel("B-field (mT)")
+        # for j in range(2):
+        # ax2[j, i] = subfig2.add_subplot(subgrid2[j, i])
+        psi = grape[i].X[0] @ psi0[i]
+        psi_spec = grape[i].X_spec[0] @ psi0_spec[i]
+        psi = psi[:, [0, 4, 7]]
+        psi_spec = psi_spec[:, [0, 2, 3]]
+
+        xf = round(grape[i].tN / unit.ns)
+        ax1[i].set_xticks([100 * i for i in range(10) if 100 * i < xf] + [xf])
+        ax1[i].set_xlim([-20, 400])
+
+        fontsize = 12
+        label_axis(ax1[i], pulse_labels[i], -0.07, -0.5, fontsize=fontsize)
+    ax["D"].set_xlim(0, real(T[-1] / unit.ns) + 190)
+    ax["D"].set_ylim([0, 1.2])
+    t12 = real(T1[-1] / unit.ns)
+    t23 = real(T2[-1] / unit.ns)
+    tf = real(T3[-1] / unit.ns)
+    ax["D"].set_xticks([0, pt.round(t12), pt.round(t23), pt.round(tf)])
+    ax["D"].axvline(t12, color="black", linestyle="--")
+    ax["D"].axvline(t23, color="black", linestyle="--")
+    ax["D"].axvline(tf, color="black", linestyle="--")
+    y_offset = 0.8
+    fontsize = 13
+    label_axis(ax["D"], "Steps 3-4", 0.05, y_offset, fontsize)
+    label_axis(ax["D"], "Step 5", 0.35, y_offset, fontsize)
+    label_axis(ax["D"], "Steps 6-7", 0.63, y_offset, fontsize)
+    label_axis(ax["D"], "(d)", x_offset=-0.07, y_offset=-0.25, fontsize=fontsize)
+    fig.tight_layout()
+
+    if fp is not None:
+        fig.savefig(fp)
+
+
+def test_multi_sys_grape(grape_fp, step):
+    grape = load_grape(grape_fp, Grape=Grape_ee_Flip, step=step, verbosity=-1)
+    # print(grape.J/unit.MHz)
+    # print(grape.A/unit.MHz)
+    # fids, fields = get_fids_and_field_from_fp(grape_fp, get_from_grape=True, Grape=Grape_ee_Flip, step=step)
+    # fidelity_bar_plot(fids, ylim = [0,1])
+
+
 if __name__ == "__main__":
     # get_2e_flip_grape_pulse()
     # run_2e_swap()
@@ -1298,5 +1461,8 @@ if __name__ == "__main__":
     # single_systems()
     # multi_system_n_entangled_CX()
     # single_sys_n_entangled_CX()
-    multi_n_entangled_3_pulse()
+    # multi_n_entangled_3_pulse()
+    # latest_multi_sys()
+    # latest_single_sys()
+    test_multi_sys_grape("fields/g469_2S_3q_376ns_800step", step=3)
     plt.show()

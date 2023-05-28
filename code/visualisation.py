@@ -225,7 +225,16 @@ def plot_psi_with_phase(psi, T, ax=None):
 
 
 def plot_fields(
-    Bx, By, tN=None, T=None, ax=None, ylabel=False, legend_loc="best", **kwargs
+    Bx,
+    By,
+    tN=None,
+    T=None,
+    ax=None,
+    ylabel=False,
+    legend_loc="best",
+    xcol=color_cycle[0],
+    ycol=color_cycle[1],
+    **kwargs,
 ):
     """
     Inputs
@@ -243,8 +252,20 @@ def plot_fields(
         legend_unit = " (mT)"
     else:
         legend_unit = ""
-    ax.plot(T / unit.ns, Bx * 1e3 / unit.T, label="$B_x$" + legend_unit, **kwargs)
-    ax.plot(T / unit.ns, By * 1e3 / unit.T, label="$B_y$" + legend_unit, **kwargs)
+    ax.plot(
+        T / unit.ns,
+        Bx * 1e3 / unit.T,
+        label="$B_x$" + legend_unit,
+        color=xcol,
+        **kwargs,
+    )
+    ax.plot(
+        T / unit.ns,
+        By * 1e3 / unit.T,
+        label="$B_y$" + legend_unit,
+        color=ycol,
+        **kwargs,
+    )
     ax.set_xlabel("time (ns)")
     if y_axis_labels:
         ax.set_ylabel("$B_\omega(t)$ (mT)")
@@ -577,7 +598,7 @@ def fidelity_bar_plot(
     colours=["green", "orange", "red"],
     labels=None,
     legend_loc="upper left",
-    ylim=[0.999, 1.0005],
+    ylim=[0.99, 1.005],
     put_xlabel=True,
     **kwargs,
 ):
@@ -969,8 +990,10 @@ class DynamicOptimizationPlot:
                 self.ax[k].legend()
 
     def update(self, data, x_data=None):
+        if x_data is None:
+            x_data = [None for _ in range(self.n_plots)]
         for k in range(self.n_plots):
-            if x_data is None:
+            if x_data[k] is None:
                 x = range(len(data[k]))
             else:
                 x = x_data[k]

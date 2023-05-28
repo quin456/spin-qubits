@@ -40,7 +40,7 @@ from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
 
 
-def get_fids_and_field_from_fp(fp, get_from_grape=False, **kwargs):
+def get_fids_and_field_from_fp(fp, get_from_grape=False, verbosity=-1, **kwargs):
     fp_fids = fp + "_fids"
     fp_fields = fp + "_fields"
     if os.path.isfile(fp_fids) and not get_from_grape:
@@ -54,7 +54,7 @@ def get_fids_and_field_from_fp(fp, get_from_grape=False, **kwargs):
         # T = linspace(0, grape.tN, grape.N)
         # fields = pt.stack((Bx, By, T))
     else:
-        grape = load_grape(fp=fp, **kwargs)
+        grape = load_grape(fp=fp, verbosity=verbosity, **kwargs)
         fids = pt.cat((grape.fidelity()[0], grape.spectator_fidelity()[0]))
         Bx, By = grape.sum_XY_fields()
         Bx *= unit.T
@@ -261,7 +261,6 @@ def run_CNOTs(
 
 
 if __name__ == "__main__":
-
     # run_CNOTs(
     #     tN=lock_to_frequency(get_A(1, 1), 200 * unit.ns),
     #     N=200,
@@ -271,7 +270,16 @@ if __name__ == "__main__":
     #     stop_fid_avg=0.99
     # )
     grape = run_CNOTs(
-        200 * unit.ns, N=200, J=get_J_1P_2P(1), A=get_A_1P_2P(1), verbosity=-1, save_data=False
+        800 * unit.ns,
+        N=2000,
+        J=get_J_1P_2P(3),
+        A=get_A_1P_2P(3),
+        verbosity=-1,
+        save_data=False,
+        dynamic_opt_plot=True,
+        dynamic_params=True,
+        lam=1e7,
+        kappa=1e2,
     )
     print(grape.get_opt_state())
     if not pt.cuda.is_available():
