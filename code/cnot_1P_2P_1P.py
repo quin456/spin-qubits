@@ -15,7 +15,11 @@ from pulse_maker import (
 from single_NE import NE_transition_pulse, get_NE_X
 from visualisation import *
 from run_1P_2P import *
-from run_grape import get_fids_and_field_from_fp
+from run_grape import (
+    get_fids_and_field_from_fp,
+    get_fids_and_field_saved,
+    get_separate_fids_and_fields_save,
+)
 from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
 
 from matplotlib.colors import LinearSegmentedColormap
@@ -565,7 +569,7 @@ def all_multi_system_pulses(
     fp=None,
 ):
     fids1, fields1 = get_fids_and_field_from_fp(
-        grape_fp1, Grape=Grape_ee_Flip, step=4, get_from_grape=True
+        grape_fp1, Grape=Grape_ee_Flip, step=1, get_from_grape=False
     )
     fids2, fields2 = get_fids_and_field_from_fp(
         grape_fp2, Grape=GrapeESR, A_spec=get_A_spec_single()
@@ -1075,15 +1079,9 @@ def multi_n_entangled_3_pulse(
     grape_fp3="fields/g379_69S_3q_5983ns_8000step",
     fp=None,
 ):
-    # fids1, fields1 = get_fids_and_field_from_fp(
-    #     grape_fp1, Grape=Grape_ee_Flip, step=1, get_from_grape=True
-    # )
-    # fids2, fields2 = get_fids_and_field_from_fp(
-    #     grape_fp2, Grape=Grape_ee_Flip, step=2, get_from_grape=True
-    # )
-    fids3, fields3 = get_fids_and_field_from_fp(
-        grape_fp3, Grape=Grape_ee_Flip, step=3, get_from_grape=True
-    )
+    fids1, fields1 = get_fids_and_field_saved(grape_fp1)
+    fids2, fields2 = get_fids_and_field_saved(grape_fp2)
+    fids3, fields3 = get_fids_and_field_saved(grape_fp3)
 
     Bx1, By1, T1 = map(real, fields1)
     Bx2, By2, T2 = map(real, fields2)
@@ -1114,9 +1112,9 @@ def multi_n_entangled_3_pulse(
         ax=ax[2, 1],
         prop_zoom_start=0.301,
         prop_zoom_end=0.3053,
-        far_lim=1,
-        near_lim=0.3,
-        tick_lim=0.5,
+        # far_lim=1,
+        # near_lim=0.3,
+        # tick_lim=0.5,
     )
 
     n_sys = 70
@@ -1280,14 +1278,14 @@ def single_sys_n_entangled_CX(fp=None):
         fig.savefig(fp)
 
 
-def latest_multi_sys():
+def latest_multi_sys(fp=None):
     # grape_fp1 = "fields/g448_70S_3q_3966ns_8000step"
-    grape_fp1 = "fields/g457_70S_3q_3966ns_8000step"
-    grape_fp2 = "fields/g466_70S_3q_2974ns_9000step"
-    grape_fp3 = "fields/g464_70S_3q_3966ns_8000step"
+    grape_fp1 = "fields/g513_70S_3q_1983ns_8000step"
+    grape_fp2 = "fields/g491_70S_3q_2974ns_8000step"
+    grape_fp3 = "fields/g490_70S_3q_2974ns_8000step"
 
     multi_n_entangled_3_pulse(
-        grape_fp1=grape_fp1, grape_fp2=grape_fp2, grape_fp3=grape_fp3
+        grape_fp1=grape_fp1, grape_fp2=grape_fp2, grape_fp3=grape_fp3, fp=fp
     )
 
 
@@ -1423,14 +1421,38 @@ def latest_single_sys(
     ax["D"].axvline(tf, color="black", linestyle="--")
     y_offset = 0.8
     fontsize = 13
-    label_axis(ax["D"], "Steps 3-4", 0.05, y_offset, fontsize)
-    label_axis(ax["D"], "Step 5", 0.35, y_offset, fontsize)
-    label_axis(ax["D"], "Steps 6-7", 0.63, y_offset, fontsize)
+    label_axis(ax["D"], "Steps 2-3", 0.05, y_offset, fontsize)
+    label_axis(ax["D"], "Step 4", 0.35, y_offset, fontsize)
+    label_axis(ax["D"], "Steps 5-6", 0.63, y_offset, fontsize)
     label_axis(ax["D"], "(d)", x_offset=-0.07, y_offset=-0.25, fontsize=fontsize)
     fig.tight_layout()
 
     if fp is not None:
         fig.savefig(fp)
+
+
+def multi_sys_pie_with_cost(grape_fp1="fields/g508_70S_3q_3966ns_8500step"):
+    fids1, fields1 = get_fids_and_field_saved(grape_fp1)
+
+    cost_hist = pt.load(grape_fp1+'_cost_hist')
+    # Bx1, By1, T1 = map(real, fields1)
+
+    fig, ax = plt.subplots(1, 1)
+
+    # fidelity_pie_chart(fids1, [0.9999, 0.999, 0.99])
+    plot_cost_hist(cost_hist, ax)
+
+    # plot_fields_twinx(
+    #     Bx1[100:],
+    #     By1[100:],
+    #     T1[100:],
+    #     ax=ax[0],
+    #     prop_zoom_start=0.301,
+    #     prop_zoom_end=0.3053,
+    #     far_lim=1,
+    #     near_lim=0.3,
+    #     tick_lim=0.5,
+    # )
 
 
 def test_multi_sys_grape(grape_fp, step):
@@ -1454,7 +1476,6 @@ if __name__ == "__main__":
     # test_ee_flip_grape_pulse(grape_fp="fields/c1326_1S_3q_479ns_1000step")
     # test_stupid_ham()
     # all_multi_system_pulses()
-    # all_multi_system_pulses()
     # exchange_vs_detuning()
     # single_system_pulses_and_unitaries()
     # small_MW_1_3("fields/c1350_1S_3q_479ns_2500step")
@@ -1462,7 +1483,8 @@ if __name__ == "__main__":
     # multi_system_n_entangled_CX()
     # single_sys_n_entangled_CX()
     # multi_n_entangled_3_pulse()
-    # latest_multi_sys()
+    latest_multi_sys()
     # latest_single_sys()
-    test_multi_sys_grape("fields/g469_2S_3q_376ns_800step", step=3)
+    # test_multi_sys_grape("fields/g506_70S_3q_3966ns_8000step", step=1)
+    # multi_sys_pie_with_cost()
     plt.show()

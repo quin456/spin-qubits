@@ -253,6 +253,8 @@ class Grape(ABC):
         stop_max_field=4 * unit.mT,
         dynamic_opt_plot=False,
         dynamic_params=False,
+        project_remaining_optimisation=False,
+        u0_shape="flat",
     ):
         """
         Contructor for Grape class
@@ -300,6 +302,9 @@ class Grape(ABC):
                                 The N timesteps limit the precision with which
                                 control field
 
+            u0_shape (str):     Indicates shape of initial guess for control
+                                vector along N axis. Takes values  from
+                                ['TP', 'flat'].
 
 
         """
@@ -318,6 +323,7 @@ class Grape(ABC):
         self.target_spec = target_spec
         self.nq_spec = self.get_nq_spec(target_spec)
         self.X0_spec = X0_spec
+        self.u0_shape = u0_shape
         self.initialise_spectators()
         self.initialise_control_fields()
         # allow for H0 with no systems axis
@@ -351,6 +357,7 @@ class Grape(ABC):
         self.dJ_hist = []
         self.dJ_spec_hist = []
         self.J_reg_hist = []
+        self.time_hist = []
         self.d_cost = None
         self.d_Phi_min = None
         self.J_reg = 0
@@ -375,6 +382,7 @@ class Grape(ABC):
         self.status = "UC"
         self.dynamic_opt_plot = dynamic_opt_plot
         self.dynamic_params = dynamic_params
+        self.project_remaining_optimisation = project_remaining_optimisation
         if self.dynamic_opt_plot:
             plt.ion()
             plt.switch_backend("TkAgg")
@@ -539,22 +547,34 @@ class Grape(ABC):
         Initialised onto the cpu by default as it will normally be passed to scipy minimize.
         """
         u0_max = 1 / (gamma_e * self.tN * unit.T)
-        u0_k = (1 / self.m) * (
-            pt.cat(
-                (
-                    pt.linspace(
-                        0, u0_max, self.N // 2, dtype=cplx_dtype, device=device
-                    ),
-                    linspace(
-                        u0_max, 0, self.N - self.N // 2, dtype=cplx_dtype, device=device
-                    ),
+
+        if self.u0_shape == "TP":
+            u0_k = (1 / self.m) * (
+                pt.cat(
+                    (
+                        pt.linspace(
+                            0, u0_max, self.N // 2, dtype=cplx_dtype, device=device
+                        ),
+                        linspace(
+                            u0_max,
+                            0,
+                            self.N - self.N // 2,
+                            dtype=cplx_dtype,
+                            device=device,
+                        ),
+                    )
                 )
             )
-        )
-        u0 = pt.einsum(
-            "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
-        )
-        # u0 = u0_max * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device) / self.m
+            u0 = pt.einsum(
+                "k,j->kj", pt.ones(self.m, dtype=cplx_dtype, device=device), u0_k
+            )
+
+        elif self.u0_shape == "flat":
+            u0 = (
+                u0_max
+                * pt.ones(self.m, self.N, dtype=cplx_dtype, device=device)
+                / self.m
+            )
 
         return uToVector(u0)
 
@@ -668,10 +688,12 @@ class Grape(ABC):
         else:
             fidelities = f"Avg fidelity = {pt.mean(self.Phi)*100:.1f}%, Min fidelity = {minreal(self.Phi)*100:.1f}%"
         opt_state_str = f"{time_and_calls}, {fidelities}, Max field = {self.max_field()/unit.mT:.2f} mT, status={self.status}"
-        if self.d_cost is not None:
-            opt_state_str += f", d_cost/iter={self.d_cost:.1e}"
-        if hasattr(self, "projected_iters_remaining"):
-            opt_state_str += f", est it left = {self.projected_iters_remaining:.1f}"
+        if self.project_remaining_optimisation:
+            if self.d_cost is not None:
+                opt_state_str += f", d_cost/iter={self.d_cost:.1e}"
+            if hasattr(self, "projected_iters_remaining"):
+                opt_state_str += f", est it left = {self.projected_iters_remaining:.1f}"
+        opt_state_str += "  "
         return opt_state_str
 
     def get_opt_specs_and_state(self):
@@ -1090,8 +1112,19 @@ class Grape(ABC):
             self.status = "MT"  # uncomplete - Manual Termination
 
         self.time_taken = time.time() - self.start_time
+        self.time_hist.append(self.time_taken)
         if self.verbosity >= 1:
             print(f"Time taken = {self.time_taken}")
+
+    def save_fidelity(self, fp):
+        pt.save(self.fidelity()[0], f"{fp}_fids")
+
+    def save_time_hist(self, fp):
+        pt.save(self.time_hist, f"{fp}_time_hist")
+
+    def save_Phi_hist(self, fp):
+        pt.save(self.Phi_avg_hist, f"{fp}_Phi_avg_hist")
+        pt.save(self.Phi_min_hist, f"{fp}_Phi_min_hist")
 
     def save(self, fp=None):
         """
@@ -1113,6 +1146,8 @@ class Grape(ABC):
         self.save_system_data(fid=fidelities, fp=fp)
         self.save_field(fp)
         self.save_cost_hist(fp)
+        self.save_fidelity(fp)
+        self.save_time_hist(fp)
         print("done.")
 
     @abstractmethod
@@ -1300,7 +1335,7 @@ class Grape(ABC):
         u_m = uToMatrix(u, m).cpu()
         T = np.linspace(0, tN, N)
         fig, ax = plt.subplots(2, 2)
-        self.plot_cost_hist(ax[1, 1])
+        plot_cost_hist(self.cost_hist, ax[1, 1])
 
         self.plot_u(ax[0, 0])
 
@@ -1372,30 +1407,6 @@ class Grape(ABC):
         ax.set_ylabel("$B_x$ (mT)", color=xcol)
         if twinx is not None:
             twinx.set_ylabel("$B_y$ (mT)", color=ycol)
-
-    def plot_cost_hist(self, ax, ax_label=None, yscale="log"):
-        ax.plot(self.cost_hist, label="cost")
-        ax.set_xlabel("Iterations")
-        if y_axis_labels:
-            ax.set_ylabel("Cost")
-        else:
-            ax.legend()
-        ax.axhline(0, color="orange", linestyle="--")
-        if ax_label is not None:
-            ax.set_title(ax_label, loc="left", fontdict={"fontsize": 20})
-        ax.set_ylim([0, min(1.2, ax.get_ylim()[1])])
-
-        iters = len(self.cost_hist)
-
-        if yscale == "log":
-            x = min(self.cost_hist)
-            min_tick = 1
-            while not int(x):
-                x *= 10
-                min_tick /= 10
-            ax.set_yscale("log")
-            ax.axis([0, iters, min_tick, 1])
-        return ax
 
     def save_field(self, fp=None):
         """

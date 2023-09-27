@@ -144,13 +144,13 @@ def run_some_grapes():
 
 
 def select_smallest_two(df):
-    return df.nsmallest(2, "tN")
+    return df.nsmallest(1, "tN")
 
 
 def get_data_from_log(fp=log_fp, fp_fig=None):
     Bmax = 2
     df = pd.read_csv(fp)
-    df = df[df.index > 400]
+
     # df = df[df["nS"] < 50]
     # df['Bmax'] = pd.to_numeric(df['Bmax'])
     df_SF = df[df["status"] == " SF"]
@@ -168,15 +168,16 @@ def get_data_from_log(fp=log_fp, fp_fig=None):
     fig = ax.get_figure()
     fig.set_size_inches(11 / 2.54, 8 / 2.54)
     # df_failed.plot(x="nS", y="tN", kind="scatter", color='gray', ax=ax, marker='x')
-    df_SF_2mT.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
+    df_new.plot(x="nS", y="tN", kind="scatter", c="Bmax", colormap=cmap, ax=ax)
     print(df_shortest)
     fig.tight_layout()
-    ax.set_xlabel("Distinct 1P-2P qubit pairs")
+    ax.set_xlabel("Distinct 1P-2P pairs operated in parallel")
     ax.set_ylabel("Pulse Duration (ns)")
     colorbar = ax.collections[-1].colorbar
     colorbar.set_label("Max Field Strength (mT)")
     ax.set_yticks([100, 500, 1000, 1500, 2000])
-    colorbar.set_ticks([0.6, 1.2, 1.8])
+    ax.set_xticks([0, 23, 46, 69], [1, 24, 47, 70])
+    colorbar.set_ticks([0.8, 1.3, 1.8])
 
     if fp_fig is not None:
         fig.savefig(fp_fig)
@@ -189,6 +190,6 @@ if __name__ == "__main__":
     # test_pulse_times()
     # get_fids_line_and_save(1)
     # plot_tN_vs_nS_2D()
-    run_some_grapes()
+    # run_some_grapes()
     get_data_from_log()
     plt.show()

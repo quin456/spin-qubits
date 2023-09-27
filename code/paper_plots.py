@@ -237,7 +237,7 @@ def get_2e_entangle_fig():
 
 
 def generate_system_table(
-    A_2P=-2 * get_A_1P_2P(70)[:, 1], J=4 * get_J_1P_2P(70), ncols=7
+    A_2P=-2 * get_A_1P_2P(70)[:, 1], J=4 * get_J_1P_2P(70, fp="J-50-100"), ncols=7
 ):
     """
     Generates latex code for table of A and J data.
@@ -448,4 +448,5 @@ if __name__ == "__main__":
     # multi_n_entangled_3_pulse()
     # single_sys_n_entangled_CX(fp=f"{folder}single-sys-n-entangled.pdf")
     latest_single_sys(fp = f"{folder}single-sys-5spin.pdf")
+    # latest_multi_sys(f"{folder}multi-sys-n-entangled.pdf")
     plt.show()

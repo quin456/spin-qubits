@@ -10,25 +10,25 @@ from run_n_entangled_CX import run_n_entangled_CX
 
 
 if __name__ == "__main__":
-    run_n_entangled_CX(
-        tN=400 * unit.ns,
-        N=1100,
-        nS=1,
-        max_time=30,
-        lam=1e3,
-        dynamic_opt_plot=False,
-        step=1,
-        kappa=1e2
-    )
+    # run_n_entangled_CX(
+    #     tN=400 * unit.ns,
+    #     N=1100,
+    #     nS=1,
+    #     max_time=0.0001,
+    #     lam=1e3,
+    #     dynamic_opt_plot=False,
+    #     step=1,
+    #     kappa=1e2
+    # )
 
     run_n_entangled_CX(
         tN=4000 * unit.ns,
         N=8000,
-        nS=70,
+        nS=1,
         max_time=23.5 * 3600,
         lam=1e7,
         step=1,
-        dynamic_opt_plot=True,
-        dynamic_params=True
+        verbosity=3,
+        u0_shape="TP"
         # prev_grape_fp="fields/c1356_1S_3q_479ns_2500step",
     )

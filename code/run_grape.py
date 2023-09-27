@@ -40,6 +40,27 @@ from single_spin import test_grape_pulse_on_non_res_spin, get_single_spin_X
 from pulse_maker import get_smooth_E
 
 
+def get_fids_and_field_saved(fp):
+    """
+    Gets fids and field directly from files without instantiating grape.
+    """
+    fp_fids = fp + "_fids"
+    fp_fields = fp + "_XY"
+    fids = pt.load(fp_fids, map_location=pt.device("cpu"))
+    fids = pt.cat((fids, pt.tensor([1], dtype=fids.dtype, device=fids.device)))
+    fields = pt.load(fp_fields, map_location=pt.device("cpu"))
+    fields[:2] *= unit.T
+    fields[2] *= unit.ns
+    print(fids)
+    return fids, fields
+
+
+def get_separate_fids_and_fields_save(fp1, fp2):
+    fids1, fields1 = get_fids_and_field_saved(fp1)
+    fids2, fields2 = get_fids_and_field_saved(fp2)
+    return fids1, fields2
+
+
 def get_fids_and_field_from_fp(fp, get_from_grape=False, verbosity=-1, **kwargs):
     fp_fids = fp + "_fids"
     fp_fields = fp + "_fields"
@@ -269,18 +290,19 @@ if __name__ == "__main__":
     #     stop_fid_min=0.99,
     #     stop_fid_avg=0.99
     # )
-    grape = run_CNOTs(
-        800 * unit.ns,
-        N=2000,
-        J=get_J_1P_2P(3),
-        A=get_A_1P_2P(3),
-        verbosity=-1,
-        save_data=False,
-        dynamic_opt_plot=True,
-        dynamic_params=True,
-        lam=1e7,
-        kappa=1e2,
-    )
-    print(grape.get_opt_state())
+    # grape = run_CNOTs(
+    #     800 * unit.ns,
+    #     N=2000,
+    #     J=get_J_1P_2P(3),
+    #     A=get_A_1P_2P(3),
+    #     verbosity=-1,
+    #     save_data=False,
+    #     dynamic_opt_plot=True,
+    #     dynamic_params=True,
+    #     lam=1e7,
+    #     kappa=1e2,
+    # )
+    # print(grape.get_opt_state())
+    get_fids_and_field_saved("fields/g480_70S_3q_3966ns_8000step")
     if not pt.cuda.is_available():
         plt.show()

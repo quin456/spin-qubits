@@ -1900,6 +1900,7 @@ def make_conventional_square_array(distance=4):
     ############################################################################################################
     ############################################################################################################
 
+    pad=1
     ax.set_ylim([-2 * d_HS - pad, pad])
     ax.set_xlim([-2 * d_HS - pad, pad])
 
@@ -2031,7 +2032,7 @@ if __name__ == "__main__":
     """ HEAVY SQUARE """
     couplers = False
 
-    make_HS_array(plt.subplot(), 13)
+    # make_HS_array(plt.subplot(), 13)
     # surface_code_defects(np.array([[2,2], ]), distance=5)
 
     # plt.subplot().add_patch(mpl.patches.Polygon([[0,0],[1,2],[2,3]]))
@@ -2040,7 +2041,7 @@ if __name__ == "__main__":
     # readout()
     # HS_side_view()
     # make_stab_unit_cell()
-    # make_atomic_unit_cell()
+    make_atomic_unit_cell()
     # stabilizer_activations()
     # make_HS_qubit_array(plt.subplot(), 5)
     # make_conventional_square_array()

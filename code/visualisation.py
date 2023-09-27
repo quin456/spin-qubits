@@ -54,6 +54,30 @@ rangle = "⟩"
 time_axis_label = "Time (ns)"
 
 
+def plot_cost_hist(cost_hist, ax, ax_label=None, yscale="log"):
+    ax.plot(cost_hist, label="cost")
+    ax.set_xlabel("Iterations")
+    if y_axis_labels:
+        ax.set_ylabel("Cost")
+    else:
+        ax.legend()
+    ax.axhline(0, color="orange", linestyle="--")
+    if ax_label is not None:
+        ax.set_title(ax_label, loc="left", fontdict={"fontsize": 20})
+    ax.set_ylim([0, min(1.2, ax.get_ylim()[1])])
+
+    iters = len(cost_hist)
+
+    if yscale == "log":
+        x = min(cost_hist)
+        min_tick = 1
+        while not int(x):
+            x *= 10
+            min_tick /= 10
+        ax.set_yscale("log")
+        ax.axis([0, iters, min_tick, 1])
+    return ax
+
 def spin_state_label_getter(i, nq, states_to_label=None):
     if states_to_label is not None:
         if i in states_to_label:
@@ -590,6 +614,38 @@ def plot_J(T, J, ax=None):
     ax.set_xlabel("Time (ns)")
 
 
+def fidelity_pie_chart(
+    fids, f=[0.9999, 0.999, 0.99], colours=["green", "orange", "red"], ax=None
+):
+    nbins = len(colours)
+    fids_binned, sys_binned = bin_systems_by_fidelity(fids, f, None, nbins)
+
+    if ax is None:
+        ax = plt.subplot()
+
+    sys_count = [len(fids_bin) for fids_bin in fids_binned]
+    ax.pie(sys_count, colors=colours, labels = f)
+
+
+def bin_systems_by_fidelity(fids, f, systems_ax, nbins):
+    f = sorted(f, reverse=True)
+    if systems_ax is None:
+        systems_ax = np.linspace(0, len(fids) - 1, len(fids))
+    fids_binned = [[] for _ in range(nbins)]
+    sys_binned = [[] for _ in range(nbins)]
+    for j in range(len(fids)):
+        for i in range(nbins - 1):
+            if fids[j] > f[i]:
+                i_bin = i
+                break
+        else:
+            i_bin = nbins - 1
+        fids_binned[i_bin].append(fids[j])
+        sys_binned[i_bin].append(systems_ax[j])
+
+    return fids_binned, sys_binned
+
+
 def fidelity_bar_plot(
     fids,
     systems_ax=None,
@@ -598,7 +654,7 @@ def fidelity_bar_plot(
     colours=["green", "orange", "red"],
     labels=None,
     legend_loc="upper left",
-    ylim=[0.99, 1.005],
+    ylim=[0.998, 1.001],
     put_xlabel=True,
     **kwargs,
 ):
@@ -617,19 +673,7 @@ def fidelity_bar_plot(
         else:
             return colours[nbins - 1]
 
-    if systems_ax is None:
-        systems_ax = np.linspace(0, len(fids) - 1, len(fids))
-    fids_binned = [[] for _ in range(nbins)]
-    sys_binned = [[] for _ in range(nbins)]
-    for j in range(len(fids)):
-        for i in range(nbins - 1):
-            if fids[j] > f[i]:
-                i_bin = i
-                break
-        else:
-            i_bin = nbins - 1
-        fids_binned[i_bin].append(fids[j])
-        sys_binned[i_bin].append(systems_ax[j])
+    fids_binned, sys_binned = bin_systems_by_fidelity(fids, f, systems_ax, nbins)
     i = 2
     if labels == None:
         labels = [f">{fj*100:.2f}%" for fj in f] + [f"<{f[-1]*100:.2f}%"]
@@ -651,7 +695,7 @@ def fidelity_bar_plot(
         ax.set_xlabel("Systems")
     ax.set_ylabel("Fidelity (%)")
     ax.set_ylim(ylim)
-    ax.set_yticks([0.999, 1], ["99.9%", "100%"])
+    ax.set_yticks([0.998, 0.999, 1], ["99.8%", "99.9%", "100%"])
     ax.set_xticks([1, 10, 20, 30, 40, 50, 60, 70])
 
 

@@ -82,12 +82,16 @@ def run_2P_1P_CNOTs(
     J_modulated=False,
     save_data=True,
     run_optimisation=True,
+    single_A_2P=False,
+    **kwargs
 ):
     nq = 2
 
-    fp = "J-10-20"
+    fp = "J-50-100"
     print(fp)
-    A = get_A_1P_2P(nS, NucSpin=[-1, 1], donor_composition=[2, 1])
+    A = get_A_1P_2P(
+        nS, NucSpin=[-1, 1], donor_composition=[2, 1], single_A_2P=single_A_2P
+    )
     J = get_J_1P_2P(nS, fp=fp)
     target = CNOT_targets(nS, nq)
     if reverse_CX:
@@ -111,19 +115,23 @@ def run_2P_1P_CNOTs(
         A_spec=A_spec,
         target=target,
         verbosity=verbosity,
+        **kwargs
     )
 
 
 if __name__ == "__main__":
     run_2P_1P_CNOTs(
-        3000 * unit.ns,
-        8000,
+        4000 * unit.ns,
+        7000,
         nS=70,
-        max_time=23.5 * 3600,
-        lam=1e9,
-        kappa=1,
+        max_time=3600 * 23.5,
+        lam=1e7,
+        kappa=1e2,
         Grape=GrapeESR,
-        A_spec=pt.tensor([get_A(1, 1)], device=default_device),
+        A_spec=None,
+        single_A_2P=True,
+        u0_shape="TP",
+        # A_spec=pt.tensor([get_A(1, 1)], device=default_device),
     )
 
     # run_2P_1P_CNOTs(500 * unit.ns, 1000, nS=2, max_time=60, lam=0, reverse_CX=False)

@@ -196,10 +196,19 @@ def get_J_low(nS, nq):
     return get_J(nS, nq, J1=J_low)
 
 
-def get_A_1P_2P(nS, NucSpin=[1, -1], donor_composition=[1, 2], fp="A_70"):
-    if fp is None:
+def get_A_1P_2P(
+    nS, NucSpin=[1, -1], donor_composition=[1, 2], fp="A_70", single_A_2P=False
+):
+    if single_A_2P:
+        A_data = pt.einsum(
+            "i,j->ij",
+            pt.ones(nS, dtype=cplx_dtype, device=default_device),
+            pt.tensor([A_P, A_2P], dtype=cplx_dtype, device=default_device),
+        )
+
+    elif fp is None:
         A_data = A_2P_69
-        NucSpin[1] *= -1  # because 1P A is down by default
+        NucSpin[1] *= -1  # because 1P A is down by default in files
     else:
         A_data = (
             pt.load(f"exchange_data_fab/{fp}").to(

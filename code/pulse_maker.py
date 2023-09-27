@@ -52,7 +52,7 @@ def pi_pulse_duration(coupling, B_ac):
 def pi_pulse_square(w_res, coupling, tN=None, N=None, T=None, phase=0):
     T = evaluate_timestep_inputs(T, tN, N)
     Bw = pi_pulse_field_strength(coupling, T[-1])
-    print(
+    print(  
         f"Generating square pulse for π-rotation with amplitude {Bw/unit.mT} mT, frequency {real(w_res/unit.MHz):.2f} MHz, N = {N}, delta_t = {T[-1]/len(T)/unit.ps:.2f} ps, duration = {real(T[-1]/unit.ns):.2f} ns"
     )
     Bx, By, T = square_pulse(Bw, w_res, T=T, phase=phase)
