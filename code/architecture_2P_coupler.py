@@ -2041,10 +2041,10 @@ if __name__ == "__main__":
     # readout()
     # HS_side_view()
     # make_stab_unit_cell()
-    make_atomic_unit_cell()
+    # make_atomic_unit_cell()
     # stabilizer_activations()
-    # make_HS_qubit_array(plt.subplot(), 5)
-    # make_conventional_square_array()
+    make_HS_qubit_array(plt.subplot(), 5)
+    make_conventional_square_array()
 
     # HS_11()
 

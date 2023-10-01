@@ -5,30 +5,10 @@ import time
 
 from typing import List
 
-depth = 0
 
-
-# def propagate(U):
-
-#     Uf = U[0]
-#     for Uj in U[1:]:
-#         Uf = Uj @ Uf
-#     return Uf
-
-
-# def merge_prop(U):
-#     N = len(U)
-#     if len(U) == 1:
-#         return U
-#     return merge_prop(U[N // 2 :]) @ merge_prop(U[: N // 2])
-
-
-def my_func(x: List[int])->float:
-    return float(x)
-
-if __name__ == "__main__":
-    
-    A = np.array([1, 4, 4, 4, 60, 44, 2, 1, 1, 60, 0, 1])
-    B = [500, 6000, 300, 500, 900, 100, 210]
+A = [1,2,3,4,5,6,7,8,9,0]
+for k in range(len(A)):
+    A.pop(0)
+    print(len(A),k)
 
 

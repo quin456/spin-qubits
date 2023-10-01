@@ -79,21 +79,6 @@ def CNOTs_coupler(fn="coupler-fid-bars.pdf"):
     fig.savefig(folder + fn)
 
 
-def CNOTs_1P_2P(fn="fidbars-1P-2P.pdf"):
-    fp = "fields/g354_69S_2q_2500ns_8000step"
-    fids = get_fids_from_fp(
-        fp,
-        simulate_spectators=True,
-        Grape=GrapeESR,
-        A_spec=pt.tensor([get_A(1, 1)], device=default_device),
-    )
-    ax = plt.subplot()
-    fidelity_bar_plot(fids, ax, f=[0.999999, 0.99999, 0.9999])
-    delta = max(fids) - min(fids)
-    ax.set_ylim(min(fids) - 0.5 * delta, 1 + 0.2 * delta)
-    # ax.get_figure().set_size_inches
-
-
 def plot_1P_1P_placement(fn="placement-1P-1P.pdf", ax=None):
     if ax is None:
         ax = plt.subplot()
@@ -147,85 +132,6 @@ def plot_1P_1P_placement(fn="placement-1P-1P.pdf", ax=None):
     fig = ax.get_figure()
     fig.set_size_inches(7, 2)
     fig.savefig(folder + fn)
-
-
-def multi_sys_2e_flip(
-    fp=None,
-    grape_fp1="fields/g378_69S_3q_6974ns_8000step",
-    grape_fp3="fields/g379_69S_3q_5983ns_8000step",
-):
-    kwargs_2P_EE = get_2P_EE_swap_kwargs()
-
-    fids1, fields = get_fids_and_field_from_fp(
-        grape_fp1, get_from_grape=False, **kwargs_2P_EE
-    )
-
-    fig, ax = plt.subplots(2, 1)
-    # fig, ax = plt.subplots(2,1, gridspec_kw={'height_ratios': [3,  2]})
-
-    n_1P_2P = 69
-    sys_1P_2P = np.linspace(1, n_1P_2P, n_1P_2P)
-    sys_spec = np.array([1])
-    div = 4
-    systems_ax = np.concatenate(
-        (
-            sys_1P_2P,
-            sys_1P_2P + n_1P_2P + div,
-            sys_spec + 2 * n_1P_2P + 2 * div,
-            sys_spec + 2 * n_1P_2P + 2 * div + 1,
-        )
-    )
-
-    fidelity_bar_plot(
-        fids,
-        systems_ax=systems_ax,
-        f=[0.9999, 0.999, 0.99],
-        ax=ax[1],
-        colours=["green", "orange", "red"],
-    )
-    ax[1].set_ylim(0.99, 1.006)
-    ax[1].set_yticks([0.99, 0.995, 1.00], ["99.0", "99.5", "100"])
-    ax[1].set_ylabel("Fidelity (%)")
-    ax[1].set_xticks([1, n_1P_2P, 2 * n_1P_2P + div], [1, n_1P_2P, 2 * n_1P_2P])
-    axt = ax[0].twinx()
-
-    Bx, By, T = fields
-    xcol = color_cycle[0]
-    ycol = color_cycle[1]
-    ax[0].plot(T / unit.ns, 1e3 * Bx / unit.mT, color=xcol)
-    axt.plot(T / unit.ns, 1e3 * By / unit.mT, color=ycol)
-    yticks = [-0.3, 0.3]
-    axt.set_yticks(yticks, yticks, color=ycol)
-    ax[0].set_yticks(yticks, yticks, color=xcol)
-    ax[0].set_ylim([-0.8, 0.3])
-    axt.set_ylim([-0.3, 0.8])
-    ax[0].set_ylabel("Bx (mT)", color=xcol)
-    ax[0].set_xlabel("time (ns)")
-
-    y_offset = 0.61
-    label_axis(
-        ax[1],
-        f"$T_{Downarrow}^{{2e}}$",
-        x_offset=0.2,
-        y_offset=y_offset,
-    )
-    label_axis(
-        ax[1],
-        f"$T_{Uparrow}^{{2e}}$",
-        x_offset=0.65,
-        y_offset=y_offset,
-    )
-    label_axis(
-        ax[1],
-        f"$T_{{{Downarrow}, {Uparrow}}}^{{1e}}$",
-        x_offset=0.9,
-        y_offset=y_offset,
-    )
-    axt.set_ylabel("By (mT)", color=ycol)
-    fig.tight_layout()
-
-    if fp is not None:
-        fig.savefig(fp)
 
 
 def get_2e_flip_fig():
@@ -447,6 +353,7 @@ if __name__ == "__main__":
     # )
     # multi_n_entangled_3_pulse()
     # single_sys_n_entangled_CX(fp=f"{folder}single-sys-n-entangled.pdf")
-    latest_single_sys(fp = f"{folder}single-sys-5spin.pdf")
+    # latest_single_sys(fp = f"{folder}single-sys-5spin.pdf")
     # latest_multi_sys(f"{folder}multi-sys-n-entangled.pdf")
+    multisys_upgraded(figure_fp=f"{folder}multi-sys-n-entangled.pdf")
     plt.show()

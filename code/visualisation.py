@@ -54,13 +54,22 @@ rangle = "⟩"
 time_axis_label = "Time (ns)"
 
 
-def plot_cost_hist(cost_hist, ax, ax_label=None, yscale="log"):
-    ax.plot(cost_hist, label="cost")
+def plot_cost_hist(
+    cost_hist,
+    ax,
+    ax_label=None,
+    yscale="log",
+    legend_label="Cost",
+    legend_loc="best",
+    color="black",
+):
+    ax.plot(cost_hist, label=legend_label, color=color)
     ax.set_xlabel("Iterations")
     if y_axis_labels:
         ax.set_ylabel("Cost")
     else:
-        ax.legend()
+        if legend_loc:
+            ax.legend()
     ax.axhline(0, color="orange", linestyle="--")
     if ax_label is not None:
         ax.set_title(ax_label, loc="left", fontdict={"fontsize": 20})
@@ -75,8 +84,10 @@ def plot_cost_hist(cost_hist, ax, ax_label=None, yscale="log"):
             x *= 10
             min_tick /= 10
         ax.set_yscale("log")
+        ax.set_xscale("log")
         ax.axis([0, iters, min_tick, 1])
     return ax
+
 
 def spin_state_label_getter(i, nq, states_to_label=None):
     if states_to_label is not None:
@@ -258,6 +269,7 @@ def plot_fields(
     legend_loc="best",
     xcol=color_cycle[0],
     ycol=color_cycle[1],
+    labels=["$B_x$", "$B_y$"],
     **kwargs,
 ):
     """
@@ -279,21 +291,22 @@ def plot_fields(
     ax.plot(
         T / unit.ns,
         Bx * 1e3 / unit.T,
-        label="$B_x$" + legend_unit,
+        label=labels[0] + legend_unit,
         color=xcol,
         **kwargs,
     )
     ax.plot(
         T / unit.ns,
         By * 1e3 / unit.T,
-        label="$B_y$" + legend_unit,
+        label=labels[1] + legend_unit,
         color=ycol,
         **kwargs,
     )
     ax.set_xlabel("time (ns)")
     if y_axis_labels:
         ax.set_ylabel("$B_\omega(t)$ (mT)")
-    ax.legend(loc=legend_loc)
+    if legend_loc:
+        ax.legend(loc=legend_loc)
     return ax
 
 
@@ -302,17 +315,19 @@ def plot_fields_twinx(
     By,
     T,
     ax=None,
+    axt=None,
     near_lim=None,
     far_lim=None,
     tick_lim=1,
     ylabels=True,
     prop_zoom_start=0.4,
-    prop_zoom_end=0.41,
+    prop_zoom_end=0.5,
 ):
     if ax is None:
         ax = plt.subplot()
+    if axt is None:
+        axt = ax.twinx()
 
-    axt = ax.twinx()
     xcol = color_cycle[0]
     ycol = color_cycle[1]
 
@@ -342,7 +357,7 @@ def plot_fields_twinx(
     axt.set_ylim([-near_lim, far_lim])
     ax.set_yticks([-tick_lim, tick_lim], [-tick_lim, tick_lim], color=xcol)
     axt.set_yticks([-tick_lim, tick_lim], [-tick_lim, tick_lim], color=ycol)
-    label_axis(ax, "Zoomed in", x_offset=0.22, y_offset=0.05, fontsize=12)
+    # label_axis(ax, "Zoomed in", x_offset=0.22, y_offset=0.05, fontsize=12)
     if ylabels:
         ax.set_ylabel("Bx (mT)", color=xcol)
         axt.set_ylabel("By (mT)", color=ycol)
@@ -624,7 +639,7 @@ def fidelity_pie_chart(
         ax = plt.subplot()
 
     sys_count = [len(fids_bin) for fids_bin in fids_binned]
-    ax.pie(sys_count, colors=colours, labels = f)
+    ax.pie(sys_count, colors=colours, labels=f)
 
 
 def bin_systems_by_fidelity(fids, f, systems_ax, nbins):
@@ -644,6 +659,36 @@ def bin_systems_by_fidelity(fids, f, systems_ax, nbins):
         sys_binned[i_bin].append(systems_ax[j])
 
     return fids_binned, sys_binned
+
+
+def fewer_fid_bar(
+    fids,
+    ax,
+    x=None,
+    labels=["Average Fidelity", "Minimum Fidelity", "Spectator Fidelity"],
+    label_fontsize=12,
+    colors=None,
+):
+    """
+    Plots three bars representing average, minimum, and spectator fidelities.
+    """
+    if x is None:
+        x = np.linspace(0, len(fids) - 1, len(fids))
+    ax.bar(x, fids, color=colors, alpha=0.4)
+    ylim = ax.get_ylim()
+    ytext = ylim[0] + 0.2 * (ylim[1] - ylim[0])
+    ax.set_xticks([])
+    for k in range(len(fids)):
+        ax.text(
+            x[k],
+            ytext,
+            labels[k],
+            rotation=90,
+            ha="center",
+            va="bottom",
+            fontsize=label_fontsize,
+        )
+    ax.axhline(1, linestyle="--", linewidth=0.5, color="black")
 
 
 def fidelity_bar_plot(
@@ -1051,7 +1096,4 @@ class DynamicOptimizationPlot:
 
 
 if __name__ == "__main__":
-    # Plot quantum state tomography
-    plot_unitary(pt.tensor([[1, 0], [0, 1j]]))
-
     plt.show()

@@ -25,13 +25,6 @@ from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
 from matplotlib.colors import LinearSegmentedColormap
 
 
-def get_1P_2P_NE_hamiltonian(Bz, A, J):
-    pass
-
-
-def get_2e_flip_grape_pulse(tN=500 * unit.ns, B0=2 * unit.T):
-    # tN = lock_to_frequency(gamma_e * B0, tN)
-    run_2P_1P_N_entangle(tN=tN, N=2000, nS=1, lam=0, max_time=30)
 
 
 def get_2P_1P_CX_pulse():
@@ -220,30 +213,6 @@ def cnot_2P_1P():
     grape = run_2P_1P_CNOTs(tN, N, 1, max_time=10)
 
 
-def run_2e_swap():
-    B0 = 2 * unit.T
-
-    grape_fp = "fields/c1278_2S_2q_500ns_1000step"
-    kwargs = get_2P_EE_swap_kwargs()
-    grape = load_grape(grape_fp, **kwargs)
-    grape.print_result()
-
-    Bx, By = grape.sum_XY_fields()
-    Bx *= unit.T
-    By *= unit.T
-    T = linspace(0, grape.tN, grape.N)
-    Bx, By = frame_transform_pulse(Bx, By, T, gamma_e * B0)
-    X = get_electron_X(grape.tN, grape.N, B0, grape.A[1], grape.J[0], Bx, By, IP=True)
-    X_reduced = pt.stack((X[-1, :, 0], X[-1, :, 3])).T
-    print_rank2_tensor(X[-1])
-    print(f"fidelity = {fidelity(grape.target[1], X_reduced)}")
-
-    print(f"max field = {maxreal(pt.sqrt(Bx**2 + By**2))/unit.mT} mT")
-    plt.plot(T / unit.ns, Bx / unit.mT)
-    plt.plot(T / unit.ns, By / unit.mT)
-    plt.xlabel("time (ns)")
-    plt.ylabel("B-field (mT)")
-    plt.tight_layout()
 
 
 def multi_2P_1P_CX(fp=None, grape_fp="fields/g370_69S_2q_3000ns_8000step"):
@@ -319,14 +288,6 @@ def check_e_flip_phases(grape_fp="fields/c1314_3S_3q_500ns_1000step"):
     print(fids)
 
 
-def assess_field(grape_fp="fields/c1312_2S_2q_500ns_2000step"):
-    grape = load_grape(grape_fp, **get_2P_EE_swap_kwargs())
-
-    grape.plot_u(plt.subplot())
-    breakpoint()
-
-
-# def get_1n2e_X(J,A):
 
 
 def test_ee_flip_grape_pulse(grape_fp="fields/c1315_3S_3q_500ns_1000step"):
@@ -1045,27 +1006,6 @@ def single_systems(
         ax2[1, i].set_xticks([0, 250, xf])
 
         fontsize = 12
-        label_axis(ax1[i], pulse_labels[i], -0.07, -0.5, fontsize=fontsize)
-        label1 = f"({chr(ord('a')+i)})"
-        label1 = f"{i+1}. (b)"
-        # label1 = f"2. {chr(ord('a')+i)}"
-        label2 = f"({chr(ord('d')+i)})"
-        label2 = f"{i+1}. (c)"
-        # label2 = f"3. {chr(ord('a')+i)}"
-        label_axis(
-            ax[chr(ord("D") + i)],
-            label1,
-            x_offset,
-            y_offset,
-            fontsize=fontsize,
-        )
-        label_axis(
-            ax[chr(ord("G") + i)],
-            label2,
-            x_offset,
-            y_offset,
-            fontsize=fontsize,
-        )
 
     fig.tight_layout()
 
@@ -1313,17 +1253,15 @@ def latest_single_sys(
 
     mosaic = [
         ["A", "A", "A"],
-        ["B", "B", "B"],
-        ["C", "C", "C"],
         ["D", "D", "D"],
     ]
     fig, ax = plt.subplot_mosaic(
         mosaic,
-        gridspec_kw={"height_ratios": [1, 1, 1, 2]},
-        figsize=(20 / 2.54, 15 / 2.54),
+        gridspec_kw={"height_ratios": [1.5, 1]},
+        figsize=(20 / 2.54, 16 / 2.54),
     )
-    ax1 = [ax["A"], ax["B"], ax["C"]]
 
+    fontsize = 12
     colors1 = ["black", "black", "red"]
     linestyles1 = ["--", "-", "-"]
     linewidth = 0.8
@@ -1336,7 +1274,6 @@ def latest_single_sys(
     psi0 = [psi0_13, psi0_2, psi0_13]
     psi0_spec = [psi0_13_spec, psi0_2_spec, psi0_13_spec]
 
-    pulse_labels = ["MW1", "MW2", "MW3"]
     pulse_labels = ["(a)", "(b)", "(c)"]
     facecolors = ["red", "blue", "green"]
     x_offset = -0.3
@@ -1353,6 +1290,9 @@ def latest_single_sys(
             return "⇑↑↑↓⇓"
         elif j == 30:
             return "⇑↑↑↑⇓"
+
+    def label_getter_reduced_5spin(j):
+        return ["⇑↓↓↓⇓", "⇑↓↓↑⇓", "⇑↑↑↓⇓", "⇑↑↑↑⇓"][j]
 
     colors_5spin = ["gray"] * 32
     # colors_5spin[0] = "black"
@@ -1371,6 +1311,55 @@ def latest_single_sys(
 
     T = pt.cat((T1, T2, T3))
 
+    field_sep = 0.9
+
+    ytick_locs = np.array([-0.25, 0, 0.25])
+    yticks = [-0.25, 0, 0.25]
+    ax["A"].set_yticks(
+        np.concatenate(
+            (ytick_locs, ytick_locs + field_sep, ytick_locs + 2 * field_sep)
+        ),
+        3 * yticks,
+    )
+    ax["A"].set_ylim([-0.3, field_sep * 2 + 0.3])
+    ax["A"].set_ylabel("B-field (mT)")
+    ax["A"].set_xticks([0] + [g.tN / unit.ns for g in grape])
+    ax["A"].set_xlim([-20, 350])
+    border_width = 0.7
+    ax["A"].axhline(
+        field_sep / 2, linestyle="--", linewidth=border_width, color="black"
+    )
+    ax["A"].axhline(
+        3 * field_sep / 2, linestyle="--", linewidth=border_width, color="black"
+    )
+    legend_locs = ["upper right", False, False]
+
+    for i in range(3):
+        # ax1[i] = subfig1.add_subplot(subgrid1[i, :])
+        ax["A"].text(-18, i * field_sep - 0.28, f"MW{3-i}", fontsize=12)
+        Bx, By = grape[i].get_Bx_By()
+        By += field_sep * unit.mT * (2 - i)
+        Bx += field_sep * unit.mT * (2 - i)
+        plot_fields(
+            Bx,
+            By,
+            T=grape[i].get_T(),
+            ax=ax["A"],
+            legend_loc=legend_locs[i],
+        )
+        # for j in range(2):
+        # ax2[j, i] = subfig2.add_subplot(subgrid2[j, i])
+        psi = grape[i].X[0] @ psi0[i]
+        psi_spec = grape[i].X_spec[0] @ psi0_spec[i]
+        psi = psi[:, [0, 4, 7]]
+        psi_spec = psi_spec[:, [0, 2, 3]]
+
+        xf = round(grape[i].tN / unit.ns)
+
+    # WAVE FUNCTION PLOT
+
+    # interested in psi[i] for i in [16, 18, 28, 30]
+
     psi1 = grape[0].X[0] @ gate.spin_1
     psi1_spec = (grape[0].X_spec[0] @ gate.spin_00)[:, [0, 2, 1, 3]]
     psi1_5s = batch_kron(psi1, psi1_spec)
@@ -1382,50 +1371,37 @@ def latest_single_sys(
     psi3_5s = batch_kron(psi3, psi3_spec)
 
     psi = pt.cat((psi1_5s, psi2_5s, psi3_5s))
-
-    plot_psi(psi, T=T, label_getter=label_getter_5spin, colors=colors_5spin, ax=ax["D"])
-
-    ax["A"].set_yticks([-0.25, 0, 0.25])
-    ax["B"].set_yticks([-0.5, 0, 0.5])
-    ax["C"].set_yticks([-0.25, 0, 0.25])
-    ax["A"].set_ylim([-0.3, 0.3])
-    ax["B"].set_ylim([-0.55, 0.55])
-    ax["C"].set_ylim([-0.3, 0.3])
-    for i in range(3):
-        # ax1[i] = subfig1.add_subplot(subgrid1[i, :])
-        plot_fields(
-            *grape[i].get_Bx_By(), T=grape[i].get_T(), ax=ax1[i], legend_loc="right"
-        )
-        ax1[i].set_ylabel("B-field (mT)")
-        # for j in range(2):
-        # ax2[j, i] = subfig2.add_subplot(subgrid2[j, i])
-        psi = grape[i].X[0] @ psi0[i]
-        psi_spec = grape[i].X_spec[0] @ psi0_spec[i]
-        psi = psi[:, [0, 4, 7]]
-        psi_spec = psi_spec[:, [0, 2, 3]]
-
-        xf = round(grape[i].tN / unit.ns)
-        ax1[i].set_xticks([100 * i for i in range(10) if 100 * i < xf] + [xf])
-        ax1[i].set_xlim([-20, 400])
-
-        fontsize = 12
-        label_axis(ax1[i], pulse_labels[i], -0.07, -0.5, fontsize=fontsize)
-    ax["D"].set_xlim(0, real(T[-1] / unit.ns) + 190)
+    psi = psi[:, [16, 18, 28, 30]]
+    plot_psi(
+        psi,
+        T=T,
+        label_getter=label_getter_reduced_5spin,
+        colors=["red", "green", "gray", "black"],
+        ax=ax["D"],
+        linestyles=["-", "-", "--", ":"],
+    )
+    ax["D"].set_xlim(0, real(T[-1] / unit.ns) + 140)
     ax["D"].set_ylim([0, 1.2])
     t12 = real(T1[-1] / unit.ns)
     t23 = real(T2[-1] / unit.ns)
     tf = real(T3[-1] / unit.ns)
     ax["D"].set_xticks([0, pt.round(t12), pt.round(t23), pt.round(tf)])
-    ax["D"].axvline(t12, color="black", linestyle="--")
-    ax["D"].axvline(t23, color="black", linestyle="--")
-    ax["D"].axvline(tf, color="black", linestyle="--")
+    linewidth = 0.6
+    color = "gray"
+    linestyle = "-"
+    ax["D"].axvline(t12, color="black", linestyle=linestyle, linewidth=linewidth)
+    ax["D"].axvline(t23, color="black", linestyle=linestyle, linewidth=linewidth)
+    ax["D"].axvline(tf, color="black", linestyle=linestyle, linewidth=linewidth)
+    ax["D"].set_yticks([0, 1])
+    ax["D"].set_ylabel("$|\psi_k|$")
     y_offset = 0.8
     fontsize = 13
     label_axis(ax["D"], "Steps 2-3", 0.05, y_offset, fontsize)
     label_axis(ax["D"], "Step 4", 0.35, y_offset, fontsize)
     label_axis(ax["D"], "Steps 5-6", 0.63, y_offset, fontsize)
-    label_axis(ax["D"], "(d)", x_offset=-0.07, y_offset=-0.25, fontsize=fontsize)
-    fig.tight_layout()
+
+    label_axis(ax["A"], "(a)", x_offset=-0.07, y_offset=-0.1, fontsize=fontsize)
+    label_axis(ax["D"], "(b)", x_offset=-0.07, y_offset=-0.25, fontsize=fontsize)
 
     if fp is not None:
         fig.savefig(fp)
@@ -1434,7 +1410,7 @@ def latest_single_sys(
 def multi_sys_pie_with_cost(grape_fp1="fields/g508_70S_3q_3966ns_8500step"):
     fids1, fields1 = get_fids_and_field_saved(grape_fp1)
 
-    cost_hist = pt.load(grape_fp1+'_cost_hist')
+    cost_hist = pt.load(grape_fp1 + "_cost_hist")
     # Bx1, By1, T1 = map(real, fields1)
 
     fig, ax = plt.subplots(1, 1)
@@ -1463,6 +1439,138 @@ def test_multi_sys_grape(grape_fp, step):
     # fidelity_bar_plot(fids, ylim = [0,1])
 
 
+def test_3fid():
+    fp = "fields/g490_70S_3q_2974ns_8000step"
+    fids, fields = get_fids_and_field_saved(fp)
+    ax = plt.subplot()
+    ax.set_ylim(0.99, 1.001)
+    fids = np.array([pt.mean(fids[:70]), pt.min(fids[:70]), fids[70]])
+    fids = np.concatenate((fids, fids, fids))
+    x = np.linspace(0, 2, 3)
+    x = np.concatenate((x, x + 4, x + 8))
+    fewer_fid_bar(
+        fids,
+        ax,
+        x=x,
+        labels=["Average Fidelity", "Minimum Fidelity", "Spectator Fidelity"] * 3,
+    )
+
+
+def multisys_upgraded(
+    grape_fp1="fields/g513_70S_3q_1983ns_8000step",
+    grape_fp2="fields/g491_70S_3q_2974ns_8000step",
+    grape_fp3="fields/g490_70S_3q_2974ns_8000step",
+    figure_fp=None,
+):
+    (fids1, fields1), (fids2, fields2), (fids3, fields3) = map(
+        get_fids_and_field_saved, [grape_fp1, grape_fp2, grape_fp3]
+    )
+
+    Bx1, By1, T1 = map(real, fields1)
+    Bx2, By2, T2 = map(real, fields2)
+    Bx3, By3, T3 = map(real, fields3)
+    Bx = [Bx1, Bx2, Bx3]
+    By = [By1, By2, By3]
+    T = [T1, T2, T3]
+
+    cost1, cost2, cost3 = map(
+        pt.load,
+        [grape_fp1 + "_cost_hist", grape_fp2 + "_cost_hist", grape_fp3 + "_cost_hist"],
+    )
+
+    Bx_col = color_cycle[0]
+    By_col = color_cycle[1]
+    fig, ax = plt.subplot_mosaic(
+        [["A", "B"], ["C", "C"]],
+        gridspec_kw={"height_ratios": [1, 1.5], "width_ratios": [1.5, 1]},
+    )
+    fig.set_size_inches(16 / 2.54, 18 / 2.54)
+
+    #### FIDELITY BAR PLOT
+    avgfid1, avgfid2, avgfid3 = map(pt.mean, [fids1[:70], fids2[:70], fids3[:70]])
+    minfid1, minfid2, minfid3 = map(pt.min, [fids1[:70], fids2[:70], fids3[:70]])
+    (specfid1, specfid2, specfid3) = (fids1[-1], fids2[-1], fids3[-1])
+
+    fids = np.array(
+        [
+            avgfid1,
+            minfid1,
+            specfid1,
+            avgfid2,
+            minfid2,
+            specfid2,
+            avgfid3,
+            minfid3,
+            specfid3,
+        ]
+    )
+    x = np.array([0, 1, 2])
+    x = np.concatenate((x, x + 4, x + 8))
+    colors = 3 * ["orange", "blue", "green"]
+    colors = 3*["red"] + 3*["blue"] + 3*["green"]
+
+    ax["A"].set_ylim(0.99, 1.001)
+    ax["A"].set_yticks([0.99, 1.00])
+    ax["A"].set_ylabel("Fidelity")
+    fewer_fid_bar(
+        fids,
+        ax["A"],
+        x=x,
+        labels=["Average", "Minimum", "Spectator"] * 3,
+        colors=colors,
+        label_fontsize=10,
+    )
+    ax["A"].set_xticks([1, 5, 9], ["MW1", "MW2", "MW3"])
+
+    #### COST HIST PLOT
+    plot_cost_hist(cost1, ax["B"], legend_label="cost 1", color="red")
+    plot_cost_hist(cost2, ax["B"], legend_label="cost 2", color="purple")
+    plot_cost_hist(cost3, ax["B"], legend_label="cost 3", color="green")
+    ax["B"].legend(loc="lower left")
+
+    #### FIELD PLOT
+    axt = ax["C"].twinx()
+    field_sep = 5
+    for i in range(3):
+        plot_fields_twinx(
+            Bx[i][100:] + (2 - i) * field_sep * unit.mT,
+            By[i][100:] + (2 - i) * field_sep * unit.mT,
+            T[i][100:],
+            ax=ax["C"],
+            axt=axt,
+            prop_zoom_start=0.301,
+            prop_zoom_end=0.32,
+            far_lim=2,
+            near_lim=0.3,
+            tick_lim=1,
+        )
+        ax["C"].text(
+            -0.025,
+            i * field_sep - 0.5,
+            f"MW{i+1}",
+            ha="center",
+            va="center",
+            fontsize=12,
+            rotation=90,
+        )
+    for axis in [ax["C"], axt]:
+        ylim = axis.get_ylim()
+        axis.set_ylim(ylim[0], 2 * field_sep + ylim[1])
+        yticks = axis.get_yticks()
+        yticks_new = np.concatenate(
+            (yticks, yticks + field_sep, yticks + 2 * field_sep)
+        )
+        ytick_labels = np.concatenate((yticks, yticks, yticks))
+        axis.set_yticks(yticks_new, ytick_labels)
+
+    label_axis(ax["C"], "Zoomed in", x_offset=0.27, y_offset=0.65, fontsize=12)
+    # label_axis(ax["A"], "(a)", y_offset=-0.2)
+    # label_axis(ax["B"], "(b)", x_offset=-0.01, y_offset=-0.0)
+    # label_axis(ax["C"], "(c)", x_offset=-0.06, y_offset=-0.1)
+    if figure_fp is not None:
+        fig.savefig(figure_fp)
+
+
 if __name__ == "__main__":
     # get_2e_flip_grape_pulse()
     # run_2e_swap()
@@ -1483,8 +1591,10 @@ if __name__ == "__main__":
     # multi_system_n_entangled_CX()
     # single_sys_n_entangled_CX()
     # multi_n_entangled_3_pulse()
-    latest_multi_sys()
+    # latest_multi_sys()
     # latest_single_sys()
     # test_multi_sys_grape("fields/g506_70S_3q_3966ns_8000step", step=1)
     # multi_sys_pie_with_cost()
+    # test_3fid()
+    multisys_upgraded()
     plt.show()

@@ -8,6 +8,66 @@ from utils import maxreal, minreal
 folder = "exchange_data_fab/"
 
 
+def unique_coupler_configs():
+    pos_1P = np.array([[0, 0, 0, 1, 1, 1], [0, 1, 2, 0, 1, 2]])
+
+    qubit_axis = np.array([[1], [0]])
+    pos_q1 = pos_1P
+    pos_coupler = pos_1P + 50 * qubit_axis
+    pos_q2 = pos_1P + 150 * qubit_axis
+
+    # pos_2P_1 = np.array([[10, 11, 12, 10, 11, 12], [5, 5, 5, 6, 6, 6]])
+    # pos_2P_2 = np.array([[10, 11, 12, 10, 11, 12], [-5, -5, -5, -4, -4, -4]])
+
+    unique_configs = {}
+
+    unique_hyperfines = {}
+    A_dict = {}
+    i_A = 0
+
+    def distance(r1, r2):
+        return np.sqrt(np.dot(r1 - r2, r1 - r2))
+
+    for i1 in range(6):
+        for i2 in range(6):
+            for i3 in range(6):
+                r1 = pos_q1[:, i1]
+                r2 = pos_coupler[:, i2]
+                r3 = pos_q2[:, i3]
+                d1 = distance(r1, r2)
+                d2 = distance(r1, r3)
+                d3 = distance(r2, r3)
+
+                if d1 > d2:
+                    dtemp = d1
+                    d1 = d2
+                    d2 = dtemp
+
+                d_trip = f"{d1:.2f},{d2:.2f},{d3:.2f}"
+
+                if d3 not in A_dict.keys():
+                    i_A += 1
+                unique_configs[d_trip] = unique_configs.get(d_trip, []) + [[d1, d2, d3]]
+                unique_hyperfines[f"{d3:.2f}"] = unique_hyperfines.get(
+                    f"{d3:.2f}", []
+                ) + [[i2, i3]]
+
+    n_sys = len(unique_configs.keys())
+
+    keys = list(unique_configs.keys())
+
+    J_100_110_18nm = pt.cat((J_100_18nm, J_110_18nm))
+    J_rand = pt.rand(39) * (
+        maxreal(J_100_110_18nm) - minreal(J_100_110_18nm)
+    ) + minreal(J_100_110_18nm)
+
+    print(f"{len(unique_configs.keys())} unique configurations")
+
+    # for key in unique_configs.keys():
+    #     print(key)
+    #     print(unique_configs[key])
+
+
 def get_unique_configs(fp):
     pos_1P_og = np.array([[0, 1, 2, 0, 1, 2], [0, 0, 0, 1, 1, 1]])
     pos_1P = np.array([[0, 0, 0, 1, 1, 1], [0, 1, 2, 0, 1, 2]])
@@ -336,7 +396,9 @@ if __name__ == "__main__":
     fp_10_20 = "U_1P_2P_10_20_J"
     fp_50_100 = "U_1P_2P_50_100_J"
     fp_10_110 = "U_1P_2P_10_110_J"
-    generate_J_from_uniform(Jmin=250, Jmax=500)
+    # generate_J_from_uniform(Jmin=250, Jmax=500)
     # get_unique_configs(fp)
     # save_unique_configs(fp)
     # inspect_A_J(fp)
+
+    unique_coupler_configs()
