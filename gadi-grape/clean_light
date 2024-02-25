@@ -1,4 +1,0 @@
-rm light_sub*.o*
-rm light_sub*.e*
-rm run_light*.stdout.*
-

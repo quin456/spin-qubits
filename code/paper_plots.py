@@ -174,6 +174,14 @@ def plot_lattice_sites(
     y1=6,
     ax_ticks=False,
     ax=None,
+    radius_site=0.4,
+    radius_P=0.4,
+    radius_Si=0.4,
+    alpha_Si=0.1,
+    color_Si="blue",
+    alpha_site=0.5,
+    alpha_P=1,
+    sites_colour=FigureColours.sites_colour,
 ):
     if ax is None:
         fig, ax = plt.subplots(1, 1)
@@ -183,12 +191,10 @@ def plot_lattice_sites(
 
     padding = 1
     all_sites = get_all_sites([-1, dist], [y0 - 1, y1], padding=padding)
-    plot_spheres(all_sites, ax=ax, alpha=0.1)
+    plot_spheres(all_sites, ax=ax, alpha=alpha_Si, radius=radius_Si, color=color_Si)
     ax.set_xlim([x0 - padding - 0.5, dist + padding + 0.5])
     ax.set_ylim([y0 - padding - 0.5, y1 + padding + 0.5])
     ax.set_aspect("equal")
-    sites_color = "#1DA4BF"
-    alpha = 0.5
     # plot_9_sites(0, 0, ax=ax, neighbour_color=sites_color)
 
     linewidth = 1.5
@@ -200,16 +206,21 @@ def plot_lattice_sites(
 
     alpha = 0.5
 
-    sites_colour = FigureColours.sites_colour
     sites_2P_upper, sites_2P_lower, sites_1P = get_donor_sites_1P_2P(
         delta_x, delta_y, d=d, separation_2P=separation_2P, orientation=orientation
     )
     for sites in [sites_2P_lower, sites_2P_upper, sites_1P]:
         for j, site in enumerate(sites):
             sites[j] = (site[0], site[1] - 1)
-    plot_spheres(sites_2P_lower, color=sites_colour, alpha=alpha, ax=ax)
-    plot_spheres(sites_2P_upper, color=sites_colour, alpha=alpha, ax=ax)
-    plot_spheres(sites_1P, color=sites_colour, alpha=alpha, ax=ax)
+    plot_spheres(
+        sites_2P_lower, color=sites_colour, alpha=alpha_site, ax=ax, radius=radius_site
+    )
+    plot_spheres(
+        sites_2P_upper, color=sites_colour, alpha=alpha_site, ax=ax, radius=radius_site
+    )
+    plot_spheres(
+        sites_1P, color=sites_colour, alpha=alpha_site, ax=ax, radius=radius_site
+    )
 
     s2L = sites_2P_lower[5]
     s2U = sites_2P_upper[3]
@@ -218,9 +229,9 @@ def plot_lattice_sites(
     # ax.plot([s2L[0], s2U[0]], [s2L[1], s2U[1]], color='black', linestyle='dotted', label='Hyperfine separation')
     # ax.plot([(s2L[0]+s2U[0])/2, s1[0]], [(s2L[1]+s2U[1])/2, s1[1]], color='black', linestyle='dashed', label='Exchange separation')
 
-    plot_spheres([s2U], color="red", ax=ax, zorder=3)
-    plot_spheres([s2L], color="red", ax=ax, zorder=3)
-    plot_spheres([s1], color="red", ax=ax, zorder=3)
+    plot_spheres([s2U], color="red", ax=ax, zorder=3, alpha=alpha_P)
+    plot_spheres([s2L], color="red", ax=ax, zorder=3, alpha=alpha_P)
+    plot_spheres([s1], color="red", ax=ax, zorder=3, alpha=alpha_P)
 
     # ax.plot([10,10], [5,6])
     # ax_length=5
@@ -315,6 +326,63 @@ def single_CX_for_many_exchanges():
         log_single_exchange(grape)
 
 
+def show_configs_to_scale(
+    sites_colour="green", alpha_site=1, radius_site=0.3, alpha_Si=0.22, fp=None
+):
+    fig, ax = plt.subplots(1, 1)
+    dist = int(16 / 0.384)
+    separation_2P = 2
+    plot_lattice_sites(
+        dist=dist + 5,
+        separation_2P=separation_2P,
+        ax=ax,
+        y1=dist + 2,
+        radius_Si=0.15,
+        alpha_Si=alpha_Si,
+        alpha_site=alpha_site,
+        radius_site=radius_site,
+        sites_colour=sites_colour,
+    )
+    _sites_2P_upper, _sites_2P_lower, sites_1P = get_donor_sites_1P_2P(
+        delta_x=0,
+        delta_y=dist,
+        d=1,
+        separation_2P=separation_2P,
+        orientation=0,
+        x0=-2,
+        y0=1,
+    )
+
+    # plot_spheres(
+    #     _sites_2P_lower, color=sites_colour, alpha=alpha_site, ax=ax, radius=radius_site
+    # )
+    # plot_spheres(
+    #     _sites_2P_upper, color=sites_colour, alpha=alpha_site, ax=ax, radius=radius_site
+    # )
+    plot_spheres(
+        sites_1P, color=sites_colour, alpha=alpha_site, ax=ax, radius=radius_site
+    )
+
+    plot_spheres(sites_1P[2:3], color="red", ax=ax, zorder=3, alpha=1)
+    fontsize = 12
+
+    x_1P = 0.68
+    y_1P = 0.33
+
+    x_2P_1 = 0.16
+    y_2P_1 = 0.0
+    x_2P_2 = 0.2
+    y_2P_2 = 0.38
+    # label_axis(ax[0], "2P", x_offset=x_2P_1, y_offset=y_2P_1, fontsize=fontsize)
+    # label_axis(ax[0], "1P", x_offset=x_1P, y_offset=y_1P, fontsize=fontsize)
+    # label_axis(ax[1], "2P", x_offset=x_2P_2, y_offset=y_2P_2, fontsize=fontsize)
+    # label_axis(ax[1], "1P", x_offset=x_1P, y_offset=y_1P, fontsize=fontsize)
+
+    fig.set_size_inches(9 / 2.54, 9 / 2.54)
+    if fp is not None:
+        fig.savefig(fp)
+
+
 if __name__ == "__main__":
     # parallel_1P_1P_CNOTs()
     # draw_HS_architecture(fp=f'{folder}HS-distance-5.pdf')
@@ -355,5 +423,22 @@ if __name__ == "__main__":
     # single_sys_n_entangled_CX(fp=f"{folder}single-sys-n-entangled.pdf")
     # latest_single_sys(fp = f"{folder}single-sys-5spin.pdf")
     # latest_multi_sys(f"{folder}multi-sys-n-entangled.pdf")
-    multisys_upgraded(figure_fp=f"{folder}multi-sys-n-entangled.pdf")
+
+    grape_fp1 = "fields/g523_70S_3q_2974ns_8000step"
+    grape_fp2 = "fields/g491_70S_3q_2974ns_8000step"
+    grape_fp3 = "fields/g521_70S_3q_2974ns_8000step"
+
+    multisys_upgraded(
+        grape_fp1=grape_fp1,
+        grape_fp2=grape_fp2,
+        grape_fp3=grape_fp3,
+        figure_fp=f"{folder}multi-sys-n-entangled.pdf",
+    )
+    three_fidelity_bar_plots(
+        grape_fp1=grape_fp1,
+        grape_fp2=grape_fp2,
+        grape_fp3=grape_fp3,
+        figure_fp=f"{folder}fid-bars.pdf",
+    )
+    # show_configs_to_scale(fp=f"{folder}1P-2P-configs-to-scale.pdf")
     plt.show()

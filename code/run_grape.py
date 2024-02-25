@@ -51,7 +51,7 @@ def get_fids_and_field_saved(fp):
     fields = pt.load(fp_fields, map_location=pt.device("cpu"))
     fields[:2] *= unit.T
     fields[2] *= unit.ns
-    print(fids)
+    print(f"min fid = {minreal(fids)}")
     return fids, fields
 
 
@@ -290,19 +290,19 @@ if __name__ == "__main__":
     #     stop_fid_min=0.99,
     #     stop_fid_avg=0.99
     # )
-    # grape = run_CNOTs(
-    #     800 * unit.ns,
-    #     N=2000,
-    #     J=get_J_1P_2P(3),
-    #     A=get_A_1P_2P(3),
-    #     verbosity=-1,
-    #     save_data=False,
-    #     dynamic_opt_plot=True,
-    #     dynamic_params=True,
-    #     lam=1e7,
-    #     kappa=1e2,
-    # )
-    # print(grape.get_opt_state())
-    get_fids_and_field_saved("fields/g480_70S_3q_3966ns_8000step")
+    grape = run_CNOTs(
+        800 * unit.ns,
+        N=2000,
+        J=get_J_1P_2P(2),
+        A=get_A_1P_2P(2),
+        verbosity=-1,
+        save_data=False,
+        dynamic_opt_plot=False,
+        dynamic_params=True,
+        lam=1e7,
+        kappa=1e2,
+    )
+    print(grape.get_opt_state())
+    # get_fids_and_field_saved("fields/g480_70S_3q_3966ns_8000step")
     if not pt.cuda.is_available():
         plt.show()

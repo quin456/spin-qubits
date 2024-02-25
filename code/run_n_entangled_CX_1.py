@@ -22,13 +22,12 @@ if __name__ == "__main__":
     # )
 
     run_n_entangled_CX(
-        tN=4000 * unit.ns,
+        tN=3000 * unit.ns,
         N=8000,
         nS=1,
         max_time=23.5 * 3600,
         lam=1e7,
-        step=1,
+        step=70,
         verbosity=3,
-        u0_shape="TP"
         # prev_grape_fp="fields/c1356_1S_3q_479ns_2500step",
     )

@@ -14,7 +14,6 @@ from run_grape import run_CNOTs, get_fids_and_field_from_fp
 
 
 def test_coupler_pulse(fp="fields/c1212_1S_3q_100ns_500step"):
-
     Bx, By, T = load_XY(fp)
 
     X = get_electron_X(T[-1], len(T), 0, get_A(1, 3), get_J(1, 3), Bx, By)
@@ -62,7 +61,6 @@ def run_coupler_grape(
     simulate_spectators=True,
     matrix_exp_batches=1,
 ):
-
     J = get_J(nS, 3, J1=J_low[:9], J2=J_low[:9])
     A = get_A(nS, 3, NucSpin=[0, 0, 1])
 
@@ -115,4 +113,3 @@ if __name__ == "__main__":
     # test_coupler_pulse()
     if not pt.cuda.is_available():
         plt.show()
-

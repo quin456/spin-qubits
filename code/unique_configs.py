@@ -1,3 +1,5 @@
+import torch 
+torch.set_num_threads(1)
 import numpy as np
 from pdb import set_trace
 import matplotlib.pyplot as plt
@@ -157,12 +159,15 @@ def save_unique_configs(fp):
     pt.save(pt.tensor(J), f"{exch_data_folder}{fp}_J")
 
 
-def generate_J_from_uniform(nA=100, nJ=70, Jmin=10, Jmax=100, fp=None):
+def generate_J_from_uniform(nA=100, nJ=70, Jmin=10, Jmax=100, fp=None, ver=""):
     # A_gen = np.random.uniform(Amin, Amax, nA)
     J_gen = Jmin + pt.rand(nJ) * (Jmax - Jmin)
 
     # pt.save(A_gen, f"{folder}{fp}_A_gen")
-    pt.save(J_gen, f"{folder}J-{Jmin}-{Jmax}")
+    J_fp = f"{folder}J-{Jmin}-{Jmax}"
+    if ver:
+        J_fp += f"-{ver}"
+    pt.save(J_gen, J_fp)
 
 
 def inspect_A_J(fp="U_1P_2P"):
@@ -283,7 +288,9 @@ def get_AJ_distances(d_pairs):
     return d_A, d_J
 
 
-def get_donor_sites_1P_2P(delta_x, delta_y, d=1, separation_2P=2, orientation=0):
+def get_donor_sites_1P_2P(
+    delta_x, delta_y, d=1, separation_2P=2, orientation=0, x0=0, y0=0
+):
     delta_x *= d
     delta_y *= d
 
@@ -301,15 +308,15 @@ def get_donor_sites_1P_2P(delta_x, delta_y, d=1, separation_2P=2, orientation=0)
 
     for x in sites_2P_xs:
         for y in sites_2P_ys_upper:
-            sites_2P_upper.append((x, y))
-            sites_2P_right.append((y + 2, x))
+            sites_2P_upper.append((x + x0, y + y0))
+            sites_2P_right.append((y + y0 + 2, x + x0))
         for y in sites_2P_ys_lower:
-            sites_2P_lower.append((x, y))
-            sites_2P_left.append((y + 2, x))
+            sites_2P_lower.append((x + x0, y + y0))
+            sites_2P_left.append((y + y0 + 2, x + x0))
     for x in sites_1P_xs:
         for y in sites_1P_ys:
-            sites_1P_0.append((y + 1 + delta_x, x + delta_y))
-            sites_1P_1.append((x + delta_x, y + delta_y))
+            sites_1P_0.append((y + y0 + 1 + delta_x, x + x0 + delta_y))
+            sites_1P_1.append((x + x0 + delta_x, y + y0 + delta_y))
     if orientation == 0:
         return sites_2P_left, sites_2P_right, sites_1P_0
     else:
@@ -395,8 +402,9 @@ if __name__ == "__main__":
     fp_tight = "U_1P_2P_tight_J"
     fp_10_20 = "U_1P_2P_10_20_J"
     fp_50_100 = "U_1P_2P_50_100_J"
+    fp_50_100_2 = "U_1P_2P_50_100_J_2"
     fp_10_110 = "U_1P_2P_10_110_J"
-    # generate_J_from_uniform(Jmin=250, Jmax=500)
+    generate_J_from_uniform(Jmin=50, Jmax=100, ver=3)
     # get_unique_configs(fp)
     # save_unique_configs(fp)
     # inspect_A_J(fp)

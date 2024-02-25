@@ -1,0 +1,1 @@
+scp -r code/run_n_entangled_CX_1.py code/GRAPE.py code/run_n_entangled_CX_2.py code/run_n_entangled_CX_3.py qa4681@gadi.nci.org.au:spin-qubits/code

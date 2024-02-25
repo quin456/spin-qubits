@@ -184,6 +184,8 @@ def get_multi_system_resonant_frequencies_and_transitions(
     nq = get_nq_from_dim(S.shape[-1])
     Hw_shape = (gate.get_Xn(nq) + gate.get_Yn(nq)) / np.sqrt(2)
     if len(S.shape) == 2:
+        if return_transitions:
+            raise Exception("Hasn't been taught to deal with single system")
         return get_resonant_frequencies(S=S, D=D, Hw_shape=Hw_shape)
     rf = pt.tensor([], dtype=real_dtype, device=device)
     transitions = []

@@ -25,8 +25,6 @@ from hamiltonians import get_pulse_hamiltonian, sum_H0_Hw, get_X_from_H
 from matplotlib.colors import LinearSegmentedColormap
 
 
-
-
 def get_2P_1P_CX_pulse():
     tN = 300 * unit.ns
     N = 2000
@@ -213,8 +211,6 @@ def cnot_2P_1P():
     grape = run_2P_1P_CNOTs(tN, N, 1, max_time=10)
 
 
-
-
 def multi_2P_1P_CX(fp=None, grape_fp="fields/g370_69S_2q_3000ns_8000step"):
     fids, fields = get_fids_and_field_from_fp(
         grape_fp, get_from_grape=False, A_spec=-get_A_spec_single()
@@ -286,8 +282,6 @@ def check_e_flip_phases(grape_fp="fields/c1314_3S_3q_500ns_1000step"):
         fids[k] = fidelity(grape.X[k, -1] @ gate.X, grape.X[69 + k, -1])
 
     print(fids)
-
-
 
 
 def test_ee_flip_grape_pulse(grape_fp="fields/c1315_3S_3q_500ns_1000step"):
@@ -1439,27 +1433,10 @@ def test_multi_sys_grape(grape_fp, step):
     # fidelity_bar_plot(fids, ylim = [0,1])
 
 
-def test_3fid():
-    fp = "fields/g490_70S_3q_2974ns_8000step"
-    fids, fields = get_fids_and_field_saved(fp)
-    ax = plt.subplot()
-    ax.set_ylim(0.99, 1.001)
-    fids = np.array([pt.mean(fids[:70]), pt.min(fids[:70]), fids[70]])
-    fids = np.concatenate((fids, fids, fids))
-    x = np.linspace(0, 2, 3)
-    x = np.concatenate((x, x + 4, x + 8))
-    fewer_fid_bar(
-        fids,
-        ax,
-        x=x,
-        labels=["Average Fidelity", "Minimum Fidelity", "Spectator Fidelity"] * 3,
-    )
-
-
 def multisys_upgraded(
     grape_fp1="fields/g513_70S_3q_1983ns_8000step",
     grape_fp2="fields/g491_70S_3q_2974ns_8000step",
-    grape_fp3="fields/g490_70S_3q_2974ns_8000step",
+    grape_fp3="fields/g521_70S_3q_2974ns_8000step",
     figure_fp=None,
 ):
     (fids1, fields1), (fids2, fields2), (fids3, fields3) = map(
@@ -1507,7 +1484,7 @@ def multisys_upgraded(
     x = np.array([0, 1, 2])
     x = np.concatenate((x, x + 4, x + 8))
     colors = 3 * ["orange", "blue", "green"]
-    colors = 3*["red"] + 3*["blue"] + 3*["green"]
+    colors = 3 * ["red"] + 3 * ["blue"] + 3 * ["green"]
 
     ax["A"].set_ylim(0.99, 1.001)
     ax["A"].set_yticks([0.99, 1.00])
@@ -1571,6 +1548,56 @@ def multisys_upgraded(
         fig.savefig(figure_fp)
 
 
+def three_fidelity_bar_plots(
+    grape_fp1="fields/g510_70S_3q_2974ns_8500step",
+    grape_fp2="fields/g491_70S_3q_2974ns_8000step",
+    grape_fp3="fields/g490_70S_3q_2974ns_8000step",
+    figure_fp=None,
+):
+    fids1, fields1 = get_fids_and_field_saved(grape_fp1)
+    fids2, fields2 = get_fids_and_field_saved(grape_fp2)
+    fids3, fields3 = get_fids_and_field_saved(grape_fp3)
+
+    fig, ax = plt.subplots(3, 1)
+
+    n_sys = 70
+    n_spec = 1
+    systems_ax = np.concatenate(
+        (np.linspace(1, n_sys, n_sys), np.array([n_sys + n_spec + 3]))
+    )
+
+    fidelity_bar_plot(
+        fids1, systems_ax=systems_ax, ax=ax[0], f=[0.9999], colours=["green"]
+    )
+    fidelity_bar_plot(
+        fids2,
+        systems_ax=systems_ax,
+        ax=ax[1],
+        f=[0.9999],
+        colours=["green"],
+    )
+    fidelity_bar_plot(
+        fids3,
+        systems_ax=systems_ax,
+        f=[0.9999, 0.999],
+        colours=["green", "orange"],
+        ax=ax[2],
+    )
+
+    for axis in ax:
+        axis.set_xticks([1, 30, 60, 74], [1, 30, 60, "Spec"])
+
+    fig.set_size_inches(16 / 2.54, 13 / 2.54)
+    fig.tight_layout()
+    if figure_fp is not None:
+        fig.savefig(figure_fp)
+
+
+def test_check_spike(grape_fp):
+    grape = load_grape(grape_fp, Grape=Grape_ee_Flip, step=1)
+    pass
+
+
 if __name__ == "__main__":
     # get_2e_flip_grape_pulse()
     # run_2e_swap()
@@ -1595,6 +1622,16 @@ if __name__ == "__main__":
     # latest_single_sys()
     # test_multi_sys_grape("fields/g506_70S_3q_3966ns_8000step", step=1)
     # multi_sys_pie_with_cost()
-    # test_3fid()
-    multisys_upgraded()
+
+
+    # grape_fp1 = "fields/g517_70S_3q_2769ns_8000step"
+    grape_fp1 = "fields/g510_70S_3q_2974ns_8500step"
+    grape_fp2 = "fields/g491_70S_3q_2974ns_8000step"
+    # grape_fp3 = "fields/g490_70S_3q_2974ns_8000step"
+    grape_fp3 = "fields/g521_70S_3q_2974ns_8000step"
+
+
+    # three_fidelity_bar_plots(grape_fp1, grape_fp2, grape_fp3)
+    multisys_upgraded(grape_fp1, grape_fp2, grape_fp3)
+    # test_check_spike(grape_fp=grape_fp1)
     plt.show()

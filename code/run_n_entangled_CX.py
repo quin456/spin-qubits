@@ -17,7 +17,7 @@ def run_n_entangled_CX(
     prev_grape_fp=None,
     A=None,
     J=None,
-    J_fp="J-50-100",
+    J_fp="J-50-100-2",
     step=1,
     **kwargs
 ):
